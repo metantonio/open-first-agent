@@ -53,7 +53,7 @@ python main.py
 
 2. Enter the cigar brand you want to compare when prompted
 ```
-Enter the cigar brand to compare: Cohiba
+Enter the cigar brand to compare: Davidoff
 ```
 
 3. The script will output the locations of the generated JSON and CSV files with the comparison data
