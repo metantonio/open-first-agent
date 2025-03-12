@@ -48,7 +48,7 @@ export OPENAI_API_KEY=your_api_key_here
 
 1. Run the main script
 ```bash
-python cigar_comparison.py
+python main.py
 ```
 
 2. Enter the cigar brand you want to compare when prompted
