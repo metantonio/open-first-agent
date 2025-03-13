@@ -4,11 +4,19 @@ import csv
 from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
-from agents import Agent, Runner, function_tool, AsyncOpenAI, OpenAIChatCompletionsModel, ModelSettings
+from agents import Agent, Runner, function_tool, AsyncOpenAI, OpenAIChatCompletionsModel, ModelSettings, AsyncOpenAI
 
 # External LLM provider (uncommentif you are goind to use Ollama, LLMStudio)
-external_provider = AsyncOpenAI(base_url = "http://localhost:11434/v1")
+external_provider= {
+    "model":"llama3.2",
+    "client":AsyncOpenAI(base_url = "http://localhost:11434/v1")
+}
 
+# If you are going to use OpenAI use this provider
+openai_provider= {
+    "model":"gpt-4o",
+    "client":AsyncOpenAI()
+}
 
 # Define tools for web scraping
 @function_tool
@@ -178,7 +186,7 @@ def save_to_json(comparison_data: list, brand: str) -> str:
         "comparisons": comparison_data
     }
     
-    filename = f"{brand.replace(' ', '_')}_comparison_{current_date}.json"
+    filename = f"./{brand.replace(' ', '_')}_comparison_{current_date}.json"
     
     with open(filename, 'w', encoding='utf-8') as f:
         json.dump(output_data, f, indent=2)
@@ -232,8 +240,8 @@ scraper_agent = Agent(
     then use the compare_products tool to find matching items.
     """,
     model=OpenAIChatCompletionsModel(
-        model="llama3.2",
-        openai_client=external_provider,
+        model=external_provider["model"],
+        openai_client=external_provider["client"],
     ),
     tools=[scrape_mikes_cigars, scrape_cigars_com, compare_products]
 )
@@ -248,8 +256,8 @@ json_agent = Agent(
     Use the save_to_json tool to accomplish this.
     """,
     model=OpenAIChatCompletionsModel(
-        model="llama3.2",
-        openai_client=external_provider,
+        model=external_provider["model"],
+        openai_client=external_provider["client"],
     ),
     tools=[save_to_json]
 )
@@ -263,8 +271,8 @@ csv_agent = Agent(
     Use the convert_json_to_csv tool to accomplish this.
     """,
     model=OpenAIChatCompletionsModel(
-        model="llama3.2",
-        openai_client=external_provider,
+        model=external_provider["model"],
+        openai_client=external_provider["client"],
     ),
     tools=[convert_json_to_csv]
 )
@@ -284,8 +292,8 @@ orchestrator_agent = Agent(
     Be helpful and informative throughout the process.
     """,
     model=OpenAIChatCompletionsModel(
-        model="llama3.2",
-        openai_client=external_provider,
+        model=external_provider["model"],
+        openai_client=external_provider["client"],
     ),
     model_settings=ModelSettings(temperature=0.1),
     handoffs=[scraper_agent, json_agent, csv_agent]
