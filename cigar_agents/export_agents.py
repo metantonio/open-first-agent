@@ -23,29 +23,33 @@ json_agent = Agent(
     
     Your task:
     1. Log: "Starting JSON export"
-    2. Validate input has required fields:
+    2. STRICTLY validate input has required fields:
        - Must have "brand" (string)
-       - Must have "comparison_data" (dict with scraper_results and parser_results)
+       - Must have "comparison_data" (dict) containing:
+         - "scraper_results" (dict) with: mikes_products, cigars_products, matched_products
+         - "parser_results" (dict) with: mikes_products, cigars_products, matched_products
        - Log any missing fields as errors
-    3. Use save_to_json() with EXACTLY these parameters:
-       - comparison_data: input["comparison_data"]
-       - brand: input["brand"]
-    4. Verify the file was created successfully
-    5. Return EXACTLY: {"json_file": "/path/to/saved/file.json"}
+    3. Call save_to_json() with EXACTLY:
+       save_to_json(
+           comparison_data=input["comparison_data"],
+           brand=input["brand"]
+       )
+    4. The result MUST be a file path string
+    5. Return EXACTLY: {"json_file": result}
     
-    Expected input format:
+    Example valid input:
     {
-        "brand": "brand_name",
+        "brand": "Davidoff",
         "comparison_data": {
             "scraper_results": {
-                "mikes_products": [...],
-                "cigars_products": [...],
-                "matched_products": [...]
+                "mikes_products": [{"name": "...", "price": "...", "url": "..."}],
+                "cigars_products": [{"name": "...", "price": "...", "url": "..."}],
+                "matched_products": []
             },
             "parser_results": {
-                "mikes_products": [...],
-                "cigars_products": [...],
-                "matched_products": [...]
+                "mikes_products": [{"name": "...", "price": "...", "url": "..."}],
+                "cigars_products": [{"name": "...", "price": "...", "url": "..."}],
+                "matched_products": []
             }
         }
     }
@@ -55,7 +59,7 @@ json_agent = Agent(
     - Validate ALL input data before processing
     - Return ONLY a dictionary with "json_file" key
     - If any error occurs:
-      1. Log the error details
+      1. Log the full error details
       2. Include error information in the response
     """,
     model=get_model_config(),
@@ -71,26 +75,26 @@ csv_agent = Agent(
     
     Your task:
     1. Log: "Starting CSV conversion"
-    2. Validate input has required fields:
-       - Must have "json_file" (string)
-       - Verify the JSON file exists
-       - Log any issues as errors
-    3. Use convert_json_to_csv() with EXACTLY:
-       - json_file: input["json_file"]
-    4. Verify the CSV file was created successfully
-    5. Return EXACTLY: {"csv_file": "/path/to/saved/file.csv"}
+    2. STRICTLY validate input:
+       - Must have "json_file" (string) pointing to an existing JSON file
+       - The JSON file must contain the expected data structure
+       - Log any validation errors
+    3. Call convert_json_to_csv() with EXACTLY:
+       convert_json_to_csv(json_file=input["json_file"])
+    4. The result MUST be a file path string
+    5. Return EXACTLY: {"csv_file": result}
     
-    Expected input format:
+    Example valid input:
     {
-        "json_file": "/path/to/json/file.json"
+        "json_file": "/absolute/path/to/comparison_data.json"
     }
     
     IMPORTANT:
     - Log EVERY step with detailed information
-    - Validate the input JSON file exists and is readable
+    - Verify the JSON file exists before attempting conversion
     - Return ONLY a dictionary with "csv_file" key
     - If any error occurs:
-      1. Log the error details
+      1. Log the full error details
       2. Include error information in the response
     """,
     model=get_model_config(),

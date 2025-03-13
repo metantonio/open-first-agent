@@ -6,7 +6,7 @@ from agents import function_tool
 
 logger = logging.getLogger(__name__)
 
-@function_tool
+#@function_tool
 def parse_generic_html(url: str, website_name: str, brand: str) -> list:
     """
     Generic HTML parser that analyzes the body content to find product information
@@ -34,7 +34,7 @@ def parse_generic_html(url: str, website_name: str, brand: str) -> list:
         products = []
         
         # Look for common product containers
-        product_containers = soup.find_all(['div', 'article', 'li'], class_=lambda x: x and any(term in x.lower() for term in ['product', 'item', 'result']))
+        product_containers = soup.find_all(['div', 'article', 'li', 'ol'], class_=lambda x: x and any(term in x.lower() for term in ['product', 'item', 'card', 'listing', 'brand', 'main-brand', 'product-card', 'item-product', 'product-detail', 'product-item']))
         
         if not product_containers:
             # Try alternative approach - look for price elements

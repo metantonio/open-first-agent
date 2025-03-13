@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from agents import Agent, ModelSettings
 import logging
 from .config import get_model_config
-from tools.parsing_tools import parse_mikes_cigars_html, parse_cigars_com_html
+from tools.parsing_tools import parse_mikes_cigars_html, parse_cigars_com_html, save_detailed_products_to_csv
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -45,5 +45,5 @@ html_parser_agent = Agent(
     """,
     model=get_model_config(),
     model_settings=ModelSettings(temperature=0.1),
-    tools=[parse_mikes_cigars_html, parse_cigars_com_html]
+    tools=[parse_mikes_cigars_html, parse_cigars_com_html, save_detailed_products_to_csv]
 ) 

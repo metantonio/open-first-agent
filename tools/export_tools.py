@@ -19,16 +19,27 @@ def save_to_json(comparison_data: dict, brand: str) -> str:
     Returns:
         Path to the saved JSON file
     """
-    current_date = datetime.now().strftime("%Y-%m-%d")
-    
-    # Create output directory if it doesn't exist
-    output_dir = os.path.join(os.getcwd(), "output")
-    os.makedirs(output_dir, exist_ok=True)
-    
-    # Prepare filename
-    filename = os.path.join(output_dir, f"{brand.replace(' ', '_')}_comparison_{current_date}.json")
-    
     try:
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        
+        # Get absolute path to project root
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        logger.info(f"Project root directory: {project_root}")
+        
+        # Create output directory if it doesn't exist
+        output_dir = os.path.join(project_root, "output")
+        os.makedirs(output_dir, exist_ok=True)
+        logger.info(f"Output directory: {output_dir}")
+        
+        # Log the data structure we're about to save
+        logger.info(f"Comparison data structure: {comparison_data.keys()}")
+        logger.info(f"Scraper results keys: {comparison_data.get('scraper_results', {}).keys()}")
+        logger.info(f"Parser results keys: {comparison_data.get('parser_results', {}).keys()}")
+        
+        # Prepare filename
+        filename = os.path.join(output_dir, f"{brand.replace(' ', '_')}_comparison_{current_date}.json")
+        logger.info(f"Will save to file: {filename}")
+        
         # Ensure the data structure is correct
         output_data = {
             "date": current_date,
@@ -40,19 +51,22 @@ def save_to_json(comparison_data: dict, brand: str) -> str:
         # Write the file with proper encoding
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(output_data, f, indent=2, ensure_ascii=False)
+            logger.info("JSON data written to file")
         
         # Verify file was created and has content
         if not os.path.exists(filename):
-            raise Exception("File was not created successfully")
+            raise Exception(f"File was not created at {filename}")
         
-        if os.path.getsize(filename) == 0:
-            raise Exception("File was created but is empty")
+        file_size = os.path.getsize(filename)
+        if file_size == 0:
+            raise Exception(f"File was created but is empty: {filename}")
+        logger.info(f"JSON file created successfully, size: {file_size} bytes")
             
-        logger.info(f"JSON file created successfully at: {filename}")
         return filename
         
     except Exception as e:
-        logger.error(f"Error creating JSON file: {str(e)}")
+        logger.error(f"Error in save_to_json: {str(e)}")
+        logger.error(f"Current working directory: {os.getcwd()}")
         raise
 
 @function_tool
@@ -67,16 +81,24 @@ def convert_json_to_csv(json_file: str) -> str:
         Path to the created CSV file
     """
     try:
+        logger.info(f"Starting CSV conversion from: {json_file}")
+        
         # Verify input file exists
         if not os.path.exists(json_file):
-            raise FileNotFoundError(f"JSON file not found: {json_file}")
+            raise FileNotFoundError(f"JSON file not found at: {json_file}")
+        
+        # Get the file size
+        json_size = os.path.getsize(json_file)
+        logger.info(f"Input JSON file size: {json_size} bytes")
         
         # Read the JSON data
         with open(json_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
+            logger.info(f"JSON data loaded, keys: {data.keys()}")
         
         # Create CSV filename
         csv_filename = json_file.replace('.json', '.csv')
+        logger.info(f"Will create CSV at: {csv_filename}")
         
         with open(csv_filename, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
@@ -86,6 +108,7 @@ def convert_json_to_csv(json_file: str) -> str:
             
             # Helper function to write products
             def write_products(products, source, results_type):
+                logger.info(f"Writing {len(products)} products from {source}")
                 for product in products:
                     matched = 'Yes' if any(
                         m.get('url') == product.get('url')
@@ -116,16 +139,18 @@ def convert_json_to_csv(json_file: str) -> str:
         
         # Verify CSV file was created
         if not os.path.exists(csv_filename):
-            raise Exception("CSV file was not created successfully")
+            raise Exception(f"CSV file was not created at {csv_filename}")
         
-        if os.path.getsize(csv_filename) == 0:
-            raise Exception("CSV file was created but is empty")
+        csv_size = os.path.getsize(csv_filename)
+        if csv_size == 0:
+            raise Exception(f"CSV file was created but is empty: {csv_filename}")
+        logger.info(f"CSV file created successfully, size: {csv_size} bytes")
         
-        logger.info(f"CSV file created successfully at: {csv_filename}")
         return csv_filename
         
     except Exception as e:
-        logger.error(f"Error creating CSV file: {str(e)}")
+        logger.error(f"Error in convert_json_to_csv: {str(e)}")
+        logger.error(f"Current working directory: {os.getcwd()}")
         raise
 
 @function_tool

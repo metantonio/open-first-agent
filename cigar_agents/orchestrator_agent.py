@@ -29,64 +29,74 @@ orchestrator_agent = Agent(
        - Log: f"Processing request for brand: {brand}"
 
     2. Call the scraper_agent to get initial results:
-       - Input MUST be: {"brand": brand}
+       - Input MUST be EXACTLY: {"brand": brand}
        - Store the complete result in scraper_results
-       - Log: f"Received scraper results: {scraper_results}"
-       - Validate that scraper_results contains the expected keys
+       - Log: f"Received scraper results with keys: {scraper_results.keys()}"
+       - VERIFY scraper_results has all required keys: mikes_products, cigars_products, matched_products
+       - If any key is missing, raise an error
        - Log: f"Scraper found {len(scraper_results['mikes_products'])} Mike's products and {len(scraper_results['cigars_products'])} Cigars.com products"
 
     3. Call the html_parser_agent to get detailed results:
-       - Input MUST be: {"brand": brand}
+       - Input MUST be EXACTLY: {"brand": brand}
        - Store the complete result in parser_results
-       - Log: f"Received parser results: {parser_results}"
-       - Validate that parser_results contains the expected keys
+       - Log: f"Received parser results with keys: {parser_results.keys()}"
+       - VERIFY parser_results has all required keys: mikes_products, cigars_products, matched_products
+       - If any key is missing, raise an error
        - Log: f"Parser found {len(parser_results['mikes_products'])} Mike's products and {len(parser_results['cigars_products'])} Cigars.com products"
 
     4. Call the json_agent to save the combined results:
        - First log: "Preparing to save JSON data"
-       - Input MUST be EXACTLY:
+       - VERIFY both results have required structure
+       - Create input_data EXACTLY as:
          {
            "brand": brand,
            "comparison_data": {
-               "scraper_results": scraper_results,
-               "parser_results": parser_results
+               "scraper_results": {
+                   "mikes_products": scraper_results["mikes_products"],
+                   "cigars_products": scraper_results["cigars_products"],
+                   "matched_products": scraper_results["matched_products"]
+               },
+               "parser_results": {
+                   "mikes_products": parser_results["mikes_products"],
+                   "cigars_products": parser_results["cigars_products"],
+                   "matched_products": parser_results["matched_products"]
+               }
            }
          }
-       - Log the input data: f"Sending data to JSON agent: {input_data}"
-       - The response will be a dictionary with "json_file" key
-       - Store the result.json_file path
-       - Verify the file exists: os.path.exists(result.json_file)
-       - Log: f"JSON file created at: {result.json_file}"
+       - Log: f"JSON input data structure: {input_data}"
+       - Call json_agent with input_data
+       - VERIFY response is a dictionary with "json_file" key
+       - Store the result["json_file"] path
+       - VERIFY file exists: os.path.exists(result["json_file"])
+       - Log: f"JSON file created at: {result['json_file']}"
 
     5. Call the csv_agent to convert the JSON:
        - First log: "Preparing to convert to CSV"
-       - Input MUST be EXACTLY: {"json_file": result.json_file}
-       - Log: f"Sending JSON file path to CSV agent: {result.json_file}"
-       - The response will be a dictionary with "csv_file" key
-       - Store the result.csv_file path
-       - Verify the file exists: os.path.exists(result.csv_file)
-       - Log: f"CSV file created at: {result.csv_file}"
+       - VERIFY JSON file exists
+       - Create input_data EXACTLY as: {"json_file": result["json_file"]}
+       - Log: f"CSV input data: {input_data}"
+       - Call csv_agent with input_data
+       - VERIFY response is a dictionary with "csv_file" key
+       - Store the result["csv_file"] path
+       - VERIFY file exists: os.path.exists(result["csv_file"])
+       - Log: f"CSV file created at: {result['csv_file']}"
 
-    6. Return the EXACT structure:
+    6. Return EXACTLY:
     {
         "scraper_results": scraper_results,
         "parser_results": parser_results,
-        "json_file": result.json_file,
-        "csv_file": result.csv_file
+        "json_file": result["json_file"],
+        "csv_file": result["csv_file"]
     }
 
     IMPORTANT RULES:
-    - Each agent must ONLY use its own designated tools
-    - The scraper_agent and html_parser_agent MUST NOT try to save files directly
-    - ALL file saving operations MUST go through json_agent or csv_agent
-    - Handle errors with clear messages
+    - VERIFY all data structures before passing between agents
+    - VERIFY all files exist after creation
     - Log EVERY step with detailed information
-    - Validate all data before passing between agents
-    - VERIFY that files exist after export operations
-    - If any step fails:
-      1. Log the error details
-      2. Try to continue with remaining steps
-      3. Include error information in the final response
+    - If any verification fails:
+      1. Log the full error details
+      2. Include the exact data structure that failed
+      3. Try to continue with remaining steps
     """,
     model=get_model_config(),
     model_settings=ModelSettings(temperature=0.1),
