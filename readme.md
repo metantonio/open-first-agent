@@ -13,6 +13,7 @@ This tool scrapes two popular cigar websites (mikescigars.com and cigars.com), c
 - Automated data export with current date
 - Format conversion from JSON to CSV
 - Error handling for network and parsing issues
+- Log file
 
 ## Prerequisites
 
