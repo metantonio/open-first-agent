@@ -4,7 +4,7 @@ import csv
 from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
-from agents import Agent, Runner, function_tool, AsyncOpenAI, OpenAIChatCompletionsModel, ModelSettings, AsyncOpenAI
+from agents import Agent, Runner, function_tool, AsyncOpenAI, OpenAIChatCompletionsModel, ModelSettings, AsyncOpenAI, WebSearchTool
 import os
 import logging
 import sys
@@ -387,7 +387,7 @@ scraper_agent = Agent(
         model=external_provider["model"],
         openai_client=external_provider["client"],
     ),
-    tools=[scrape_mikes_cigars, scrape_cigars_com, compare_products]
+    tools=[scrape_mikes_cigars, scrape_cigars_com, compare_products],
 )
 
 # Define the JSON Export Agent
