@@ -59,6 +59,23 @@ pip install -r requirements.txt
 export OPENAI_API_KEY='your-api-key'
 ```
 
+### API Key Requirements
+
+The OpenAI API key has different requirements depending on your usage:
+
+1. **Using OpenAI Models**:
+   - A valid OpenAI API key with credits is **required**
+   - The key is used for both model calls and trace logging
+   - Set up the key as shown in the installation steps above
+
+2. **Using Local LLMs (e.g., Ollama)**:
+   - No OpenAI credits are required for model calls
+   - A valid OpenAI API key is still required for trace logging
+   - You can use a free API key with no credits
+   - If you don't need tracing, you can skip the API key setup, but read OpenAI Agents SDK
+
+To disable tracing and use local LLMs without an OpenAI API key, modify the logging configuration in your code.
+
 ## Usage
 
 Run the main script:
