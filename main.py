@@ -749,7 +749,7 @@ async def main():
     current_dir = os.getcwd()
     logger.info(f"Current working directory: {current_dir}")
     
-    # Initialize variables
+    # Initialize variables with proper structure
     mikes_products = []
     cigars_products = []
     matches = []
@@ -773,81 +773,97 @@ async def main():
         logger.info("\nScraper Agent completed")
         
         # Process scraper results
-        raw_result = scraper_result.final_output
-        logger.info("Debug - Raw scraper output: %s", raw_result)
-        
         try:
+            raw_result = scraper_result.final_output
             # Clean up the raw output if it contains markdown
             if isinstance(raw_result, str):
-                # Remove markdown code blocks if present
+                # Remove markdown code blocks and clean up
                 raw_result = raw_result.replace('```json\n', '').replace('```\n', '').replace('```', '')
                 raw_result = raw_result.strip()
                 # Remove any "Here is..." prefix text
-                if raw_result.startswith('Here is'):
+                if raw_result.startswith('{'):
                     raw_result = raw_result[raw_result.find('{'):]
-                raw_result = json.loads(raw_result)
+                try:
+                    raw_result = json.loads(raw_result)
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse scraper JSON: {str(e)}")
+                    raw_result = {"mikes_products": [], "cigars_products": [], "matches": []}
             
-            # Ensure we have a dictionary
+            # Validate and extract data
             if isinstance(raw_result, dict):
-                # Ensure the dictionary has all required keys
-                required_keys = ['mikes_products', 'cigars_products', 'matches']
-                if not all(key in raw_result for key in required_keys):
-                    raise ValueError(f"Missing required keys in scraper result. Required: {required_keys}")
+                mikes_products = raw_result.get('mikes_products', [])
+                cigars_products = raw_result.get('cigars_products', [])
+                matches = raw_result.get('matches', [])
                 
-                # Update our variables
-                mikes_products = raw_result['mikes_products']
-                cigars_products = raw_result['cigars_products']
-                matches = raw_result['matches']
-                
-                if not isinstance(mikes_products, list) or not isinstance(cigars_products, list):
-                    raise ValueError("Products must be lists")
+                if not isinstance(mikes_products, list):
+                    mikes_products = []
+                if not isinstance(cigars_products, list):
+                    cigars_products = []
+                if not isinstance(matches, list):
+                    matches = []
                 
                 logger.info("Validated scraper results:")
                 logger.info(f"- Found {len(mikes_products)} Mike's Cigars products")
                 logger.info(f"- Found {len(cigars_products)} Cigars.com products")
                 logger.info(f"- Found {len(matches)} matching products")
             else:
-                raise ValueError(f"Unexpected scraper result type: {type(raw_result)}")
-            
+                logger.error(f"Unexpected scraper result type: {type(raw_result)}")
         except Exception as e:
             logger.error(f"Error processing scraper results: {str(e)}")
-            # Keep the initialized empty lists
         
         # Run the HTML Parser Agent
         logger.info("\n=== Running HTML Parser Agent ===")
-        parser_result = await Runner.run(
-            html_parser_agent,
-            input=f"Parse HTML and extract detailed product information for the brand '{brand}'. Execute the parsing functions in order and return a properly formatted JSON object with the results."
-        )
-        logger.info("\nHTML Parser Agent completed")
-        
-        # Process HTML Parser results
         try:
-            parser_output = parser_result.final_output
-            if isinstance(parser_output, str):
-                # Clean up the raw output if it contains markdown
-                parser_output = parser_output.replace('```json\n', '').replace('```\n', '').replace('```', '')
-                parser_output = parser_output.strip()
-                # Remove any "Here is..." prefix text
-                if parser_output.startswith('Here is'):
-                    parser_output = parser_output[parser_output.find('{'):]
-                parser_output = json.loads(parser_output)
+            parser_result = await Runner.run(
+                html_parser_agent,
+                input=f"Parse HTML and extract detailed product information for the brand '{brand}'. Execute the parsing functions in order and return a properly formatted JSON object with the results."
+            )
+            logger.info("\nHTML Parser Agent completed")
             
+            # Process HTML Parser results
+            raw_parser_output = parser_result.final_output
+            if isinstance(raw_parser_output, str):
+                # Clean up the raw output
+                raw_parser_output = raw_parser_output.replace('```json\n', '').replace('```\n', '').replace('```', '')
+                raw_parser_output = raw_parser_output.strip()
+                if raw_parser_output.startswith('{'):
+                    raw_parser_output = raw_parser_output[raw_parser_output.find('{'):]
+                try:
+                    parser_output = json.loads(raw_parser_output)
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse HTML parser JSON: {str(e)}")
+                    parser_output = {
+                        "mikes_detailed_products": [],
+                        "cigars_detailed_products": [],
+                        "detailed_csv_file": None
+                    }
+            
+            # Validate parser output structure
             if isinstance(parser_output, dict):
-                required_keys = ['mikes_detailed_products', 'cigars_detailed_products', 'detailed_csv_file']
-                if not all(key in parser_output for key in required_keys):
-                    raise ValueError(f"Missing required keys in parser result. Required: {required_keys}")
+                mikes_detailed = parser_output.get('mikes_detailed_products', [])
+                cigars_detailed = parser_output.get('cigars_detailed_products', [])
+                csv_file = parser_output.get('detailed_csv_file')
+                
+                if not isinstance(mikes_detailed, list):
+                    mikes_detailed = []
+                if not isinstance(cigars_detailed, list):
+                    cigars_detailed = []
+                
+                parser_output = {
+                    "mikes_detailed_products": mikes_detailed,
+                    "cigars_detailed_products": cigars_detailed,
+                    "detailed_csv_file": csv_file
+                }
                 
                 logger.info("HTML Parser found:")
-                logger.info(f"- {len(parser_output['mikes_detailed_products'])} detailed products from Mike's Cigars")
-                logger.info(f"- {len(parser_output['cigars_detailed_products'])} detailed products from Cigars.com")
-                logger.info(f"- Saved detailed products to: {parser_output['detailed_csv_file']}")
+                logger.info(f"- {len(mikes_detailed)} detailed products from Mike's Cigars")
+                logger.info(f"- {len(cigars_detailed)} detailed products from Cigars.com")
+                if csv_file:
+                    logger.info(f"- Saved detailed products to: {csv_file}")
             else:
-                raise ValueError(f"Unexpected parser result type: {type(parser_output)}")
-            
+                logger.error(f"Unexpected parser result type: {type(parser_output)}")
         except Exception as e:
-            logger.error(f"Error processing HTML Parser results: {str(e)}")
-            # Keep the initialized empty dictionary
+            logger.error(f"Error in HTML Parser execution: {str(e)}")
         
         # Run the All Products Export Agent
         logger.info("\n=== Running All Products Export Agent ===")
@@ -894,11 +910,12 @@ async def main():
             
         except Exception as e:
             logger.error(f"Error in final processing: {str(e)}")
-            raise
-        
+    
     except Exception as e:
         logger.error(f"\nError during execution: {str(e)}")
-        raise
+    
+    finally:
+        logger.info("\n=== Script completed ===")
 
 if __name__ == "__main__":
     asyncio.run(main())
