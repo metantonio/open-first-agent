@@ -81,6 +81,42 @@ The project uses a configuration system that allows customization of:
 - Logging levels and output locations
 - Website-specific parameters
 
+### Model Configuration (config.py)
+
+The `config.py` file allows you to configure which LLM provider to use for the agents. The system supports both local and cloud-based models:
+
+1. **Using Local Models (Default)**
+```python
+# External LLM provider configuration (e.g., Ollama)
+external_provider = {
+    "model": "qwen2.5-coder:14b",
+    "client": AsyncOpenAI(base_url="http://localhost:11434/v1")
+}
+```
+
+2. **Using OpenAI Models**
+```python
+# OpenAI provider configuration
+openai_provider = {
+    "model": "gpt-4",
+    "client": AsyncOpenAI()
+}
+```
+
+To switch between providers, modify the `get_model_config()` call in your agent:
+```python
+# For local models (default)
+model = get_model_config()  # Uses external_provider by default
+
+# For OpenAI models
+model = get_model_config(provider=openai_provider)
+```
+
+Make sure to:
+1. Have the appropriate API keys set up for your chosen provider
+2. Install and configure Ollama if using local models
+3. Set the OPENAI_API_KEY environment variable if using OpenAI models
+
 ## Development
 
 To extend the project:
