@@ -301,9 +301,14 @@ def save_all_products(mikes_products: list, cigars_products: list, brand: str) -
     current_date = datetime.now().strftime("%Y-%m-%d")
     current_dir = os.getcwd()
     
-    # Filter out error entries
-    mikes_products = [p for p in mikes_products if "error" not in p]
-    cigars_products = [p for p in cigars_products if "error" not in p]
+    # Filter out error entries and ensure we have lists
+    if not isinstance(mikes_products, list):
+        mikes_products = []
+    if not isinstance(cigars_products, list):
+        cigars_products = []
+    
+    mikes_products = [p for p in mikes_products if isinstance(p, dict) and "error" not in p]
+    cigars_products = [p for p in cigars_products if isinstance(p, dict) and "error" not in p]
     
     all_products_data = {
         "date": current_date,
@@ -320,7 +325,7 @@ def save_all_products(mikes_products: list, cigars_products: list, brand: str) -
         logger.info(f"All products JSON file created successfully at: {json_filename}")
     except Exception as e:
         logger.error(f"Error creating all products JSON file: {str(e)}")
-        raise
+        return {"error": str(e)}
     
     # Save to CSV
     csv_filename = json_filename.replace('.json', '.csv')
@@ -333,30 +338,32 @@ def save_all_products(mikes_products: list, cigars_products: list, brand: str) -
             
             # Write Mike's Cigars products
             for product in mikes_products:
-                writer.writerow([
-                    current_date,
-                    brand,
-                    'mikescigars.com',
-                    product.get('name', 'Unknown'),
-                    product.get('price', 'N/A'),
-                    product.get('url', 'N/A')
-                ])
+                if isinstance(product, dict):
+                    writer.writerow([
+                        current_date,
+                        brand,
+                        'mikescigars.com',
+                        product.get('name', 'Unknown'),
+                        product.get('price', 'N/A'),
+                        product.get('url', 'N/A')
+                    ])
             
             # Write Cigars.com products
             for product in cigars_products:
-                writer.writerow([
-                    current_date,
-                    brand,
-                    'cigars.com',
-                    product.get('name', 'Unknown'),
-                    product.get('price', 'N/A'),
-                    product.get('url', 'N/A')
-                ])
+                if isinstance(product, dict):
+                    writer.writerow([
+                        current_date,
+                        brand,
+                        'cigars.com',
+                        product.get('name', 'Unknown'),
+                        product.get('price', 'N/A'),
+                        product.get('url', 'N/A')
+                    ])
         
         logger.info(f"All products CSV file created successfully at: {csv_filename}")
     except Exception as e:
         logger.error(f"Error creating all products CSV file: {str(e)}")
-        raise
+        return {"error": str(e)}
     
     return {
         "json_file": json_filename,
@@ -594,24 +601,29 @@ scraper_agent = Agent(
     and collect all product information.
 
     Follow these steps exactly:
-    1. First, call scrape_mikes_cigars(brand) to get products from Mike's Cigars
-    2. Then, call scrape_cigars_com(brand) to get products from Cigars.com
-    3. Finally, call compare_products(mikes_products, cigars_products) with the results from steps 1 and 2
+    1. First, call scrape_mikes_cigars(brand) and store the COMPLETE result
+    2. Then, call scrape_cigars_com(brand) and store the COMPLETE result
+    3. Finally, call compare_products with the EXACT lists from steps 1 and 2
 
-    You MUST execute these function calls in order and use their actual return values.
-    DO NOT try to construct the parameters as strings or template literals.
-
-    After executing all functions, return a JSON object in this exact format:
+    You MUST:
+    - Execute these function calls in order
+    - Store and use the COMPLETE return values from each function
+    - Do not filter, modify, or reconstruct the product lists
+    - Pass the exact lists to compare_products
+    - Include ALL products found by the scraping functions
+    
+    Return ONLY this JSON object with no additional text:
     {
-        "mikes_products": [list of products from Mike's Cigars],
-        "cigars_products": [list of products from Cigars.com],
-        "matches": [list of matching products]
+        "mikes_products": [COMPLETE list from scrape_mikes_cigars],
+        "cigars_products": [COMPLETE list from scrape_cigars_com],
+        "matches": [COMPLETE list from compare_products]
     }
 
-    Make sure to:
-    - Pass the brand parameter correctly to the scraping functions
-    - Use the actual return values from the scraping functions in the compare_products call
-    - Return a valid JSON object with the exact structure specified above
+    Important:
+    - Do not add any text before or after the JSON
+    - Do not use markdown formatting
+    - Return the exact data from the function calls
+    - Include every product found by the scraping functions
     """,
     model=OpenAIChatCompletionsModel(
         model=external_provider["model"],
@@ -656,12 +668,19 @@ all_products_agent = Agent(
     name="All Products Export Agent",
     instructions="""
     You are a specialized agent for saving all scraped cigar products.
-    Your task is to take all products from both Mike's Cigars and Cigars.com,
-    regardless of whether they match or not, and save them to both JSON and CSV formats.
+    Your task is to save ALL products from both websites to JSON and CSV files.
     
-    Use the save_all_products tool to save all products from both websites.
-    The tool will automatically create both JSON and CSV files.
-    Make sure to handle any errors appropriately.
+    Follow these steps:
+    1. Take the complete lists of products from both websites
+    2. Call save_all_products with the EXACT lists and brand name
+    3. Return the EXACT result from save_all_products
+    
+    Important:
+    - Do not modify or filter the product lists
+    - Pass the exact lists to save_all_products
+    - Return the exact result from save_all_products
+    - Do not add any text or formatting to the response
+    - Handle any errors by returning the error object from save_all_products
     """,
     model=OpenAIChatCompletionsModel(
         model=external_provider["model"],
@@ -675,23 +694,29 @@ html_parser_agent = Agent(
     name="HTML Parser Agent",
     instructions="""
     You are a specialized agent for parsing HTML content from cigar websites.
-    Your task is to extract detailed product information from the HTML body of both
-    Mike's Cigars and Cigars.com websites.
+    Your task is to extract detailed product information from both websites.
 
     Follow these steps exactly:
-    1. Call parse_mikes_cigars_html with the provided brand name to get detailed Mike's Cigars products
-    2. Call parse_cigars_com_html with the provided brand name to get detailed Cigars.com products
-    3. Call save_detailed_products_to_csv with both product lists and the brand name
+    1. First, call parse_mikes_cigars_html(brand) and store the COMPLETE result
+    2. Then, call parse_cigars_com_html(brand) and store the COMPLETE result
+    3. Finally, call save_detailed_products_to_csv with both lists and brand
 
-    Return the results in this exact format:
+    Return this EXACT JSON structure with no modifications:
     {
-        "mikes_detailed_products": [list of detailed products from Mike's Cigars],
-        "cigars_detailed_products": [list of detailed products from Cigars.com],
-        "detailed_csv_file": "path to saved CSV file"
+        "mikes_detailed_products": <exact list from parse_mikes_cigars_html>,
+        "cigars_detailed_products": <exact list from parse_cigars_com_html>,
+        "detailed_csv_file": "<exact path from save_detailed_products_to_csv>"
     }
 
-    Make sure to handle any errors appropriately and extract as much information as possible
-    from the HTML content.
+    Critical JSON Requirements:
+    - Return ONLY the JSON object - no text before or after
+    - NO markdown formatting or code blocks
+    - NO escape characters in strings unless absolutely necessary
+    - NO line breaks within the JSON object
+    - Use double quotes for all keys and string values
+    - Arrays and objects should be on a single line
+    - Numbers and booleans should be unquoted
+    - Handle errors by returning empty arrays, not by skipping the response
     """,
     model=OpenAIChatCompletionsModel(
         model=external_provider["model"],
@@ -828,10 +853,20 @@ async def main():
                 raw_parser_output = raw_parser_output.strip()
                 if raw_parser_output.startswith('{'):
                     raw_parser_output = raw_parser_output[raw_parser_output.find('{'):]
+                
+                # Log the cleaned output for debugging
+                logger.info("\nCleaned parser output:")
+                logger.info(raw_parser_output)
+                
                 try:
+                    logger.info("\nTrying to parse the JSON")
+                    # Handle potential escape characters
+                    raw_parser_output = raw_parser_output.replace('\\"', '"').replace('\\\\', '\\')
                     parser_output = json.loads(raw_parser_output)
                 except json.JSONDecodeError as e:
                     logger.error(f"Failed to parse HTML parser JSON: {str(e)}")
+                    logger.error("Raw output that failed to parse:")
+                    logger.error(raw_parser_output)
                     parser_output = {
                         "mikes_detailed_products": [],
                         "cigars_detailed_products": [],
