@@ -74,8 +74,6 @@ The OpenAI API key has different requirements depending on your usage:
    - You can use a free API key with no credits
    - If you don't need tracing, you can skip the API key setup, but read OpenAI Agents SDK
 
-To disable tracing and use local LLMs without an OpenAI API key, modify the logging configuration in your code.
-
 ## Usage
 
 Run the main script:
