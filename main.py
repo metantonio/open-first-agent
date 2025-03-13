@@ -373,7 +373,7 @@ def save_all_products(mikes_products: list, cigars_products: list, brand: str) -
         "data": all_products_data
     }
 
-@function_tool
+#@function_tool
 def parse_generic_html(url: str, website_name: str, brand: str) -> list:
     """
     Generic HTML parser that analyzes the body content to find product information
@@ -401,7 +401,7 @@ def parse_generic_html(url: str, website_name: str, brand: str) -> list:
         
         # Common product container patterns
         product_patterns = [
-            {'class_': lambda x: x and any(pattern in str(x).lower() for pattern in ['product', 'item', 'card', 'listing'])},
+            {'class_': lambda x: x and any(pattern in str(x).lower() for pattern in ['product', 'item', 'card', 'listing', 'brand', 'main-brand', 'product-card', 'item-product', 'product-detail', 'product-item'])},
             {'itemtype': 'http://schema.org/Product'},
             {'data-product-id': True},
             {'class_': lambda x: x and 'product' in str(x).lower()}
