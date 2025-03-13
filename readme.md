@@ -1,89 +1,118 @@
-# Cigar Comparison Tool using Ollama
+# Cigar Price Comparison Agent
 
-A multi-agent system built with OpenAI Agents SDK that compares cigar products from different retailers.
+A Python-based intelligent agent system that compares cigar prices across different online retailers using OpenAI's GPT models and/or Open Source Models.
 
 ## Overview
 
-This tool scrapes two popular cigar websites (mikescigars.com and cigars.com), compares products from a specified brand, and exports the comparison data in both JSON and CSV formats. It utilizes multiple specialized AI agents to handle different aspects of the workflow.
+This project implements a multi-agent system that scrapes, compares, and analyzes cigar prices from multiple online retailers. It uses specialized agents for different tasks, orchestrated by a main agent to provide comprehensive price comparisons and product matching.
 
 ## Features
 
-- Web scraping from multiple cigar retailer websites
-- Intelligent product matching across retailers
-- Automated data export with current date
-- Format conversion from JSON to CSV
-- Error handling for network and parsing issues
-- Log file
+- Multi-agent architecture for distributed tasks
+- Web scraping with both selector-based and generic HTML parsing approaches
+- Intelligent product matching across different websites
+- Export functionality to both JSON and CSV formats
+- Detailed logging and error handling
+- Configurable model settings and parameters
 
-## Prerequisites
+## Project Structure
 
-- Python 3.10+
-- Conda or another virtual environment manager
-- OpenAI API key
+```
+cigar_agents/
+├── __init__.py
+├── config.py
+├── orchestrator_agent.py
+├── scraper_agent.py
+├── html_parser_agent.py
+├── export_agents.py
+tools/
+├── __init__.py
+├── scraping_tools.py
+├── parsing_tools.py
+└── export_tools.py
+```
+
+### Components
+
+- **Orchestrator Agent**: Coordinates the workflow between specialized agents
+- **Scraper Agent**: Handles website-specific scraping using CSS selectors
+- **HTML Parser Agent**: Performs generic HTML parsing for product information
+- **Export Agents**: Handle data export to JSON and CSV formats
 
 ## Installation
 
-1. Clone this repository
+1. Clone the repository and create an enviroment:
 ```bash
-git clone https://github.com/metantonio/openai-first-agent.git
-cd openai-first-agent
-```
-
-2. Create and activate a conda environment
-```bash
+git clone https://github.com/metantonio/open-first-agent
+cd cigar-price-comparison
 conda create -n openai-first-agent python=3.10
 conda activate openai-first-agent
 ```
 
-3. Install required packages
+2. Install dependencies:
 ```bash
-pip install openai-agents requests beautifulsoup4 pandas
+pip install -r requirements.txt
 ```
 
-4. Set your OpenAI API key
+3. Set up your OpenAI API key:
 ```bash
-export OPENAI_API_KEY=your_api_key_here
+export OPENAI_API_KEY='your-api-key'
 ```
 
 ## Usage
 
-1. Run the main script
+Run the main script:
 ```bash
 python main.py
 ```
 
-2. Enter the cigar brand you want to compare when prompted
-```
-Enter the cigar brand to compare: Davidoff No 2
-```
+The script will:
+1. Prompt for a cigar brand to search
+2. Scrape product information from supported websites
+3. Compare prices and find matching products
+4. Export results to JSON and CSV files
+5. Provide a summary of findings
 
-3. The script will output the locations of the generated JSON and CSV files with the comparison data
+## Configuration
 
-## How It Works
+The project uses a configuration system that allows customization of:
+- Model settings (temperature, max tokens, etc.)
+- Export file paths and formats
+- Logging levels and output locations
+- Website-specific parameters
 
-The tool uses a system of four specialized agents:
+## Development
 
-1. **Orchestrator Agent**: Coordinates the entire workflow and delegates tasks to specialized agents
-2. **Scraper Agent**: Navigates websites, extracts product data, and identifies matching products
-3. **JSON Export Agent**: Saves comparison data to a JSON file with the current date
-4. **CSV Conversion Agent**: Converts the JSON data to a CSV table format
+To extend the project:
+1. Add new agents in the `cigar_agents` directory
+2. Implement new tools in the `tools` directory
+3. Update the orchestrator agent to utilize new components
+4. Maintain consistent error handling and logging
 
-## Customization
+## Error Handling
 
-- Modify the scraping selectors in the scrape functions if website layouts change
-- Adjust the product matching algorithm by modifying the `similar_product_names` function
-- Add additional retailers by creating new scraping functions and updating the comparison logic
+The system implements comprehensive error handling:
+- Graceful handling of website unavailability
+- Validation of scraped data
+- Logging of all operations and errors
+- Fallback mechanisms for failed operations
 
-## Limitations
+## Logging
 
-- Web scraping is dependent on the current website structure and may break if sites change
-- Product matching is based on name similarity and may miss some matches or create false positives
-- Rate limiting or IP blocking may occur if too many requests are made to retailers' websites
+Logs are written to `cigar_scraper.log` and include:
+- Scraping operations and results
+- Product matching details
+- Export operations
+- Error messages and stack traces
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
 ## License
 
 MIT
-
-## Disclaimer
-
-This tool is for educational purposes only. Be sure to review the terms of service for any website you scrape and ensure your usage complies with their policies.
