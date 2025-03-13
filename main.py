@@ -113,7 +113,7 @@ def scrape_cigars_com(brand: str) -> list:
         products = []
         
         # Updated selectors to match Cigars.com website structure
-        product_items = soup.select('.product-card')
+        product_items = soup.select('.main-brand')
         logger.info(f"Found {len(product_items)} products on Cigars.com")
         
         for item in product_items:
@@ -364,6 +364,227 @@ def save_all_products(mikes_products: list, cigars_products: list, brand: str) -
         "data": all_products_data
     }
 
+@function_tool
+def parse_generic_html(url: str, website_name: str, brand: str) -> list:
+    """
+    Generic HTML parser that analyzes the body content to find product information
+    without relying on specific CSS selectors.
+    
+    Args:
+        url: The URL to scrape
+        website_name: Name of the website being scraped
+        brand: The brand being searched
+    
+    Returns:
+        List of products with detailed information
+    """
+    logger.info(f"Starting generic HTML parsing for {website_name}")
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+    
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        body = soup.find('body')
+        products = []
+        
+        # Find all potential product containers
+        # Look for common patterns in product listings
+        potential_containers = []
+        
+        # 1. Find elements that contain both price patterns and product names
+        price_patterns = ['$', 'USD', 'Price:', 'price', '.00']
+        for pattern in price_patterns:
+            elements = body.find_all(text=lambda text: text and pattern in text)
+            for element in elements:
+                container = element.parent
+                # Go up the tree to find a reasonable container
+                for _ in range(3):  # Check up to 3 levels up
+                    if container.find_all(text=True, recursive=False):
+                        potential_containers.append(container)
+                    container = container.parent
+        
+        # 2. Find elements that look like product cards/items
+        common_product_classes = ['product', 'item', 'card', 'listing', 'brand']
+        for class_pattern in common_product_classes:
+            elements = body.find_all(class_=lambda x: x and class_pattern.lower() in x.lower())
+            potential_containers.extend(elements)
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        potential_containers = [x for x in potential_containers if not (x in seen or seen.add(x))]
+        
+        logger.info(f"Found {len(potential_containers)} potential product containers")
+        
+        for container in potential_containers:
+            try:
+                # Extract all text nodes and links from the container
+                texts = [text.strip() for text in container.stripped_strings]
+                links = container.find_all('a')
+                
+                if not texts:
+                    continue
+                
+                # Find product name (usually the longest text that's not a description)
+                name = max((t for t in texts if len(t) < 200), key=len, default="N/A")
+                
+                # Find price (text containing price patterns)
+                price = "N/A"
+                for text in texts:
+                    if any(pattern in text for pattern in price_patterns):
+                        price = text.strip()
+                        break
+                
+                # Find URL (first link in container)
+                url = next((link.get('href', '') for link in links), '')
+                if url and not url.startswith('http'):
+                    url = f"https://{website_name}" + url
+                
+                # Find description (longest text)
+                description = max(texts, key=len, default="N/A")
+                if description == name:
+                    description = "N/A"
+                
+                # Find stock status (look for common patterns)
+                stock_patterns = ['in stock', 'out of stock', 'available', 'unavailable']
+                stock_status = next(
+                    (text for text in texts if any(pattern in text.lower() for pattern in stock_patterns)),
+                    "N/A"
+                )
+                
+                # Additional attributes (look for patterns like SKU, ratings, etc.)
+                additional_info = {}
+                sku_patterns = ['sku', 'item #', 'product code']
+                rating_patterns = ['rating', 'stars', '/5']
+                
+                for text in texts:
+                    text_lower = text.lower()
+                    if any(pattern in text_lower for pattern in sku_patterns):
+                        additional_info['sku'] = text
+                    elif any(pattern in text_lower for pattern in rating_patterns):
+                        additional_info['rating'] = text
+                
+                # Only create product if we found at least a name and price
+                if name != "N/A" and price != "N/A":
+                    product = {
+                        "website": website_name,
+                        "name": name,
+                        "price": price,
+                        "url": url,
+                        "description": description,
+                        "stock_status": stock_status,
+                        "brand": brand,
+                        **additional_info
+                    }
+                    
+                    # Verify this looks like a valid product
+                    if brand.lower() in name.lower() or brand.lower() in description.lower():
+                        products.append(product)
+                        logger.info(f"Found product: {name}")
+                
+            except Exception as e:
+                logger.error(f"Error parsing container: {str(e)}")
+                continue
+        
+        logger.info(f"Successfully parsed {len(products)} products from {website_name}")
+        return products
+        
+    except Exception as e:
+        logger.error(f"Error parsing {website_name} HTML: {str(e)}")
+        return []
+
+@function_tool
+def parse_mikes_cigars_html(brand: str) -> list:
+    """
+    Parse Mike's Cigars HTML using the generic parser.
+    
+    Args:
+        brand: The cigar brand to search for
+    
+    Returns:
+        List of products with detailed information
+    """
+    url = f"https://mikescigars.com/catalogsearch/result/?q={brand.replace(' ', '+')}"
+    return parse_generic_html(url, "mikescigars.com", brand)
+
+@function_tool
+def parse_cigars_com_html(brand: str) -> list:
+    """
+    Parse Cigars.com HTML using the generic parser.
+    
+    Args:
+        brand: The cigar brand to search for
+    
+    Returns:
+        List of products with detailed information
+    """
+    url = f"https://www.cigars.com/search?lang=en_US&jrSubmitButton=&q={brand.replace(' ', '+')}"
+    return parse_generic_html(url, "cigars.com", brand)
+
+@function_tool
+def save_detailed_products_to_csv(mikes_products: list, cigars_products: list, brand: str) -> str:
+    """
+    Save detailed product information to a CSV file.
+    
+    Args:
+        mikes_products: List of detailed products from Mike's Cigars
+        cigars_products: List of detailed products from Cigars.com
+        brand: The brand being searched
+    
+    Returns:
+        Path to the created CSV file
+    """
+    current_date = datetime.now().strftime("%Y-%m-%d")
+    current_dir = os.getcwd()
+    csv_filename = os.path.join(current_dir, f"{brand.replace(' ', '_')}_detailed_products_{current_date}.csv")
+    
+    try:
+        with open(csv_filename, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            
+            # Write header with all possible fields
+            writer.writerow([
+                'Date', 'Brand', 'Website', 'Product Name', 'Price', 'URL',
+                'Description', 'SKU/Rating', 'Stock Status'
+            ])
+            
+            # Write Mike's Cigars products
+            for product in mikes_products:
+                writer.writerow([
+                    current_date,
+                    product.get('brand', 'N/A'),
+                    product.get('website', 'N/A'),
+                    product.get('name', 'N/A'),
+                    product.get('price', 'N/A'),
+                    product.get('url', 'N/A'),
+                    product.get('description', 'N/A'),
+                    product.get('sku', 'N/A'),
+                    product.get('stock_status', 'N/A')
+                ])
+            
+            # Write Cigars.com products
+            for product in cigars_products:
+                writer.writerow([
+                    current_date,
+                    product.get('brand', 'N/A'),
+                    product.get('website', 'N/A'),
+                    product.get('name', 'N/A'),
+                    product.get('price', 'N/A'),
+                    product.get('url', 'N/A'),
+                    product.get('description', 'N/A'),
+                    product.get('rating', 'N/A'),
+                    product.get('stock_status', 'N/A')
+                ])
+        
+        logger.info(f"Detailed products CSV file created successfully at: {csv_filename}")
+        return csv_filename
+    except Exception as e:
+        logger.error(f"Error creating detailed products CSV file: {str(e)}")
+        raise
+
 # Define the Scraper Agent
 scraper_agent = Agent(
     name="Cigar Scraper Agent",
@@ -372,16 +593,25 @@ scraper_agent = Agent(
     Your task is to search for a specific cigar brand on Mike's Cigars and Cigars.com,
     and collect all product information.
 
-    1. First use scrape_mikes_cigars to get products from Mike's Cigars
-    2. Then use scrape_cigars_com to get products from Cigars.com
-    3. Finally use compare_products to find matching items
+    Follow these steps exactly:
+    1. First, call scrape_mikes_cigars(brand) to get products from Mike's Cigars
+    2. Then, call scrape_cigars_com(brand) to get products from Cigars.com
+    3. Finally, call compare_products(mikes_products, cigars_products) with the results from steps 1 and 2
 
-    Return the results in this exact format:
+    You MUST execute these function calls in order and use their actual return values.
+    DO NOT try to construct the parameters as strings or template literals.
+
+    After executing all functions, return a JSON object in this exact format:
     {
         "mikes_products": [list of products from Mike's Cigars],
         "cigars_products": [list of products from Cigars.com],
         "matches": [list of matching products]
     }
+
+    Make sure to:
+    - Pass the brand parameter correctly to the scraping functions
+    - Use the actual return values from the scraping functions in the compare_products call
+    - Return a valid JSON object with the exact structure specified above
     """,
     model=OpenAIChatCompletionsModel(
         model=external_provider["model"],
@@ -440,17 +670,68 @@ all_products_agent = Agent(
     tools=[save_all_products]
 )
 
+# Define the HTML Parser Agent
+html_parser_agent = Agent(
+    name="HTML Parser Agent",
+    instructions="""
+    You are a specialized agent for parsing HTML content from cigar websites.
+    Your task is to extract detailed product information from the HTML body of both
+    Mike's Cigars and Cigars.com websites.
+
+    Follow these steps exactly:
+    1. Call parse_mikes_cigars_html with the provided brand name to get detailed Mike's Cigars products
+    2. Call parse_cigars_com_html with the provided brand name to get detailed Cigars.com products
+    3. Call save_detailed_products_to_csv with both product lists and the brand name
+
+    Return the results in this exact format:
+    {
+        "mikes_detailed_products": [list of detailed products from Mike's Cigars],
+        "cigars_detailed_products": [list of detailed products from Cigars.com],
+        "detailed_csv_file": "path to saved CSV file"
+    }
+
+    Make sure to handle any errors appropriately and extract as much information as possible
+    from the HTML content.
+    """,
+    model=OpenAIChatCompletionsModel(
+        model=external_provider["model"],
+        openai_client=external_provider["client"],
+    ),
+    tools=[parse_mikes_cigars_html, parse_cigars_com_html, save_detailed_products_to_csv]
+)
+
 # Define the Orchestrator Agent with handoffs to specialized agents
 orchestrator_agent = Agent(
     name="Cigar Comparison Orchestrator",
     instructions="""
-    You are an orchestrator agent that coordinates the cigar comparison workflow.
+    You are an orchestrator agent that coordinates the complete cigar comparison and data collection workflow.
     
+    Your tasks in order:
     1. First, understand the user's request for which cigar brand to compare.
-    2. Hand off to the Scraper Agent to scrape and compare products.
-    3. Hand off to the JSON Export Agent to save the comparison data.
-    4. Hand off to the CSV Conversion Agent to convert the data to CSV format.
-    5. Finally, summarize the results to the user.
+    
+    2. Hand off to the Scraper Agent to:
+       - Scrape and compare products using specific selectors
+       - Get initial product listings and matches
+    
+    3. Hand off to the HTML Parser Agent to:
+       - Parse the raw HTML of both websites
+       - Extract detailed product information
+       - Save comprehensive product details to CSV
+    
+    4. Hand off to the JSON Export Agent to:
+       - Save the comparison data from the Scraper Agent
+    
+    5. Hand off to the CSV Conversion Agent to:
+       - Convert the comparison data to CSV format
+    
+    6. Summarize all results to the user, including:
+       - Number of products found by each method
+       - Number of matches found
+       - Locations of all saved files
+    
+    Make sure to track and report any differences between the products found by the
+    Scraper Agent versus the HTML Parser Agent, as they might find different items
+    due to their different approaches.
     
     Be helpful and informative throughout the process.
     """,
@@ -459,7 +740,7 @@ orchestrator_agent = Agent(
         openai_client=external_provider["client"],
     ),
     model_settings=ModelSettings(temperature=0.1),
-    handoffs=[scraper_agent, json_agent, csv_agent]
+    handoffs=[scraper_agent, html_parser_agent, json_agent, csv_agent]
 )
 
 async def main():
@@ -467,6 +748,16 @@ async def main():
     logger.info(f"\n=== Starting cigar comparison script ===")
     current_dir = os.getcwd()
     logger.info(f"Current working directory: {current_dir}")
+    
+    # Initialize variables
+    mikes_products = []
+    cigars_products = []
+    matches = []
+    parser_output = {
+        "mikes_detailed_products": [],
+        "cigars_detailed_products": [],
+        "detailed_csv_file": None
+    }
     
     # Get the brand to search for
     brand = input("Enter the cigar brand to compare: ")
@@ -477,38 +768,91 @@ async def main():
         logger.info("\n=== Running Scraper Agent ===")
         scraper_result = await Runner.run(
             scraper_agent,
-            input=f"Search for and compare cigars of the brand '{brand}' between mikescigars.com and cigars.com. Make sure to return the results in the exact format specified."
+            input=f"Search for cigars of the brand '{brand}'. Execute the scraping functions in order and return a properly formatted JSON object with the results."
         )
         logger.info("\nScraper Agent completed")
         
-        # Extract the raw scraping results and comparison data
+        # Process scraper results
         raw_result = scraper_result.final_output
         logger.info("Debug - Raw scraper output: %s", raw_result)
         
-        if isinstance(raw_result, str):
-            try:
-                raw_result = json.loads(raw_result)
-                logger.info("Debug - Parsed JSON data: %s", json.dumps(raw_result, indent=2))
-            except json.JSONDecodeError as e:
-                logger.warning("Warning: Could not parse scraper result as JSON: %s", str(e))
-                # Create empty structure if parsing fails
-                raw_result = {
-                    "mikes_products": [],
-                    "cigars_products": [],
-                    "matches": []
-                }
-        
-        # Run the All Products Export Agent with the raw scraping results
-        logger.info("=== Running All Products Export Agent ===")
         try:
-            # Extract products from the raw result
-            mikes_products = raw_result.get('mikes_products', [])
-            cigars_products = raw_result.get('cigars_products', [])
+            # Clean up the raw output if it contains markdown
+            if isinstance(raw_result, str):
+                # Remove markdown code blocks if present
+                raw_result = raw_result.replace('```json\n', '').replace('```\n', '').replace('```', '')
+                raw_result = raw_result.strip()
+                # Remove any "Here is..." prefix text
+                if raw_result.startswith('Here is'):
+                    raw_result = raw_result[raw_result.find('{'):]
+                raw_result = json.loads(raw_result)
             
-            logger.info("Debug - Mike's products: %s", json.dumps(mikes_products, indent=2))
-            logger.info("Debug - Cigars.com products: %s", json.dumps(cigars_products, indent=2))
+            # Ensure we have a dictionary
+            if isinstance(raw_result, dict):
+                # Ensure the dictionary has all required keys
+                required_keys = ['mikes_products', 'cigars_products', 'matches']
+                if not all(key in raw_result for key in required_keys):
+                    raise ValueError(f"Missing required keys in scraper result. Required: {required_keys}")
+                
+                # Update our variables
+                mikes_products = raw_result['mikes_products']
+                cigars_products = raw_result['cigars_products']
+                matches = raw_result['matches']
+                
+                if not isinstance(mikes_products, list) or not isinstance(cigars_products, list):
+                    raise ValueError("Products must be lists")
+                
+                logger.info("Validated scraper results:")
+                logger.info(f"- Found {len(mikes_products)} Mike's Cigars products")
+                logger.info(f"- Found {len(cigars_products)} Cigars.com products")
+                logger.info(f"- Found {len(matches)} matching products")
+            else:
+                raise ValueError(f"Unexpected scraper result type: {type(raw_result)}")
             
-            # Save all products
+        except Exception as e:
+            logger.error(f"Error processing scraper results: {str(e)}")
+            # Keep the initialized empty lists
+        
+        # Run the HTML Parser Agent
+        logger.info("\n=== Running HTML Parser Agent ===")
+        parser_result = await Runner.run(
+            html_parser_agent,
+            input=f"Parse HTML and extract detailed product information for the brand '{brand}'. Execute the parsing functions in order and return a properly formatted JSON object with the results."
+        )
+        logger.info("\nHTML Parser Agent completed")
+        
+        # Process HTML Parser results
+        try:
+            parser_output = parser_result.final_output
+            if isinstance(parser_output, str):
+                # Clean up the raw output if it contains markdown
+                parser_output = parser_output.replace('```json\n', '').replace('```\n', '').replace('```', '')
+                parser_output = parser_output.strip()
+                # Remove any "Here is..." prefix text
+                if parser_output.startswith('Here is'):
+                    parser_output = parser_output[parser_output.find('{'):]
+                parser_output = json.loads(parser_output)
+            
+            if isinstance(parser_output, dict):
+                required_keys = ['mikes_detailed_products', 'cigars_detailed_products', 'detailed_csv_file']
+                if not all(key in parser_output for key in required_keys):
+                    raise ValueError(f"Missing required keys in parser result. Required: {required_keys}")
+                
+                logger.info("HTML Parser found:")
+                logger.info(f"- {len(parser_output['mikes_detailed_products'])} detailed products from Mike's Cigars")
+                logger.info(f"- {len(parser_output['cigars_detailed_products'])} detailed products from Cigars.com")
+                logger.info(f"- Saved detailed products to: {parser_output['detailed_csv_file']}")
+            else:
+                raise ValueError(f"Unexpected parser result type: {type(parser_output)}")
+            
+        except Exception as e:
+            logger.error(f"Error processing HTML Parser results: {str(e)}")
+            # Keep the initialized empty dictionary
+        
+        # Run the All Products Export Agent
+        logger.info("\n=== Running All Products Export Agent ===")
+        try:
+            # Use validated products from scraper
             all_products_result = await Runner.run(
                 all_products_agent,
                 input=json.dumps({
@@ -520,7 +864,6 @@ async def main():
             logger.info("\nAll Products Export Agent completed")
             
             # Save matches if any exist
-            matches = raw_result.get('matches', [])
             if matches:
                 logger.info("\n=== Saving Matches ===")
                 current_date = datetime.now().strftime("%Y-%m-%d")
@@ -536,13 +879,21 @@ async def main():
                     json.dump(matches_data, f, indent=2)
                 logger.info(f"Matches saved to: {matches_filename}")
             
+            # Print final summary
             logger.info("\n=== Final Results ===")
-            logger.info(f"Found {len(mikes_products)} products on Mike's Cigars")
-            logger.info(f"Found {len(cigars_products)} products on Cigars.com")
-            logger.info(f"Found {len(matches)} matching products")
+            logger.info(f"Basic Scraper found:")
+            logger.info(f"- {len(mikes_products)} products on Mike's Cigars")
+            logger.info(f"- {len(cigars_products)} products on Cigars.com")
+            logger.info(f"- {len(matches)} matching products")
+            
+            logger.info(f"\nDetailed HTML Parser found:")
+            logger.info(f"- {len(parser_output['mikes_detailed_products'])} detailed products from Mike's Cigars")
+            logger.info(f"- {len(parser_output['cigars_detailed_products'])} detailed products from Cigars.com")
+            if parser_output['detailed_csv_file']:
+                logger.info(f"- Detailed products saved to: {parser_output['detailed_csv_file']}")
             
         except Exception as e:
-            logger.error(f"Error processing results: {str(e)}")
+            logger.error(f"Error in final processing: {str(e)}")
             raise
         
     except Exception as e:
