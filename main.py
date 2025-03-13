@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 from agents import Agent, Runner, function_tool, AsyncOpenAI, OpenAIChatCompletionsModel, ModelSettings, AsyncOpenAI
 import os
 
-# External LLM provider (uncommentif you are goind to use Ollama, LLMStudio)
+# External LLM provider by default with ollama (if you are goind to use Ollama, LLMStudio)
 external_provider= {
     "model":"llama3.2",
     "client":AsyncOpenAI(base_url = "http://localhost:11434/v1")
@@ -44,6 +44,7 @@ def scrape_mikes_cigars(brand: str) -> list:
         products = []
         
         product_items = soup.select('item product product-item')
+        print("executing mikescigars scrape")
         for item in product_items[:5]:  # Limit to first 5 products for demonstration
             name_elem = item.select_one('product name product-item-name')
             price_elem = item.select_one('.price-box price-final_price')
@@ -58,6 +59,11 @@ def scrape_mikes_cigars(brand: str) -> list:
                     "price": price,
                     "url": "https://www.mikescigars.com" + href.get('href', '') if href.get('href') else ""
                 })
+                print("\nitem: " + f"""
+                    name: {name},
+                    price: {price},
+                    url: https://www.mikescigars.com + {href.get('href', '') if href.get('href') else ''}
+                """)
         
         return products
     except Exception as e:
@@ -85,7 +91,7 @@ def scrape_cigars_com(brand: str) -> list:
         
         soup = BeautifulSoup(response.text, 'html.parser')
         products = []
-        
+        print("executing cigars.comc scrape")
         product_items = soup.select('.main-brand')
         for item in product_items[:5]:  # Limit to first 5 products for demonstration
             name_elem = item.select_one('.brand-name')
@@ -101,6 +107,12 @@ def scrape_cigars_com(brand: str) -> list:
                     "price": price,
                     "url": "https://www.cigars.com" + href.get('href', '') if href.get('href') else ""
                 })
+
+                print("\nitem: " + f"""
+                    name: {name},
+                    price: {price},
+                    url: https://www.cigars.com + {href.get('href', '') if href.get('href') else ''}
+                """)
         
         return products
     except Exception as e:
