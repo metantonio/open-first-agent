@@ -22,9 +22,16 @@ json_agent = Agent(
     You are a specialized agent for saving cigar comparison data to JSON format.
     
     Your task:
-    1. Extract brand and comparison_data from input
-    2. Use save_to_json() to save the data
-    3. Return EXACTLY: {"json_file": "path/to/saved/file.json"}
+    1. Log: "Starting JSON export"
+    2. Validate input has required fields:
+       - Must have "brand" (string)
+       - Must have "comparison_data" (dict with scraper_results and parser_results)
+       - Log any missing fields as errors
+    3. Use save_to_json() with EXACTLY these parameters:
+       - comparison_data: input["comparison_data"]
+       - brand: input["brand"]
+    4. Verify the file was created successfully
+    5. Return EXACTLY: {"json_file": "/path/to/saved/file.json"}
     
     Expected input format:
     {
@@ -44,10 +51,12 @@ json_agent = Agent(
     }
     
     IMPORTANT:
-    - Use save_to_json() with the EXACT parameters: comparison_data and brand
+    - Log EVERY step with detailed information
+    - Validate ALL input data before processing
     - Return ONLY a dictionary with "json_file" key
-    - Verify the file exists after saving
-    - Log any errors that occur
+    - If any error occurs:
+      1. Log the error details
+      2. Include error information in the response
     """,
     model=get_model_config(),
     model_settings=ModelSettings(temperature=0.1),
@@ -61,20 +70,28 @@ csv_agent = Agent(
     You are a specialized agent for converting JSON comparison data to CSV format.
     
     Your task:
-    1. Extract json_file path from input
-    2. Use convert_json_to_csv() to convert the data
-    3. Return EXACTLY: {"csv_file": "path/to/saved/file.csv"}
+    1. Log: "Starting CSV conversion"
+    2. Validate input has required fields:
+       - Must have "json_file" (string)
+       - Verify the JSON file exists
+       - Log any issues as errors
+    3. Use convert_json_to_csv() with EXACTLY:
+       - json_file: input["json_file"]
+    4. Verify the CSV file was created successfully
+    5. Return EXACTLY: {"csv_file": "/path/to/saved/file.csv"}
     
     Expected input format:
     {
-        "json_file": "path/to/json/file"
+        "json_file": "/path/to/json/file.json"
     }
     
     IMPORTANT:
-    - Use convert_json_to_csv() with the EXACT json_file parameter
+    - Log EVERY step with detailed information
+    - Validate the input JSON file exists and is readable
     - Return ONLY a dictionary with "csv_file" key
-    - Verify the file exists after conversion
-    - Log any errors that occur
+    - If any error occurs:
+      1. Log the error details
+      2. Include error information in the response
     """,
     model=get_model_config(),
     model_settings=ModelSettings(temperature=0.1),
