@@ -85,7 +85,7 @@ async def main():
             logger.error(f"Error processing scraper results: {str(e)}")
             # Variables already initialized with empty lists
         
-        # Run the HTML Parser Agent
+        # Run the HTML Parser Agent, this second Agent does scraping more generic, just to test the LLMs Agents
         logger.info("\n=== Running HTML Parser Agent ===")
         parser_result = await Runner.run(
             html_parser_agent,
