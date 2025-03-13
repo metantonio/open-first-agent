@@ -23,7 +23,7 @@ def scrape_mikes_cigars(brand: str) -> list:
     }
     
     try:
-        logger.info(f"Fetching URL: {url}")
+        #logger.info(f"Fetching URL: {url}")
         response = requests.get(url, headers=headers)
         response.raise_for_status()
         
@@ -77,7 +77,7 @@ def scrape_cigars_com(brand: str) -> list:
     }
     
     try:
-        logger.info(f"Fetching URL: {url}")
+        #logger.info(f"Fetching URL: {url}")
         response = requests.get(url, headers=headers)
         response.raise_for_status()
         

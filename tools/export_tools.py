@@ -27,7 +27,8 @@ def save_to_json(comparison_data: dict, brand: str) -> str:
         logger.info(f"Project root directory: {project_root}")
         
         # Create output directory if it doesn't exist
-        output_dir = os.path.join(project_root, "output")
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        output_dir = os.path.join(current_dir, "output")
         os.makedirs(output_dir, exist_ok=True)
         logger.info(f"Output directory: {output_dir}")
         

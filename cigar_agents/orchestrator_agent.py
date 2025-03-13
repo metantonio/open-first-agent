@@ -35,83 +35,17 @@ class OrchestratorOutput(BaseModel):
 orchestrator_agent = Agent(
     name="Cigar Comparison Orchestrator",
     instructions="""
-    You are an orchestrator agent that coordinates the complete cigar comparison workflow.
-    Follow these steps EXACTLY in order:
-
-    1. Extract the brand name from the user's input.
-       - Log: f"Processing request for brand: {brand}"
-
-    2. Call the scraper_agent to get initial results:
-       - Input MUST be EXACTLY: {"brand": brand}
-       - Store the complete result in scraper_results
-       - Log: f"Received scraper results with keys: {scraper_results.keys()}"
-       - VERIFY scraper_results has all required keys: mikes_products, cigars_products, matched_products
-       - If any key is missing, raise an error
-       - Log: f"Scraper found {len(scraper_results['mikes_products'])} Mike's products and {len(scraper_results['cigars_products'])} Cigars.com products"
-
-    3. Call the html_parser_agent to get detailed results:
-       - Input MUST be EXACTLY: {"brand": brand}
-       - Store the complete result in parser_results
-       - Log: f"Received parser results with keys: {parser_results.keys()}"
-       - VERIFY parser_results has all required keys: mikes_products, cigars_products, matched_products
-       - If any key is missing, raise an error
-       - Log: f"Parser found {len(parser_results['mikes_products'])} Mike's products and {len(parser_results['cigars_products'])} Cigars.com products"
-
-    4. Call the json_agent to save the combined results:
-       - First log: "Preparing to save JSON data"
-       - VERIFY both results have required structure
-       - Create input_data EXACTLY as:
-         {
-           "brand": brand,
-           "comparison_data": {
-               "scraper_results": {
-                   "mikes_products": scraper_results["mikes_products"],
-                   "cigars_products": scraper_results["cigars_products"],
-                   "matched_products": scraper_results["matched_products"]
-               },
-               "parser_results": {
-                   "mikes_products": parser_results["mikes_products"],
-                   "cigars_products": parser_results["cigars_products"],
-                   "matched_products": parser_results["matched_products"]
-               }
-           }
-         }
-       - Log: f"JSON input data structure: {input_data}"
-       - Call json_agent with input_data
-       - VERIFY response is a dictionary with "json_file" key
-       - Store the result["json_file"] path
-       - VERIFY file exists: os.path.exists(result["json_file"])
-       - Log: f"JSON file created at: {result['json_file']}"
-
-    5. Call the csv_agent to convert the JSON:
-       - First log: "Preparing to convert to CSV"
-       - VERIFY JSON file exists
-       - Create input_data EXACTLY as: {"json_file": result["json_file"]}
-       - Log: f"CSV input data: {input_data}"
-       - Call csv_agent with input_data
-       - VERIFY response is a dictionary with "csv_file" key
-       - Store the result["csv_file"] path
-       - VERIFY file exists: os.path.exists(result["csv_file"])
-       - Log: f"CSV file created at: {result['csv_file']}"
-
-    6. Return EXACTLY:
-    {
-        "scraper_results": scraper_results,
-        "parser_results": parser_results,
-        "json_file": result["json_file"],
-        "csv_file": result["csv_file"]
-    }
-
-    IMPORTANT RULES:
-    - VERIFY all data structures before passing between agents
-    - VERIFY all files exist after creation
-    - Log EVERY step with detailed information
-    - If any verification fails:
-      1. Log the full error details
-      2. Include the exact data structure that failed
-      3. Try to continue with remaining steps
+     You are an orchestrator agent that coordinates the cigar comparison workflow.
+     
+     1. First, understand the user's request for which cigar brand to compare.
+     2. Hand off to the Scraper Agent to scrape and compare products.
+     3. Hand off to the JSON Export Agent to save the comparison data.
+     4. Hand off to the CSV Conversion Agent to convert the data to CSV format.
+     5. Finally, summarize the results to the user.
+     
+     Be helpful and informative throughout the process.
     """,
     model=get_model_config(),
     model_settings=ModelSettings(temperature=0.1),
-    handoffs=[scraper_agent, html_parser_agent, json_agent, csv_agent]
+    handoffs=[scraper_agent, json_agent, csv_agent]
 ) 
