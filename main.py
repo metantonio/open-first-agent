@@ -31,42 +31,47 @@ def scrape_mikes_cigars(brand: str) -> list:
     Returns:
         List of products with details
     """
+    print(f"\n=== Starting Mike's Cigars scrape for brand: {brand} ===")
     url = f"https://mikescigars.com/catalogsearch/result/?q={brand.replace(' ', '+')}"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     }
     
     try:
+        print(f"Fetching URL: {url}")
         response = requests.get(url, headers=headers)
         response.raise_for_status()
         
         soup = BeautifulSoup(response.text, 'html.parser')
         products = []
         
-        product_items = soup.select('item product product-item')
-        print("executing mikescigars scrape")
-        for item in product_items[:5]:  # Limit to first 5 products for demonstration
-            name_elem = item.select_one('product name product-item-name')
-            price_elem = item.select_one('.price-box price-final_price')
-            href = item.select_one('.product photo product-item-photo')
+        # Updated selectors to match Mike's Cigars website structure
+        product_items = soup.select('.product-item')
+        print(f"Found {len(product_items)} products on Mike's Cigars")
+        
+        for item in product_items[:5]:
+            name_elem = item.select_one('.product-item-name')
+            price_elem = item.select_one('.price')
+            href = item.select_one('a.product-item-photo')
+            
             if name_elem and price_elem:
                 name = name_elem.text.strip()
                 price = price_elem.text.strip()
+                url = href.get('href', '') if href else ""
                 
-                products.append({
+                product = {
                     "website": "mikescigars.com",
                     "name": name,
                     "price": price,
-                    "url": "https://www.mikescigars.com" + href.get('href', '') if href.get('href') else ""
-                })
-                print("\nitem: " + f"""
-                    name: {name},
-                    price: {price},
-                    url: https://www.mikescigars.com + {href.get('href', '') if href.get('href') else ''}
-                """)
+                    "url": url
+                }
+                products.append(product)
+                print(f"\nFound product: {name} - {price} - {url}")
         
+        print(f"=== Completed Mike's Cigars scrape with {len(products)} products ===\n")
         return products
     except Exception as e:
+        print(f"Error scraping Mike's Cigars: {str(e)}")
         return [{"error": f"Failed to scrape Mike's Cigars: {str(e)}"}]
 
 @function_tool
@@ -80,42 +85,47 @@ def scrape_cigars_com(brand: str) -> list:
     Returns:
         List of products with details
     """
-    url = f"https://www.cigars.com/search?lang=en_US&jrSubmitButton=&q={brand.replace(' ', '+')}"
+    print(f"\n=== Starting Cigars.com scrape for brand: {brand} ===")
+    url = f"https://www.cigars.com/search/?q={brand.replace(' ', '+')}"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     }
     
     try:
+        print(f"Fetching URL: {url}")
         response = requests.get(url, headers=headers)
         response.raise_for_status()
         
         soup = BeautifulSoup(response.text, 'html.parser')
         products = []
-        print("executing cigars.comc scrape")
-        product_items = soup.select('.main-brand')
-        for item in product_items[:5]:  # Limit to first 5 products for demonstration
-            name_elem = item.select_one('.brand-name')
-            price_elem = item.select_one('.prices')
+        
+        # Updated selectors to match Cigars.com website structure
+        product_items = soup.select('.product-card')
+        print(f"Found {len(product_items)} products on Cigars.com")
+        
+        for item in product_items[:5]:
+            name_elem = item.select_one('.product-card__title')
+            price_elem = item.select_one('.product-card__price')
             href = item.select_one('a')
+            
             if name_elem and price_elem:
                 name = name_elem.text.strip()
                 price = price_elem.text.strip()
+                url = "https://www.cigars.com" + href.get('href', '') if href else ""
                 
-                products.append({
+                product = {
                     "website": "cigars.com",
                     "name": name,
                     "price": price,
-                    "url": "https://www.cigars.com" + href.get('href', '') if href.get('href') else ""
-                })
-
-                print("\nitem: " + f"""
-                    name: {name},
-                    price: {price},
-                    url: https://www.cigars.com + {href.get('href', '') if href.get('href') else ''}
-                """)
+                    "url": url
+                }
+                products.append(product)
+                print(f"\nFound product: {name} - {price} - {url}")
         
+        print(f"=== Completed Cigars.com scrape with {len(products)} products ===\n")
         return products
     except Exception as e:
+        print(f"Error scraping Cigars.com: {str(e)}")
         return [{"error": f"Failed to scrape Cigars.com: {str(e)}"}]
 
 @function_tool
@@ -130,19 +140,23 @@ def compare_products(mikes_products: list, cigars_products: list) -> list:
     Returns:
         List of matching products with comparison data
     """
+    print("\n=== Starting product comparison ===")
     matched_products = []
+    
+    print(f"Comparing {len(mikes_products)} Mike's Cigars products with {len(cigars_products)} Cigars.com products")
     
     for mikes_product in mikes_products:
         if "error" in mikes_product:
+            print(f"Skipping Mike's Cigars product due to error: {mikes_product['error']}")
             continue
             
         for cigars_product in cigars_products:
             if "error" in cigars_product:
+                print(f"Skipping Cigars.com product due to error: {cigars_product['error']}")
                 continue
                 
-            # Simple string similarity check - can be improved
             if similar_product_names(mikes_product["name"], cigars_product["name"]):
-                matched_products.append({
+                match = {
                     "product_name": mikes_product["name"],
                     "mikes_cigars": {
                         "price": mikes_product["price"],
@@ -152,9 +166,13 @@ def compare_products(mikes_products: list, cigars_products: list) -> list:
                         "price": cigars_product["price"],
                         "url": cigars_product["url"]
                     }
-                })
-                break
+                }
+                matched_products.append(match)
+                print(f"\nFound matching product: {mikes_product['name']}")
+                print(f"Mike's Cigars: {mikes_product['price']}")
+                print(f"Cigars.com: {cigars_product['price']}")
     
+    print(f"=== Completed comparison with {len(matched_products)} matches ===\n")
     return matched_products
 
 @function_tool
@@ -326,19 +344,100 @@ orchestrator_agent = Agent(
 
 async def main():
     # Print current working directory
-    print(f"Current working directory: {os.getcwd()}")
+    print(f"\n=== Starting cigar comparison script ===")
+    current_dir = os.getcwd()
+    print(f"Current working directory: {current_dir}")
     
     # Get the brand to search for
     brand = input("Enter the cigar brand to compare: ")
+    print(f"\nSearching for brand: {brand}")
     
-    # Run the orchestrator agent
-    result = await Runner.run(
-        orchestrator_agent, 
-        input=f"Compare cigars of the brand '{brand}' between mikescigars.com and cigars.com. Save the results to JSON with today's date, then convert to CSV."
-    )
-    
-    print("\nFinal result:")
-    print(result.final_output)
+    try:
+        # Run the scraper agent
+        print("\n=== Running Scraper Agent ===")
+        scraper_result = await Runner.run(
+            scraper_agent,
+            input=f"Search for and compare cigars of the brand '{brand}' between mikescigars.com and cigars.com."
+        )
+        print("\nScraper Agent completed")
+        
+        # Extract the comparison data from the scraper result
+        comparison_data = scraper_result.final_output
+        if isinstance(comparison_data, str):
+            # If the result is a string, try to parse it as JSON
+            try:
+                comparison_data = json.loads(comparison_data)
+            except json.JSONDecodeError:
+                print("Warning: Could not parse scraper result as JSON")
+        
+        # Run the JSON Export Agent
+        print("\n=== Running JSON Export Agent ===")
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        json_filename = os.path.join(current_dir, f"{brand.replace(' ', '_')}_comparison_{current_date}.json")
+        
+        # Save the comparison data directly
+        try:
+            with open(json_filename, 'w', encoding='utf-8') as f:
+                json.dump({
+                    "date": current_date,
+                    "brand": brand,
+                    "comparisons": comparison_data
+                }, f, indent=2)
+            print(f"JSON file created successfully at: {json_filename}")
+        except Exception as e:
+            print(f"Error creating JSON file: {str(e)}")
+            raise
+        
+        # Run the CSV Conversion Agent
+        print("\n=== Running CSV Conversion Agent ===")
+        csv_filename = json_filename.replace('.json', '.csv')
+        
+        try:
+            # Read the JSON file we just created
+            with open(json_filename, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            # Create the CSV file
+            with open(csv_filename, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                
+                # Write header
+                writer.writerow(['Date', 'Brand', 'Product Name', 'Mike\'s Cigars Price', 'Mike\'s Cigars URL', 'Cigars.com Price', 'Cigars.com URL'])
+                
+                # Write data rows
+                for comparison in data['comparisons']:
+                    writer.writerow([
+                        data['date'],
+                        data['brand'],
+                        comparison['product_name'],
+                        comparison['mikes_cigars']['price'],
+                        comparison['mikes_cigars']['url'],
+                        comparison['cigars_com']['price'],
+                        comparison['cigars_com']['url']
+                    ])
+            print(f"CSV file created successfully at: {csv_filename}")
+        except Exception as e:
+            print(f"Error creating CSV file: {str(e)}")
+            raise
+        
+        print("\n=== Final Results ===")
+        print("JSON file:", json_filename)
+        print("CSV file:", csv_filename)
+        
+        # Verify files exist
+        if os.path.exists(json_filename):
+            print(f"Confirmed: JSON file exists at {json_filename}")
+        else:
+            print(f"Warning: JSON file not found at {json_filename}")
+            
+        if os.path.exists(csv_filename):
+            print(f"Confirmed: CSV file exists at {csv_filename}")
+        else:
+            print(f"Warning: CSV file not found at {csv_filename}")
+        
+    except Exception as e:
+        print(f"\nError during execution: {str(e)}")
+        raise
 
 if __name__ == "__main__":
     asyncio.run(main())
