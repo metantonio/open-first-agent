@@ -40,6 +40,11 @@ async def main():
         raw_result = agents_result.final_output
         logger.info("Debug - Raw scraper output: %s", raw_result)
         
+        # Initialize variables with empty lists
+        mikes_products = []
+        cigars_products = []
+        matches = []
+        
         try:
             # Clean up the raw output if it contains markdown
             if isinstance(raw_result, str):
@@ -53,15 +58,18 @@ async def main():
             
             # Ensure we have a dictionary
             if isinstance(raw_result, dict):
-                # Ensure the dictionary has all required keys
-                required_keys = ['mikes_products', 'cigars_products', 'matches']
+                # Check for both possible key names for matches
+                required_keys = ['mikes_products', 'cigars_products']
+                matches_key = 'matches' if 'matches' in raw_result else 'matched_products'
+                required_keys.append(matches_key)
+                
                 if not all(key in raw_result for key in required_keys):
                     raise ValueError(f"Missing required keys in scraper result. Required: {required_keys}")
                 
                 # Update our variables
                 mikes_products = raw_result['mikes_products']
                 cigars_products = raw_result['cigars_products']
-                matches = raw_result['matches']
+                matches = raw_result[matches_key]
                 
                 if not isinstance(mikes_products, list) or not isinstance(cigars_products, list):
                     raise ValueError("Products must be lists")
@@ -75,7 +83,7 @@ async def main():
             
         except Exception as e:
             logger.error(f"Error processing scraper results: {str(e)}")
-            # Keep the initialized empty lists
+            # Variables already initialized with empty lists
         
         # Run the HTML Parser Agent
         logger.info("\n=== Running HTML Parser Agent ===")

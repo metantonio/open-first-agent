@@ -32,6 +32,7 @@ scraper_agent = Agent(
     - Validate all scraped data before returning
     - Handle errors gracefully with clear messages
     - Log all scraping operations and results
+    - ALWAYS use "matched_products" as the key for matches
     """,
     model=get_model_config(),
     model_settings=ModelSettings(temperature=0.1),

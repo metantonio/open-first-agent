@@ -30,8 +30,12 @@ html_parser_agent = Agent(
          "detailed_csv_file": "path to saved CSV file"
      }
  
-     Make sure to handle any errors appropriately and extract as much information as possible
-     from the HTML content.
+     Make sure to:
+     - Handle any errors appropriately
+     - Extract as much information as possible from the HTML content
+     - Return empty lists [] if no products are found (do not return null or undefined)
+     - Log clear messages about the number of products found from each source
+     - Validate that product lists are always arrays before saving
     """,
     model=get_model_config(),
     model_settings=ModelSettings(temperature=0.1),
