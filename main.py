@@ -287,7 +287,7 @@ orchestrator_agent = Agent(
         model="llama3.2",
         openai_client=external_provider,
     ),
-    model_settings=ModelSettings(temperature=0.5),
+    model_settings=ModelSettings(temperature=0.1),
     handoffs=[scraper_agent, json_agent, csv_agent]
 )
 
