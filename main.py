@@ -104,8 +104,8 @@ def scrape_cigars_com(brand: str) -> list:
         print(f"Found {len(product_items)} products on Cigars.com")
         
         for item in product_items[:5]:
-            name_elem = item.select_one('.product-card__title')
-            price_elem = item.select_one('.product-card__price')
+            name_elem = item.select_one('.brand-name')
+            price_elem = item.select_one('.prices')
             href = item.select_one('a')
             
             if name_elem and price_elem:
@@ -286,6 +286,7 @@ def save_all_products(mikes_products: list, cigars_products: list, brand: str) -
         Dictionary with all products and metadata
     """
     current_date = datetime.now().strftime("%Y-%m-%d")
+    current_dir = os.getcwd()
     
     # Filter out error entries
     mikes_products = [p for p in mikes_products if "error" not in p]
@@ -298,7 +299,57 @@ def save_all_products(mikes_products: list, cigars_products: list, brand: str) -
         "cigars_com_products": cigars_products
     }
     
-    return all_products_data
+    # Save to JSON
+    json_filename = os.path.join(current_dir, f"{brand.replace(' ', '_')}_all_products_{current_date}.json")
+    try:
+        with open(json_filename, 'w', encoding='utf-8') as f:
+            json.dump(all_products_data, f, indent=2)
+        print(f"All products JSON file created successfully at: {json_filename}")
+    except Exception as e:
+        print(f"Error creating all products JSON file: {str(e)}")
+        raise
+    
+    # Save to CSV
+    csv_filename = json_filename.replace('.json', '.csv')
+    try:
+        with open(csv_filename, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            
+            # Write header
+            writer.writerow(['Date', 'Brand', 'Website', 'Product Name', 'Price', 'URL'])
+            
+            # Write Mike's Cigars products
+            for product in mikes_products:
+                writer.writerow([
+                    current_date,
+                    brand,
+                    'mikescigars.com',
+                    product.get('name', 'Unknown'),
+                    product.get('price', 'N/A'),
+                    product.get('url', 'N/A')
+                ])
+            
+            # Write Cigars.com products
+            for product in cigars_products:
+                writer.writerow([
+                    current_date,
+                    brand,
+                    'cigars.com',
+                    product.get('name', 'Unknown'),
+                    product.get('price', 'N/A'),
+                    product.get('url', 'N/A')
+                ])
+        
+        print(f"All products CSV file created successfully at: {csv_filename}")
+    except Exception as e:
+        print(f"Error creating all products CSV file: {str(e)}")
+        raise
+    
+    return {
+        "json_file": json_filename,
+        "csv_file": csv_filename,
+        "data": all_products_data
+    }
 
 # Define the Scraper Agent
 scraper_agent = Agent(
@@ -306,9 +357,18 @@ scraper_agent = Agent(
     instructions="""
     You are a specialized agent for scraping cigar websites. 
     Your task is to search for a specific cigar brand on Mike's Cigars and Cigars.com,
-    then compare products with similar presentations across both websites.
-    Use the scrape_mikes_cigars and scrape_cigars_com tools to get product information,
-    then use the compare_products tool to find matching items and save the url.
+    and collect all product information.
+
+    1. First use scrape_mikes_cigars to get products from Mike's Cigars
+    2. Then use scrape_cigars_com to get products from Cigars.com
+    3. Finally use compare_products to find matching items
+
+    Return the results in this exact format:
+    {
+        "mikes_products": [list of products from Mike's Cigars],
+        "cigars_products": [list of products from Cigars.com],
+        "matches": [list of matching products]
+    }
     """,
     model=OpenAIChatCompletionsModel(
         model=external_provider["model"],
@@ -356,18 +416,15 @@ all_products_agent = Agent(
     Your task is to take all products from both Mike's Cigars and Cigars.com,
     regardless of whether they match or not, and save them to both JSON and CSV formats.
     
-    Follow these steps:
-    1. Use save_all_products to organize the data
-    2. Use save_to_json to save the full data as JSON
-    3. Use convert_json_to_csv to create a CSV version
-    
-    Make sure to preserve all product information from both websites.
+    Use the save_all_products tool to save all products from both websites.
+    The tool will automatically create both JSON and CSV files.
+    Make sure to handle any errors appropriately.
     """,
     model=OpenAIChatCompletionsModel(
         model=external_provider["model"],
         openai_client=external_provider["client"],
     ),
-    tools=[save_all_products, save_to_json, convert_json_to_csv]
+    tools=[save_all_products]
 )
 
 # Define the Orchestrator Agent with handoffs to specialized agents
@@ -407,123 +464,73 @@ async def main():
         print("\n=== Running Scraper Agent ===")
         scraper_result = await Runner.run(
             scraper_agent,
-            input=f"Search for and compare cigars of the brand '{brand}' between mikescigars.com and cigars.com."
+            input=f"Search for and compare cigars of the brand '{brand}' between mikescigars.com and cigars.com. Make sure to return the results in the exact format specified."
         )
         print("\nScraper Agent completed")
         
-        # Extract the raw scraping results before comparison
+        # Extract the raw scraping results and comparison data
         raw_result = scraper_result.final_output
+        print("\nDebug - Raw scraper output:", raw_result)
+        
         if isinstance(raw_result, str):
             try:
                 raw_result = json.loads(raw_result)
-            except json.JSONDecodeError:
-                print("Warning: Could not parse scraper result as JSON")
-                raw_result = {"error": "Failed to parse scraper result"}
-        
-        # Run the All Products Export Agent
-        print("\n=== Running All Products Export Agent ===")
-        all_products_result = await Runner.run(
-            all_products_agent,
-            input=f"Save all products for brand '{brand}' from both websites to JSON and CSV: {raw_result}"
-        )
-        print("\nAll Products Export Agent completed")
-        
-        # Extract and debug the comparison data from the scraper result
-        comparison_data = scraper_result.final_output
-        print("\nDebug - Raw scraper output:", comparison_data)
-        
-        if isinstance(comparison_data, str):
-            try:
-                comparison_data = json.loads(comparison_data)
-                print("Debug - Parsed JSON data:", json.dumps(comparison_data, indent=2))
+                print("\nDebug - Parsed JSON data:", json.dumps(raw_result, indent=2))
             except json.JSONDecodeError as e:
-                print(f"Warning: Could not parse scraper result as JSON: {e}")
-                comparison_data = [{
-                    "product_name": "Unknown Product",
-                    "mikes_cigars": {"price": "N/A", "url": "N/A"},
-                    "cigars_com": {"price": "N/A", "url": "N/A"}
-                }]
+                print(f"Warning: Could not parse scraper result as JSON: {str(e)}")
+                # Create empty structure if parsing fails
+                raw_result = {
+                    "mikes_products": [],
+                    "cigars_products": [],
+                    "matches": []
+                }
         
-        # Ensure comparison_data is a list
-        if not isinstance(comparison_data, list):
-            comparison_data = [comparison_data]
-        
-        # Run the JSON Export Agent for matches
-        print("\n=== Running JSON Export Agent for Matches ===")
-        current_date = datetime.now().strftime("%Y-%m-%d")
-        json_filename = os.path.join(current_dir, f"{brand.replace(' ', '_')}_matches_{current_date}.json")
-        
-        # Save the comparison data directly
+        # Run the All Products Export Agent with the raw scraping results
+        print("\n=== Running All Products Export Agent ===")
         try:
-            output_data = {
-                "date": current_date,
-                "brand": brand,
-                "comparisons": comparison_data
-            }
-            print("\nDebug - Data being written to JSON:", json.dumps(output_data, indent=2))
+            # Extract products from the raw result
+            mikes_products = raw_result.get('mikes_products', [])
+            cigars_products = raw_result.get('cigars_products', [])
             
-            with open(json_filename, 'w', encoding='utf-8') as f:
-                json.dump(output_data, f, indent=2)
-            print(f"JSON file created successfully at: {json_filename}")
-        except Exception as e:
-            print(f"Error creating JSON file: {str(e)}")
-            raise
-        
-        # Run the CSV Conversion Agent for matches
-        print("\n=== Running CSV Conversion Agent for Matches ===")
-        csv_filename = json_filename.replace('.json', '.csv')
-        
-        try:
-            # Read the JSON file we just created
-            with open(json_filename, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                print("\nDebug - Data read from JSON file:", json.dumps(data, indent=2))
+            print("\nDebug - Mike's products:", json.dumps(mikes_products, indent=2))
+            print("\nDebug - Cigars.com products:", json.dumps(cigars_products, indent=2))
             
-            # Create the CSV file
-            with open(csv_filename, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.writer(f)
+            # Save all products
+            all_products_result = await Runner.run(
+                all_products_agent,
+                input=json.dumps({
+                    "brand": brand,
+                    "mikes_products": mikes_products,
+                    "cigars_products": cigars_products
+                })
+            )
+            print("\nAll Products Export Agent completed")
+            
+            # Save matches if any exist
+            matches = raw_result.get('matches', [])
+            if matches:
+                print("\n=== Saving Matches ===")
+                current_date = datetime.now().strftime("%Y-%m-%d")
+                matches_filename = os.path.join(current_dir, f"{brand.replace(' ', '_')}_matches_{current_date}.json")
                 
-                # Write header
-                writer.writerow(['Date', 'Brand', 'Product Name', 'Mike\'s Cigars Price', 'Mike\'s Cigars URL', 'Cigars.com Price', 'Cigars.com URL'])
+                matches_data = {
+                    "date": current_date,
+                    "brand": brand,
+                    "matches": matches
+                }
                 
-                # Write data rows
-                if isinstance(data['comparisons'], list):
-                    for comparison in data['comparisons']:
-                        if isinstance(comparison, dict):
-                            writer.writerow([
-                                data['date'],
-                                data['brand'],
-                                comparison.get('product_name', 'Unknown'),
-                                comparison.get('mikes_cigars', {}).get('price', 'N/A'),
-                                comparison.get('mikes_cigars', {}).get('url', 'N/A'),
-                                comparison.get('cigars_com', {}).get('price', 'N/A'),
-                                comparison.get('cigars_com', {}).get('url', 'N/A')
-                            ])
-                        else:
-                            print(f"Warning: Skipping invalid comparison data: {comparison}")
-                else:
-                    print(f"Warning: Invalid comparisons data format: {data['comparisons']}")
+                with open(matches_filename, 'w', encoding='utf-8') as f:
+                    json.dump(matches_data, f, indent=2)
+                print(f"Matches saved to: {matches_filename}")
             
-            print(f"CSV file created successfully at: {csv_filename}")
+            print("\n=== Final Results ===")
+            print(f"Found {len(mikes_products)} products on Mike's Cigars")
+            print(f"Found {len(cigars_products)} products on Cigars.com")
+            print(f"Found {len(matches)} matching products")
+            
         except Exception as e:
-            print(f"Error creating CSV file: {str(e)}")
+            print(f"Error processing results: {str(e)}")
             raise
-        
-        print("\n=== Final Results ===")
-        print("Matches JSON file:", json_filename)
-        print("Matches CSV file:", csv_filename)
-        print("All Products files:", all_products_result.final_output)
-        
-        # Verify files exist
-        if os.path.exists(json_filename):
-            print(f"Confirmed: Matches JSON file exists at {json_filename}")
-        else:
-            print(f"Warning: Matches JSON file not found at {json_filename}")
-            
-        if os.path.exists(csv_filename):
-            print(f"Confirmed: Matches CSV file exists at {csv_filename}")
-        else:
-            print(f"Warning: Matches CSV file not found at {csv_filename}")
         
     except Exception as e:
         print(f"\nError during execution: {str(e)}")
