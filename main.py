@@ -483,14 +483,14 @@ async def main():
         
         # Extract the raw scraping results and comparison data
         raw_result = scraper_result.final_output
-        logger.info("\nDebug - Raw scraper output:", raw_result)
+        logger.info("Debug - Raw scraper output: %s", raw_result)
         
         if isinstance(raw_result, str):
             try:
                 raw_result = json.loads(raw_result)
-                logger.info("\nDebug - Parsed JSON data:", json.dumps(raw_result, indent=2))
+                logger.info("Debug - Parsed JSON data: %s", json.dumps(raw_result, indent=2))
             except json.JSONDecodeError as e:
-                logger.warning(f"Warning: Could not parse scraper result as JSON: {str(e)}")
+                logger.warning("Warning: Could not parse scraper result as JSON: %s", str(e))
                 # Create empty structure if parsing fails
                 raw_result = {
                     "mikes_products": [],
@@ -499,14 +499,14 @@ async def main():
                 }
         
         # Run the All Products Export Agent with the raw scraping results
-        logger.info("\n=== Running All Products Export Agent ===")
+        logger.info("=== Running All Products Export Agent ===")
         try:
             # Extract products from the raw result
             mikes_products = raw_result.get('mikes_products', [])
             cigars_products = raw_result.get('cigars_products', [])
             
-            logger.info("\nDebug - Mike's products:", json.dumps(mikes_products, indent=2))
-            logger.info("\nDebug - Cigars.com products:", json.dumps(cigars_products, indent=2))
+            logger.info("Debug - Mike's products: %s", json.dumps(mikes_products, indent=2))
+            logger.info("Debug - Cigars.com products: %s", json.dumps(cigars_products, indent=2))
             
             # Save all products
             all_products_result = await Runner.run(
