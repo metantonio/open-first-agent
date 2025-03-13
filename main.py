@@ -361,14 +361,28 @@ async def main():
         )
         print("\nScraper Agent completed")
         
-        # Extract the comparison data from the scraper result
+        # Extract and debug the comparison data from the scraper result
         comparison_data = scraper_result.final_output
+        print("\nDebug - Raw scraper output:", comparison_data)
+        
         if isinstance(comparison_data, str):
-            # If the result is a string, try to parse it as JSON
             try:
                 comparison_data = json.loads(comparison_data)
-            except json.JSONDecodeError:
-                print("Warning: Could not parse scraper result as JSON")
+                print("Debug - Parsed JSON data:", json.dumps(comparison_data, indent=2))
+            except json.JSONDecodeError as e:
+                print(f"Warning: Could not parse scraper result as JSON: {e}")
+                # If it's not valid JSON, try to extract the relevant data
+                if isinstance(comparison_data, str):
+                    # Create a simple comparison object
+                    comparison_data = [{
+                        "product_name": "Unknown Product",
+                        "mikes_cigars": {"price": "N/A", "url": "N/A"},
+                        "cigars_com": {"price": "N/A", "url": "N/A"}
+                    }]
+        
+        # Ensure comparison_data is a list
+        if not isinstance(comparison_data, list):
+            comparison_data = [comparison_data]
         
         # Run the JSON Export Agent
         print("\n=== Running JSON Export Agent ===")
@@ -377,12 +391,15 @@ async def main():
         
         # Save the comparison data directly
         try:
+            output_data = {
+                "date": current_date,
+                "brand": brand,
+                "comparisons": comparison_data
+            }
+            print("\nDebug - Data being written to JSON:", json.dumps(output_data, indent=2))
+            
             with open(json_filename, 'w', encoding='utf-8') as f:
-                json.dump({
-                    "date": current_date,
-                    "brand": brand,
-                    "comparisons": comparison_data
-                }, f, indent=2)
+                json.dump(output_data, f, indent=2)
             print(f"JSON file created successfully at: {json_filename}")
         except Exception as e:
             print(f"Error creating JSON file: {str(e)}")
@@ -396,6 +413,7 @@ async def main():
             # Read the JSON file we just created
             with open(json_filename, 'r', encoding='utf-8') as f:
                 data = json.load(f)
+                print("\nDebug - Data read from JSON file:", json.dumps(data, indent=2))
             
             # Create the CSV file
             with open(csv_filename, 'w', newline='', encoding='utf-8') as f:
@@ -405,16 +423,23 @@ async def main():
                 writer.writerow(['Date', 'Brand', 'Product Name', 'Mike\'s Cigars Price', 'Mike\'s Cigars URL', 'Cigars.com Price', 'Cigars.com URL'])
                 
                 # Write data rows
-                for comparison in data['comparisons']:
-                    writer.writerow([
-                        data['date'],
-                        data['brand'],
-                        comparison['product_name'],
-                        comparison['mikes_cigars']['price'],
-                        comparison['mikes_cigars']['url'],
-                        comparison['cigars_com']['price'],
-                        comparison['cigars_com']['url']
-                    ])
+                if isinstance(data['comparisons'], list):
+                    for comparison in data['comparisons']:
+                        if isinstance(comparison, dict):
+                            writer.writerow([
+                                data['date'],
+                                data['brand'],
+                                comparison.get('product_name', 'Unknown'),
+                                comparison.get('mikes_cigars', {}).get('price', 'N/A'),
+                                comparison.get('mikes_cigars', {}).get('url', 'N/A'),
+                                comparison.get('cigars_com', {}).get('price', 'N/A'),
+                                comparison.get('cigars_com', {}).get('url', 'N/A')
+                            ])
+                        else:
+                            print(f"Warning: Skipping invalid comparison data: {comparison}")
+                else:
+                    print(f"Warning: Invalid comparisons data format: {data['comparisons']}")
+            
             print(f"CSV file created successfully at: {csv_filename}")
         except Exception as e:
             print(f"Error creating CSV file: {str(e)}")
@@ -427,11 +452,19 @@ async def main():
         # Verify files exist
         if os.path.exists(json_filename):
             print(f"Confirmed: JSON file exists at {json_filename}")
+            # Print file contents for debugging
+            with open(json_filename, 'r') as f:
+                print("\nJSON file contents:")
+                print(f.read())
         else:
             print(f"Warning: JSON file not found at {json_filename}")
             
         if os.path.exists(csv_filename):
             print(f"Confirmed: CSV file exists at {csv_filename}")
+            # Print file contents for debugging
+            with open(csv_filename, 'r') as f:
+                print("\nCSV file contents:")
+                print(f.read())
         else:
             print(f"Warning: CSV file not found at {csv_filename}")
         
