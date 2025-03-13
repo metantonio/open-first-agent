@@ -8,12 +8,12 @@ from agents import function_tool
 logger = logging.getLogger(__name__)
 
 @function_tool
-def save_to_json(comparison_data: list, brand: str) -> str:
+def save_to_json(comparison_data: dict, brand: str) -> str:
     """
     Save comparison data to a JSON file with current date.
     
     Args:
-        comparison_data: List of product comparisons
+        comparison_data: Dictionary containing scraper and parser results
         brand: The brand being compared
     
     Returns:
@@ -23,17 +23,25 @@ def save_to_json(comparison_data: list, brand: str) -> str:
     output_data = {
         "date": current_date,
         "brand": brand,
-        "comparisons": comparison_data
+        "scraper_results": comparison_data.get("scraper_results", {}),
+        "parser_results": comparison_data.get("parser_results", {})
     }
     
-    # Get the directory of the current script
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    filename = os.path.join(current_dir, f"{brand.replace(' ', '_')}_comparison_{current_date}.json")
+    # Create output directory if it doesn't exist
+    output_dir = os.path.join(os.getcwd(), "output")
+    os.makedirs(output_dir, exist_ok=True)
+    
+    filename = os.path.join(output_dir, f"{brand.replace(' ', '_')}_comparison_{current_date}.json")
     
     try:
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(output_data, f, indent=2)
         logger.info(f"JSON file created successfully at: {filename}")
+        
+        # Verify file was created
+        if not os.path.exists(filename):
+            raise Exception("File was not created successfully")
+            
     except Exception as e:
         logger.error(f"Error creating JSON file: {str(e)}")
         raise
@@ -52,6 +60,9 @@ def convert_json_to_csv(json_file: str) -> str:
         Path to the created CSV file
     """
     try:
+        if not os.path.exists(json_file):
+            raise FileNotFoundError(f"JSON file not found: {json_file}")
+            
         with open(json_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
@@ -61,20 +72,54 @@ def convert_json_to_csv(json_file: str) -> str:
             writer = csv.writer(f)
             
             # Write header
-            writer.writerow(['Date', 'Brand', 'Product Name', 'Mike\'s Cigars Price', 'Mike\'s Cigars URL', 'Cigars.com Price', 'Cigars.com URL'])
+            writer.writerow(['Date', 'Brand', 'Source', 'Product Name', 'Price', 'URL', 'Matched'])
             
-            # Write data rows
-            for comparison in data['comparisons']:
-                writer.writerow([
-                    data['date'],
-                    data['brand'],
-                    comparison['product_name'],
-                    comparison['mikes_cigars']['price'],
-                    comparison['mikes_cigars']['url'],
-                    comparison['cigars_com']['price'],
-                    comparison['cigars_com']['url']
-                ])
+            # Write scraper results
+            scraper_results = data.get('scraper_results', {})
+            for product_type in ['mikes_products', 'cigars_products']:
+                products = scraper_results.get(product_type, [])
+                source = 'Mike\'s Cigars' if 'mikes' in product_type else 'Cigars.com'
+                for product in products:
+                    matched = any(
+                        m.get('mikes', {}).get('url') == product.get('url') or 
+                        m.get('cigars', {}).get('url') == product.get('url')
+                        for m in scraper_results.get('matched_products', [])
+                    )
+                    writer.writerow([
+                        data['date'],
+                        data['brand'],
+                        source,
+                        product.get('name', 'N/A'),
+                        product.get('price', 'N/A'),
+                        product.get('url', 'N/A'),
+                        'Yes' if matched else 'No'
+                    ])
+            
+            # Write parser results
+            parser_results = data.get('parser_results', {})
+            for product_type in ['mikes_products', 'cigars_products']:
+                products = parser_results.get(product_type, [])
+                source = 'Mike\'s Cigars (Parsed)' if 'mikes' in product_type else 'Cigars.com (Parsed)'
+                for product in products:
+                    matched = any(
+                        m.get('mikes', {}).get('url') == product.get('url') or 
+                        m.get('cigars', {}).get('url') == product.get('url')
+                        for m in parser_results.get('matched_products', [])
+                    )
+                    writer.writerow([
+                        data['date'],
+                        data['brand'],
+                        source,
+                        product.get('name', 'N/A'),
+                        product.get('price', 'N/A'),
+                        product.get('url', 'N/A'),
+                        'Yes' if matched else 'No'
+                    ])
         
+        # Verify file was created
+        if not os.path.exists(csv_filename):
+            raise Exception("CSV file was not created successfully")
+            
         logger.info(f"CSV file created successfully at: {csv_filename}")
         return csv_filename
     except Exception as e:
@@ -84,7 +129,7 @@ def convert_json_to_csv(json_file: str) -> str:
 @function_tool
 def save_all_products(mikes_products: list, cigars_products: list, brand: str) -> dict:
     """
-    Save all scraped products from both websites, regardless of matches.
+    Save all scraped products from both websites to JSON and CSV.
     
     Args:
         mikes_products: List of products from Mike's Cigars
@@ -92,10 +137,13 @@ def save_all_products(mikes_products: list, cigars_products: list, brand: str) -
         brand: The brand being searched
     
     Returns:
-        Dictionary with all products and metadata
+        Dictionary with paths to saved files
     """
     current_date = datetime.now().strftime("%Y-%m-%d")
-    current_dir = os.getcwd()
+    
+    # Create output directory if it doesn't exist
+    output_dir = os.path.join(os.getcwd(), "output")
+    os.makedirs(output_dir, exist_ok=True)
     
     # Filter out error entries and ensure we have lists
     if not isinstance(mikes_products, list):
@@ -114,19 +162,19 @@ def save_all_products(mikes_products: list, cigars_products: list, brand: str) -
     }
     
     # Save to JSON
-    json_filename = os.path.join(current_dir, f"{brand.replace(' ', '_')}_all_products_{current_date}.json")
+    json_filename = os.path.join(output_dir, f"{brand.replace(' ', '_')}_all_products_{current_date}.json")
     try:
-        with open(json_filename, 'w+', encoding='utf-8') as f:
+        with open(json_filename, 'w', encoding='utf-8') as f:
             json.dump(all_products_data, f, indent=2)
         logger.info(f"All products JSON file created successfully at: {json_filename}")
     except Exception as e:
         logger.error(f"Error creating all products JSON file: {str(e)}")
-        return {"error": str(e)}
+        raise
     
     # Save to CSV
     csv_filename = json_filename.replace('.json', '.csv')
     try:
-        with open(csv_filename, 'w+', newline='', encoding='utf-8') as f:
+        with open(csv_filename, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             
             # Write header
@@ -134,37 +182,38 @@ def save_all_products(mikes_products: list, cigars_products: list, brand: str) -
             
             # Write Mike's Cigars products
             for product in mikes_products:
-                if isinstance(product, dict):
-                    writer.writerow([
-                        current_date,
-                        brand,
-                        'mikescigars.com',
-                        product.get('name', 'Unknown'),
-                        product.get('price', 'N/A'),
-                        product.get('url', 'N/A')
-                    ])
+                writer.writerow([
+                    current_date,
+                    brand,
+                    'mikescigars.com',
+                    product.get('name', 'N/A'),
+                    product.get('price', 'N/A'),
+                    product.get('url', 'N/A')
+                ])
             
             # Write Cigars.com products
             for product in cigars_products:
-                if isinstance(product, dict):
-                    writer.writerow([
-                        current_date,
-                        brand,
-                        'cigars.com',
-                        product.get('name', 'Unknown'),
-                        product.get('price', 'N/A'),
-                        product.get('url', 'N/A')
-                    ])
+                writer.writerow([
+                    current_date,
+                    brand,
+                    'cigars.com',
+                    product.get('name', 'N/A'),
+                    product.get('price', 'N/A'),
+                    product.get('url', 'N/A')
+                ])
         
+        # Verify files were created
+        if not os.path.exists(json_filename) or not os.path.exists(csv_filename):
+            raise Exception("One or more files were not created successfully")
+            
         logger.info(f"All products CSV file created successfully at: {csv_filename}")
     except Exception as e:
         logger.error(f"Error creating all products CSV file: {str(e)}")
-        return {"error": str(e)}
+        raise
     
     return {
         "json_file": json_filename,
-        "csv_file": csv_filename,
-        "data": all_products_data
+        "csv_file": csv_filename
     }
 
 @function_tool

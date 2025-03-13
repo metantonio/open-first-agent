@@ -1,0 +1,7 @@
+# Data files
+*.json
+*.csv
+*.xlsx
+*.xls
+*.sqlite
+*.db
