@@ -1,8 +1,13 @@
 from typing import Dict, List
 from pydantic import BaseModel
 from agents import Agent, ModelSettings
+import logging
+import json
 from .config import get_model_config
 from tools.export_tools import save_to_json, convert_json_to_csv, save_all_products
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 # Define output types for export agents
 class JSONExportOutput(BaseModel):
@@ -23,19 +28,34 @@ json_agent = Agent(
     
     Your task:
     1. Log: "Starting JSON export"
-    2. STRICTLY validate input has required fields:
+    2. Log the FULL input data structure:
+       logger.info(f"JSON Export Agent received input: {json.dumps(input, indent=2)}")
+    
+    3. STRICTLY validate input has required fields:
        - Must have "brand" (string)
        - Must have "comparison_data" (dict) containing:
          - "scraper_results" (dict) with: mikes_products, cigars_products, matched_products
          - "parser_results" (dict) with: mikes_products, cigars_products, matched_products
-       - Log any missing fields as errors
-    3. Call save_to_json() with EXACTLY:
+       - For each validation:
+         logger.info(f"Validating field: {field_name} = {field_value}")
+       - Log any missing fields as errors:
+         logger.error(f"Missing required field: {field_name}")
+    
+    4. Before calling save_to_json, log:
+       logger.info("About to call save_to_json with:")
+       logger.info(f"brand: {input['brand']}")
+       logger.info(f"comparison_data structure: {json.dumps(input['comparison_data'], indent=2)}")
+    
+    5. Call save_to_json() with EXACTLY:
        save_to_json(
            comparison_data=input["comparison_data"],
            brand=input["brand"]
        )
-    4. The result MUST be a file path string
-    5. Return EXACTLY: {"json_file": result}
+    
+    6. After getting result, log:
+       logger.info(f"save_to_json returned path: {result}")
+       
+    7. Return EXACTLY: {"json_file": result}
     
     Example valid input:
     {
@@ -53,14 +73,6 @@ json_agent = Agent(
             }
         }
     }
-    
-    IMPORTANT:
-    - Log EVERY step with detailed information
-    - Validate ALL input data before processing
-    - Return ONLY a dictionary with "json_file" key
-    - If any error occurs:
-      1. Log the full error details
-      2. Include error information in the response
     """,
     model=get_model_config(),
     model_settings=ModelSettings(temperature=0.1),
@@ -75,27 +87,32 @@ csv_agent = Agent(
     
     Your task:
     1. Log: "Starting CSV conversion"
-    2. STRICTLY validate input:
+    2. Log the FULL input:
+       logger.info(f"CSV Conversion Agent received input: {json.dumps(input, indent=2)}")
+    
+    3. STRICTLY validate input:
        - Must have "json_file" (string) pointing to an existing JSON file
-       - The JSON file must contain the expected data structure
-       - Log any validation errors
-    3. Call convert_json_to_csv() with EXACTLY:
+       - Log: f"Checking if JSON file exists at: {input['json_file']}"
+       - Verify file exists using os.path.exists()
+       - If file doesn't exist:
+         logger.error(f"JSON file not found at: {input['json_file']}")
+         raise ValueError(f"JSON file not found: {input['json_file']}")
+    
+    4. Before conversion, log:
+       logger.info(f"About to convert JSON file: {input['json_file']}")
+    
+    5. Call convert_json_to_csv() with EXACTLY:
        convert_json_to_csv(json_file=input["json_file"])
-    4. The result MUST be a file path string
-    5. Return EXACTLY: {"csv_file": result}
+    
+    6. After conversion, log:
+       logger.info(f"CSV conversion completed, output file: {result}")
+    
+    7. Return EXACTLY: {"csv_file": result}
     
     Example valid input:
     {
         "json_file": "/absolute/path/to/comparison_data.json"
     }
-    
-    IMPORTANT:
-    - Log EVERY step with detailed information
-    - Verify the JSON file exists before attempting conversion
-    - Return ONLY a dictionary with "csv_file" key
-    - If any error occurs:
-      1. Log the full error details
-      2. Include error information in the response
     """,
     model=get_model_config(),
     model_settings=ModelSettings(temperature=0.1),

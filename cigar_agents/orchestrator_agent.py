@@ -2,14 +2,27 @@ from typing import Dict, List, Union
 from pydantic import BaseModel
 from agents import Agent, ModelSettings
 import logging
+import json
+import os
 from .config import get_model_config
 from .scraper_agent import scraper_agent
 from .html_parser_agent import html_parser_agent
 from .export_agents import json_agent, csv_agent
-import os
 
-# Configure logger
+# Configure logging
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# Create console handler with a higher log level
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+
+# Create formatter
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+
+# Add the handlers to the logger
+logger.addHandler(ch)
 
 # Define output types for orchestrator
 class OrchestratorOutput(BaseModel):
