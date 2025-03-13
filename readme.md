@@ -115,7 +115,7 @@ external_provider = {
 ```python
 # OpenAI provider configuration
 openai_provider = {
-    "model": "gpt-4",
+    "model": "gpt-4o",
     "client": AsyncOpenAI()
 }
 ```
