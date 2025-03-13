@@ -43,11 +43,11 @@ def scrape_mikes_cigars(brand: str) -> list:
         soup = BeautifulSoup(response.text, 'html.parser')
         products = []
         
-        product_items = soup.select('.product-item')
+        product_items = soup.select('item product product-item')
         for item in product_items[:5]:  # Limit to first 5 products for demonstration
-            name_elem = item.select_one('.product-title')
-            price_elem = item.select_one('.price')
-            
+            name_elem = item.select_one('product name product-item-name')
+            price_elem = item.select_one('.price-box price-final_price')
+            href = item.select_one('.product photo product-item-photo')
             if name_elem and price_elem:
                 name = name_elem.text.strip()
                 price = price_elem.text.strip()
@@ -56,7 +56,7 @@ def scrape_mikes_cigars(brand: str) -> list:
                     "website": "mikescigars.com",
                     "name": name,
                     "price": price,
-                    "url": "https://www.mikescigars.com" + name_elem.get('href', '') if name_elem.get('href') else ""
+                    "url": "https://www.mikescigars.com" + href.get('href', '') if href.get('href') else ""
                 })
         
         return products
@@ -74,7 +74,7 @@ def scrape_cigars_com(brand: str) -> list:
     Returns:
         List of products with details
     """
-    url = f"https://www.cigars.com/search/?q={brand.replace(' ', '+')}"
+    url = f"https://www.cigars.com/search?lang=en_US&jrSubmitButton=&q={brand.replace(' ', '+')}"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     }
@@ -86,11 +86,11 @@ def scrape_cigars_com(brand: str) -> list:
         soup = BeautifulSoup(response.text, 'html.parser')
         products = []
         
-        product_items = soup.select('.product-card')
+        product_items = soup.select('.main-brand')
         for item in product_items[:5]:  # Limit to first 5 products for demonstration
-            name_elem = item.select_one('.product-card__title')
-            price_elem = item.select_one('.product-card__price')
-            
+            name_elem = item.select_one('.brand-name')
+            price_elem = item.select_one('.prices')
+            href = item.select_one('a')
             if name_elem and price_elem:
                 name = name_elem.text.strip()
                 price = price_elem.text.strip()
@@ -99,7 +99,7 @@ def scrape_cigars_com(brand: str) -> list:
                     "website": "cigars.com",
                     "name": name,
                     "price": price,
-                    "url": "https://www.cigars.com" + name_elem.get('href', '') if name_elem.get('href') else ""
+                    "url": "https://www.cigars.com" + href.get('href', '') if href.get('href') else ""
                 })
         
         return products
