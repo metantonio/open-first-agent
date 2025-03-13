@@ -62,7 +62,7 @@ def scrape_mikes_cigars(brand: str) -> list:
         product_items = soup.select('.product-item')
         logger.info(f"Found {len(product_items)} products on Mike's Cigars")
         
-        for item in product_items[:5]:
+        for item in product_items:
             name_elem = item.select_one('.product-item-name')
             price_elem = item.select_one('.price')
             href = item.select_one('a.product-item-photo')
@@ -116,7 +116,7 @@ def scrape_cigars_com(brand: str) -> list:
         product_items = soup.select('.product-card')
         logger.info(f"Found {len(product_items)} products on Cigars.com")
         
-        for item in product_items[:5]:
+        for item in product_items:
             name_elem = item.select_one('.brand-name')
             price_elem = item.select_one('.prices')
             href = item.select_one('a')
