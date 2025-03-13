@@ -5,6 +5,7 @@ from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
 from agents import Agent, Runner, function_tool, AsyncOpenAI, OpenAIChatCompletionsModel, ModelSettings, AsyncOpenAI
+import os
 
 # External LLM provider (uncommentif you are goind to use Ollama, LLMStudio)
 external_provider= {
@@ -186,10 +187,17 @@ def save_to_json(comparison_data: list, brand: str) -> str:
         "comparisons": comparison_data
     }
     
-    filename = f"./{brand.replace(' ', '_')}_comparison_{current_date}.json"
+    # Get the directory of the current script
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    filename = os.path.join(current_dir, f"{brand.replace(' ', '_')}_comparison_{current_date}.json")
     
-    with open(filename, 'w', encoding='utf-8') as f:
-        json.dump(output_data, f, indent=2)
+    try:
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(output_data, f, indent=2)
+        print(f"JSON file created successfully at: {filename}")
+    except Exception as e:
+        print(f"Error creating JSON file: {str(e)}")
+        raise
     
     return filename
 
@@ -204,30 +212,35 @@ def convert_json_to_csv(json_file: str) -> str:
     Returns:
         Path to the created CSV file
     """
-    with open(json_file, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-    
-    csv_filename = json_file.replace('.json', '.csv')
-    
-    with open(csv_filename, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
+    try:
+        with open(json_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
         
-        # Write header
-        writer.writerow(['Date', 'Brand', 'Product Name', 'Mike\'s Cigars Price', 'Mike\'s Cigars URL', 'Cigars.com Price', 'Cigars.com URL'])
+        csv_filename = json_file.replace('.json', '.csv')
         
-        # Write data rows
-        for comparison in data['comparisons']:
-            writer.writerow([
-                data['date'],
-                data['brand'],
-                comparison['product_name'],
-                comparison['mikes_cigars']['price'],
-                comparison['mikes_cigars']['url'],
-                comparison['cigars_com']['price'],
-                comparison['cigars_com']['url']
-            ])
-    
-    return csv_filename
+        with open(csv_filename, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            
+            # Write header
+            writer.writerow(['Date', 'Brand', 'Product Name', 'Mike\'s Cigars Price', 'Mike\'s Cigars URL', 'Cigars.com Price', 'Cigars.com URL'])
+            
+            # Write data rows
+            for comparison in data['comparisons']:
+                writer.writerow([
+                    data['date'],
+                    data['brand'],
+                    comparison['product_name'],
+                    comparison['mikes_cigars']['price'],
+                    comparison['mikes_cigars']['url'],
+                    comparison['cigars_com']['price'],
+                    comparison['cigars_com']['url']
+                ])
+        
+        print(f"CSV file created successfully at: {csv_filename}")
+        return csv_filename
+    except Exception as e:
+        print(f"Error creating CSV file: {str(e)}")
+        raise
 
 # Define the Scraper Agent
 scraper_agent = Agent(
@@ -237,7 +250,7 @@ scraper_agent = Agent(
     Your task is to search for a specific cigar brand on Mike's Cigars and Cigars.com,
     then compare products with similar presentations across both websites.
     Use the scrape_mikes_cigars and scrape_cigars_com tools to get product information,
-    then use the compare_products tool to find matching items.
+    then use the compare_products tool to find matching items and save the url.
     """,
     model=OpenAIChatCompletionsModel(
         model=external_provider["model"],
@@ -300,6 +313,9 @@ orchestrator_agent = Agent(
 )
 
 async def main():
+    # Print current working directory
+    print(f"Current working directory: {os.getcwd()}")
+    
     # Get the brand to search for
     brand = input("Enter the cigar brand to compare: ")
     
