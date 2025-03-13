@@ -20,33 +20,40 @@ def save_to_json(comparison_data: dict, brand: str) -> str:
         Path to the saved JSON file
     """
     current_date = datetime.now().strftime("%Y-%m-%d")
-    output_data = {
-        "date": current_date,
-        "brand": brand,
-        "scraper_results": comparison_data.get("scraper_results", {}),
-        "parser_results": comparison_data.get("parser_results", {})
-    }
     
     # Create output directory if it doesn't exist
     output_dir = os.path.join(os.getcwd(), "output")
     os.makedirs(output_dir, exist_ok=True)
     
+    # Prepare filename
     filename = os.path.join(output_dir, f"{brand.replace(' ', '_')}_comparison_{current_date}.json")
     
     try:
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(output_data, f, indent=2)
-        logger.info(f"JSON file created successfully at: {filename}")
+        # Ensure the data structure is correct
+        output_data = {
+            "date": current_date,
+            "brand": brand,
+            "scraper_results": comparison_data.get("scraper_results", {}),
+            "parser_results": comparison_data.get("parser_results", {})
+        }
         
-        # Verify file was created
+        # Write the file with proper encoding
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(output_data, f, indent=2, ensure_ascii=False)
+        
+        # Verify file was created and has content
         if not os.path.exists(filename):
             raise Exception("File was not created successfully")
+        
+        if os.path.getsize(filename) == 0:
+            raise Exception("File was created but is empty")
             
+        logger.info(f"JSON file created successfully at: {filename}")
+        return filename
+        
     except Exception as e:
         logger.error(f"Error creating JSON file: {str(e)}")
         raise
-    
-    return filename
 
 @function_tool
 def convert_json_to_csv(json_file: str) -> str:
@@ -60,68 +67,63 @@ def convert_json_to_csv(json_file: str) -> str:
         Path to the created CSV file
     """
     try:
+        # Verify input file exists
         if not os.path.exists(json_file):
             raise FileNotFoundError(f"JSON file not found: {json_file}")
-            
+        
+        # Read the JSON data
         with open(json_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
+        # Create CSV filename
         csv_filename = json_file.replace('.json', '.csv')
         
         with open(csv_filename, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             
             # Write header
-            writer.writerow(['Date', 'Brand', 'Source', 'Product Name', 'Price', 'URL', 'Matched'])
+            writer.writerow(['Date', 'Brand', 'Source', 'Product Name', 'Price', 'URL', 'Description', 'Stock Status', 'Matched'])
+            
+            # Helper function to write products
+            def write_products(products, source, results_type):
+                for product in products:
+                    matched = 'Yes' if any(
+                        m.get('url') == product.get('url')
+                        for m in data[results_type].get('matched_products', [])
+                    ) else 'No'
+                    
+                    writer.writerow([
+                        data['date'],
+                        data['brand'],
+                        source,
+                        product.get('name', 'N/A'),
+                        product.get('price', 'N/A'),
+                        product.get('url', 'N/A'),
+                        product.get('description', 'N/A'),
+                        product.get('stock_status', 'N/A'),
+                        matched
+                    ])
             
             # Write scraper results
             scraper_results = data.get('scraper_results', {})
-            for product_type in ['mikes_products', 'cigars_products']:
-                products = scraper_results.get(product_type, [])
-                source = 'Mike\'s Cigars' if 'mikes' in product_type else 'Cigars.com'
-                for product in products:
-                    matched = any(
-                        m.get('mikes', {}).get('url') == product.get('url') or 
-                        m.get('cigars', {}).get('url') == product.get('url')
-                        for m in scraper_results.get('matched_products', [])
-                    )
-                    writer.writerow([
-                        data['date'],
-                        data['brand'],
-                        source,
-                        product.get('name', 'N/A'),
-                        product.get('price', 'N/A'),
-                        product.get('url', 'N/A'),
-                        'Yes' if matched else 'No'
-                    ])
+            write_products(scraper_results.get('mikes_products', []), "Mike's Cigars (Scraper)", 'scraper_results')
+            write_products(scraper_results.get('cigars_products', []), "Cigars.com (Scraper)", 'scraper_results')
             
             # Write parser results
             parser_results = data.get('parser_results', {})
-            for product_type in ['mikes_products', 'cigars_products']:
-                products = parser_results.get(product_type, [])
-                source = 'Mike\'s Cigars (Parsed)' if 'mikes' in product_type else 'Cigars.com (Parsed)'
-                for product in products:
-                    matched = any(
-                        m.get('mikes', {}).get('url') == product.get('url') or 
-                        m.get('cigars', {}).get('url') == product.get('url')
-                        for m in parser_results.get('matched_products', [])
-                    )
-                    writer.writerow([
-                        data['date'],
-                        data['brand'],
-                        source,
-                        product.get('name', 'N/A'),
-                        product.get('price', 'N/A'),
-                        product.get('url', 'N/A'),
-                        'Yes' if matched else 'No'
-                    ])
+            write_products(parser_results.get('mikes_products', []), "Mike's Cigars (Parser)", 'parser_results')
+            write_products(parser_results.get('cigars_products', []), "Cigars.com (Parser)", 'parser_results')
         
-        # Verify file was created
+        # Verify CSV file was created
         if not os.path.exists(csv_filename):
             raise Exception("CSV file was not created successfully")
-            
+        
+        if os.path.getsize(csv_filename) == 0:
+            raise Exception("CSV file was created but is empty")
+        
         logger.info(f"CSV file created successfully at: {csv_filename}")
         return csv_filename
+        
     except Exception as e:
         logger.error(f"Error creating CSV file: {str(e)}")
         raise
