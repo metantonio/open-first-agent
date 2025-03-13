@@ -86,7 +86,7 @@ def scrape_cigars_com(brand: str) -> list:
         List of products with details
     """
     print(f"\n=== Starting Cigars.com scrape for brand: {brand} ===")
-    url = f"https://www.cigars.com/search/?q={brand.replace(' ', '+')}"
+    url = f"https://www.cigars.com/search?lang=en_US&jrSubmitButton=&q={brand.replace(' ', '+')}"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     }
