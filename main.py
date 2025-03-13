@@ -6,6 +6,19 @@ import requests
 from bs4 import BeautifulSoup
 from agents import Agent, Runner, function_tool, AsyncOpenAI, OpenAIChatCompletionsModel, ModelSettings, AsyncOpenAI
 import os
+import logging
+import sys
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler('cigar_scraper.log')
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # External LLM provider by default with ollama (if you are goind to use Ollama, LLMStudio)
 external_provider= {
@@ -31,14 +44,14 @@ def scrape_mikes_cigars(brand: str) -> list:
     Returns:
         List of products with details
     """
-    print(f"\n=== Starting Mike's Cigars scrape for brand: {brand} ===")
+    logger.info(f"\n=== Starting Mike's Cigars scrape for brand: {brand} ===")
     url = f"https://mikescigars.com/catalogsearch/result/?q={brand.replace(' ', '+')}"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     }
     
     try:
-        print(f"Fetching URL: {url}")
+        logger.info(f"Fetching URL: {url}")
         response = requests.get(url, headers=headers)
         response.raise_for_status()
         
@@ -47,7 +60,7 @@ def scrape_mikes_cigars(brand: str) -> list:
         
         # Updated selectors to match Mike's Cigars website structure
         product_items = soup.select('.product-item')
-        print(f"Found {len(product_items)} products on Mike's Cigars")
+        logger.info(f"Found {len(product_items)} products on Mike's Cigars")
         
         for item in product_items[:5]:
             name_elem = item.select_one('.product-item-name')
@@ -66,12 +79,12 @@ def scrape_mikes_cigars(brand: str) -> list:
                     "url": url
                 }
                 products.append(product)
-                print(f"\nFound product: {name} - {price} - {url}")
+                logger.info(f"\nFound product: {name} - {price} - {url}")
         
-        print(f"=== Completed Mike's Cigars scrape with {len(products)} products ===\n")
+        logger.info(f"=== Completed Mike's Cigars scrape with {len(products)} products ===\n")
         return products
     except Exception as e:
-        print(f"Error scraping Mike's Cigars: {str(e)}")
+        logger.error(f"Error scraping Mike's Cigars: {str(e)}")
         return [{"error": f"Failed to scrape Mike's Cigars: {str(e)}"}]
 
 @function_tool
@@ -85,14 +98,14 @@ def scrape_cigars_com(brand: str) -> list:
     Returns:
         List of products with details
     """
-    print(f"\n=== Starting Cigars.com scrape for brand: {brand} ===")
+    logger.info(f"\n=== Starting Cigars.com scrape for brand: {brand} ===")
     url = f"https://www.cigars.com/search?lang=en_US&jrSubmitButton=&q={brand.replace(' ', '+')}"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     }
     
     try:
-        print(f"Fetching URL: {url}")
+        logger.info(f"Fetching URL: {url}")
         response = requests.get(url, headers=headers)
         response.raise_for_status()
         
@@ -101,7 +114,7 @@ def scrape_cigars_com(brand: str) -> list:
         
         # Updated selectors to match Cigars.com website structure
         product_items = soup.select('.product-card')
-        print(f"Found {len(product_items)} products on Cigars.com")
+        logger.info(f"Found {len(product_items)} products on Cigars.com")
         
         for item in product_items[:5]:
             name_elem = item.select_one('.brand-name')
@@ -120,12 +133,12 @@ def scrape_cigars_com(brand: str) -> list:
                     "url": url
                 }
                 products.append(product)
-                print(f"\nFound product: {name} - {price} - {url}")
+                logger.info(f"\nFound product: {name} - {price} - {url}")
         
-        print(f"=== Completed Cigars.com scrape with {len(products)} products ===\n")
+        logger.info(f"=== Completed Cigars.com scrape with {len(products)} products ===\n")
         return products
     except Exception as e:
-        print(f"Error scraping Cigars.com: {str(e)}")
+        logger.error(f"Error scraping Cigars.com: {str(e)}")
         return [{"error": f"Failed to scrape Cigars.com: {str(e)}"}]
 
 @function_tool
@@ -140,19 +153,19 @@ def compare_products(mikes_products: list, cigars_products: list) -> list:
     Returns:
         List of matching products with comparison data
     """
-    print("\n=== Starting product comparison ===")
+    logger.info("\n=== Starting product comparison ===")
     matched_products = []
     
-    print(f"Comparing {len(mikes_products)} Mike's Cigars products with {len(cigars_products)} Cigars.com products")
+    logger.info(f"Comparing {len(mikes_products)} Mike's Cigars products with {len(cigars_products)} Cigars.com products")
     
     for mikes_product in mikes_products:
         if "error" in mikes_product:
-            print(f"Skipping Mike's Cigars product due to error: {mikes_product['error']}")
+            logger.info(f"Skipping Mike's Cigars product due to error: {mikes_product['error']}")
             continue
             
         for cigars_product in cigars_products:
             if "error" in cigars_product:
-                print(f"Skipping Cigars.com product due to error: {cigars_product['error']}")
+                logger.info(f"Skipping Cigars.com product due to error: {cigars_product['error']}")
                 continue
                 
             if similar_product_names(mikes_product["name"], cigars_product["name"]):
@@ -168,11 +181,11 @@ def compare_products(mikes_products: list, cigars_products: list) -> list:
                     }
                 }
                 matched_products.append(match)
-                print(f"\nFound matching product: {mikes_product['name']}")
-                print(f"Mike's Cigars: {mikes_product['price']}")
-                print(f"Cigars.com: {cigars_product['price']}")
+                logger.info(f"\nFound matching product: {mikes_product['name']}")
+                logger.info(f"Mike's Cigars: {mikes_product['price']}")
+                logger.info(f"Cigars.com: {cigars_product['price']}")
     
-    print(f"=== Completed comparison with {len(matched_products)} matches ===\n")
+    logger.info(f"=== Completed comparison with {len(matched_products)} matches ===\n")
     return matched_products
 
 @function_tool
@@ -224,9 +237,9 @@ def save_to_json(comparison_data: list, brand: str) -> str:
     try:
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(output_data, f, indent=2)
-        print(f"JSON file created successfully at: {filename}")
+        logger.info(f"JSON file created successfully at: {filename}")
     except Exception as e:
-        print(f"Error creating JSON file: {str(e)}")
+        logger.error(f"Error creating JSON file: {str(e)}")
         raise
     
     return filename
@@ -266,10 +279,10 @@ def convert_json_to_csv(json_file: str) -> str:
                     comparison['cigars_com']['url']
                 ])
         
-        print(f"CSV file created successfully at: {csv_filename}")
+        logger.info(f"CSV file created successfully at: {csv_filename}")
         return csv_filename
     except Exception as e:
-        print(f"Error creating CSV file: {str(e)}")
+        logger.error(f"Error creating CSV file: {str(e)}")
         raise
 
 @function_tool
@@ -304,9 +317,9 @@ def save_all_products(mikes_products: list, cigars_products: list, brand: str) -
     try:
         with open(json_filename, 'w', encoding='utf-8') as f:
             json.dump(all_products_data, f, indent=2)
-        print(f"All products JSON file created successfully at: {json_filename}")
+        logger.info(f"All products JSON file created successfully at: {json_filename}")
     except Exception as e:
-        print(f"Error creating all products JSON file: {str(e)}")
+        logger.error(f"Error creating all products JSON file: {str(e)}")
         raise
     
     # Save to CSV
@@ -340,9 +353,9 @@ def save_all_products(mikes_products: list, cigars_products: list, brand: str) -
                     product.get('url', 'N/A')
                 ])
         
-        print(f"All products CSV file created successfully at: {csv_filename}")
+        logger.info(f"All products CSV file created successfully at: {csv_filename}")
     except Exception as e:
-        print(f"Error creating all products CSV file: {str(e)}")
+        logger.error(f"Error creating all products CSV file: {str(e)}")
         raise
     
     return {
@@ -451,33 +464,33 @@ orchestrator_agent = Agent(
 
 async def main():
     # Print current working directory
-    print(f"\n=== Starting cigar comparison script ===")
+    logger.info(f"\n=== Starting cigar comparison script ===")
     current_dir = os.getcwd()
-    print(f"Current working directory: {current_dir}")
+    logger.info(f"Current working directory: {current_dir}")
     
     # Get the brand to search for
     brand = input("Enter the cigar brand to compare: ")
-    print(f"\nSearching for brand: {brand}")
+    logger.info(f"\nSearching for brand: {brand}")
     
     try:
         # Run the scraper agent
-        print("\n=== Running Scraper Agent ===")
+        logger.info("\n=== Running Scraper Agent ===")
         scraper_result = await Runner.run(
             scraper_agent,
             input=f"Search for and compare cigars of the brand '{brand}' between mikescigars.com and cigars.com. Make sure to return the results in the exact format specified."
         )
-        print("\nScraper Agent completed")
+        logger.info("\nScraper Agent completed")
         
         # Extract the raw scraping results and comparison data
         raw_result = scraper_result.final_output
-        print("\nDebug - Raw scraper output:", raw_result)
+        logger.info("\nDebug - Raw scraper output:", raw_result)
         
         if isinstance(raw_result, str):
             try:
                 raw_result = json.loads(raw_result)
-                print("\nDebug - Parsed JSON data:", json.dumps(raw_result, indent=2))
+                logger.info("\nDebug - Parsed JSON data:", json.dumps(raw_result, indent=2))
             except json.JSONDecodeError as e:
-                print(f"Warning: Could not parse scraper result as JSON: {str(e)}")
+                logger.warning(f"Warning: Could not parse scraper result as JSON: {str(e)}")
                 # Create empty structure if parsing fails
                 raw_result = {
                     "mikes_products": [],
@@ -486,14 +499,14 @@ async def main():
                 }
         
         # Run the All Products Export Agent with the raw scraping results
-        print("\n=== Running All Products Export Agent ===")
+        logger.info("\n=== Running All Products Export Agent ===")
         try:
             # Extract products from the raw result
             mikes_products = raw_result.get('mikes_products', [])
             cigars_products = raw_result.get('cigars_products', [])
             
-            print("\nDebug - Mike's products:", json.dumps(mikes_products, indent=2))
-            print("\nDebug - Cigars.com products:", json.dumps(cigars_products, indent=2))
+            logger.info("\nDebug - Mike's products:", json.dumps(mikes_products, indent=2))
+            logger.info("\nDebug - Cigars.com products:", json.dumps(cigars_products, indent=2))
             
             # Save all products
             all_products_result = await Runner.run(
@@ -504,12 +517,12 @@ async def main():
                     "cigars_products": cigars_products
                 })
             )
-            print("\nAll Products Export Agent completed")
+            logger.info("\nAll Products Export Agent completed")
             
             # Save matches if any exist
             matches = raw_result.get('matches', [])
             if matches:
-                print("\n=== Saving Matches ===")
+                logger.info("\n=== Saving Matches ===")
                 current_date = datetime.now().strftime("%Y-%m-%d")
                 matches_filename = os.path.join(current_dir, f"{brand.replace(' ', '_')}_matches_{current_date}.json")
                 
@@ -521,19 +534,19 @@ async def main():
                 
                 with open(matches_filename, 'w', encoding='utf-8') as f:
                     json.dump(matches_data, f, indent=2)
-                print(f"Matches saved to: {matches_filename}")
+                logger.info(f"Matches saved to: {matches_filename}")
             
-            print("\n=== Final Results ===")
-            print(f"Found {len(mikes_products)} products on Mike's Cigars")
-            print(f"Found {len(cigars_products)} products on Cigars.com")
-            print(f"Found {len(matches)} matching products")
+            logger.info("\n=== Final Results ===")
+            logger.info(f"Found {len(mikes_products)} products on Mike's Cigars")
+            logger.info(f"Found {len(cigars_products)} products on Cigars.com")
+            logger.info(f"Found {len(matches)} matching products")
             
         except Exception as e:
-            print(f"Error processing results: {str(e)}")
+            logger.error(f"Error processing results: {str(e)}")
             raise
         
     except Exception as e:
-        print(f"\nError during execution: {str(e)}")
+        logger.error(f"\nError during execution: {str(e)}")
         raise
 
 if __name__ == "__main__":
