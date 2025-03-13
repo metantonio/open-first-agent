@@ -1,4 +1,4 @@
-# Cigar Comparison Tool
+# Cigar Comparison Tool using Ollama
 
 A multi-agent system built with OpenAI Agents SDK that compares cigar products from different retailers.
 

@@ -4,7 +4,11 @@ import csv
 from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
-from agents import Agent, Runner, function_tool
+from agents import Agent, Runner, function_tool, AsyncOpenAI, OpenAIChatCompletionsModel, ModelSettings
+
+# External LLM provider (uncommentif you are goind to use Ollama, LLMStudio)
+external_provider = AsyncOpenAI(base_url = "http://localhost:11434/v1")
+
 
 # Define tools for web scraping
 @function_tool
@@ -227,6 +231,10 @@ scraper_agent = Agent(
     Use the scrape_mikes_cigars and scrape_cigars_com tools to get product information,
     then use the compare_products tool to find matching items.
     """,
+    model=OpenAIChatCompletionsModel(
+        model="llama3.2",
+        openai_client=external_provider,
+    ),
     tools=[scrape_mikes_cigars, scrape_cigars_com, compare_products]
 )
 
@@ -239,6 +247,10 @@ json_agent = Agent(
     making sure to include the current date and the brand being compared.
     Use the save_to_json tool to accomplish this.
     """,
+    model=OpenAIChatCompletionsModel(
+        model="llama3.2",
+        openai_client=external_provider,
+    ),
     tools=[save_to_json]
 )
 
@@ -250,6 +262,10 @@ csv_agent = Agent(
     Your task is to take a JSON file containing cigar comparison data and convert it to a CSV table.
     Use the convert_json_to_csv tool to accomplish this.
     """,
+    model=OpenAIChatCompletionsModel(
+        model="llama3.2",
+        openai_client=external_provider,
+    ),
     tools=[convert_json_to_csv]
 )
 
@@ -267,6 +283,11 @@ orchestrator_agent = Agent(
     
     Be helpful and informative throughout the process.
     """,
+    model=OpenAIChatCompletionsModel(
+        model="llama3.2",
+        openai_client=external_provider,
+    ),
+    model_settings=ModelSettings(temperature=0.5),
     handoffs=[scraper_agent, json_agent, csv_agent]
 )
 
