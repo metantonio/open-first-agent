@@ -6,6 +6,7 @@ from agents import function_tool
 
 logger = logging.getLogger(__name__)
 
+@function_tool
 def parse_generic_html(url: str, website_name: str, brand: str) -> list:
     """
     Generic HTML parser that analyzes the body content to find product information
@@ -25,65 +26,34 @@ def parse_generic_html(url: str, website_name: str, brand: str) -> list:
     }
     
     try:
+        logger.info(f"Fetching URL: {url}")
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         
         soup = BeautifulSoup(response.text, 'html.parser')
         products = []
         
-        # Common product container patterns
-        product_patterns = [
-            {'class_': lambda x: x and any(pattern in str(x).lower() for pattern in ['product', 'item', 'card', 'listing', 'brand', 'main-brand', 'product-card', 'item-product', 'product-detail', 'product-item'])},
-            {'itemtype': 'http://schema.org/Product'},
-            {'data-product-id': True},
-            {'class_': lambda x: x and 'product' in str(x).lower()}
-        ]
+        # Look for common product containers
+        product_containers = soup.find_all(['div', 'article', 'li'], class_=lambda x: x and any(term in x.lower() for term in ['product', 'item', 'result']))
         
-        # Try each pattern to find product containers
-        for pattern in product_patterns:
-            containers = soup.find_all(**pattern)
-            if containers:
-                logger.info(f"Found {len(containers)} potential products using pattern: {pattern}")
-                for container in containers:
-                    try:
-                        # Extract product information
-                        product = extract_product_info(container, website_name, brand)
-                        if product:
-                            products.append(product)
-                    except Exception as e:
-                        logger.error(f"Error extracting product info: {str(e)}")
-                        continue
-        
-        # If no products found, try alternative search methods
-        if not products:
-            logger.info("No products found with standard patterns, trying alternative methods")
-            # Look for price patterns
-            price_elements = soup.find_all(text=re.compile(r'\$\d+\.?\d*'))
+        if not product_containers:
+            # Try alternative approach - look for price elements
+            price_elements = soup.find_all(['span', 'div'], class_=lambda x: x and any(term in x.lower() for term in ['price', 'cost', 'amount']))
             for price_elem in price_elements:
-                try:
-                    product = extract_product_from_price(price_elem, website_name, brand)
-                    if product:
-                        products.append(product)
-                except Exception as e:
-                    logger.error(f"Error extracting product from price: {str(e)}")
-                    continue
+                product = extract_product_from_price(price_elem, website_name, brand)
+                if product:
+                    products.append(product)
+        else:
+            for container in product_containers:
+                product = extract_product_info(container, website_name, brand)
+                if product:
+                    products.append(product)
         
-        # Remove duplicates based on URL
-        seen_urls = set()
-        unique_products = []
-        for product in products:
-            if product['url'] not in seen_urls:
-                seen_urls.add(product['url'])
-                unique_products.append(product)
+        logger.info(f"Found {len(products)} products using generic HTML parsing on {website_name}")
+        return products
         
-        logger.info(f"Successfully parsed {len(unique_products)} unique products from {website_name}")
-        return unique_products
-        
-    except requests.RequestException as e:
-        logger.error(f"Error fetching {website_name}: {str(e)}")
-        return []
     except Exception as e:
-        logger.error(f"Error parsing {website_name} HTML: {str(e)}")
+        logger.error(f"Error parsing {website_name}: {str(e)}")
         return []
 
 def extract_product_info(container, website_name: str, brand: str) -> dict:
