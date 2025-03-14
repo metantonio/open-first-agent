@@ -1,5 +1,5 @@
 import chainlit as cl
-from duck_browser_agent.dds_agent import run_news_workflow
+from duck_browser_agent.dds_agent import run_workflow
 
 @cl.on_message
 async def main(message: cl.Message):
@@ -18,7 +18,7 @@ async def main(message: cl.Message):
     
     try:
         # Run the news workflow
-        news_content = run_news_workflow(topic)
+        news_content = run_workflow(topic)
         
         # Update the message with the results
         await cl.Message(
