@@ -1,5 +1,30 @@
 import chainlit as cl
 from duck_browser_agent.dds_agent import run_workflow
+import logging
+import sys  
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler('cigar_scraper.log')
+    ]
+)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# Create console handler with a higher log level
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+
+# Create formatter
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+
+# Add the handlers to the logger
+logger.addHandler(ch)
 
 @cl.on_message
 async def main(message: cl.Message):

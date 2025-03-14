@@ -5,11 +5,11 @@ from .config import get_model_config
 import requests
 from bs4 import BeautifulSoup
 import re
-
+import logging
 current_date = datetime.now().strftime("%Y-%m")
 
 model = get_model_config()
-
+logger = logging.getLogger(__name__)
 # 1. Create Tools
 
 @function_tool
@@ -28,6 +28,7 @@ def search_duckduckgo(topic):
 @function_tool
 def fetch_and_parse_html(url):
     """Fetch HTML content from a URL and return only the body content."""
+    logger.info(f"Fetching HTML content from {url}")
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
