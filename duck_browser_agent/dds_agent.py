@@ -68,5 +68,8 @@ def run_news_workflow(topic):
     
     return edited_news
 
-# Example of running the news workflow for a given topic
-print(run_news_workflow("AI"))
+# Only run the test if this file is run directly
+if __name__ == "__main__":
+    test_topic = "AI"
+    print(f"Running test with topic: {test_topic}")
+    print(run_news_workflow(test_topic))
