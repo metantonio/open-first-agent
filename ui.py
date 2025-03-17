@@ -78,9 +78,20 @@ I can help you with various tasks:
 
 2. 🏗️ Terraform Infrastructure:
    - Create and manage Terraform configurations
-   - Analyze existing Terraform files
+   - Analyze security, cost, and performance
    - Execute Terraform operations
-   - Get infrastructure recommendations
+   - Validate infrastructure compliance
+   - Optimize resource configurations
+   - Research best practices
+
+3. 💻 Development Environment Setup:
+   - Configure VS Code for remote development
+   - Set up SSH connections and workspace settings
+   - Install and manage VS Code extensions
+   - Create and configure Conda environments
+   - Set up Jupyter notebooks and kernels
+   - Manage Python packages and dependencies
+
 
 Simply type your request, and I'll automatically determine the best way to help you!
 
