@@ -1,7 +1,7 @@
 import chainlit as cl
-from duck_browser_agent.dds_agent import run_workflow
+from universal_orchestrator import orchestrator
 import logging
-import sys  
+import sys
 
 # Configure logging
 logging.basicConfig(
@@ -9,7 +9,7 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler('cigar_scraper.log')
+        logging.FileHandler('agent.log')
     ]
 )
 logger = logging.getLogger(__name__)
@@ -29,35 +29,35 @@ logger.addHandler(ch)
 @cl.on_message
 async def main(message: cl.Message):
     """
-    Main function to handle user messages and run the news workflow.
+    Main function to handle user messages and route them to appropriate agents.
     """
-    # Get the topic from the user message
-    topic = message.content
+    # Get the user request
+    request = message.content
     
     # Send a thinking message and show a loading indicator
     msg = cl.Message(
-        content=f"🔍 Searching for news about '{topic}'...\nThis may take a few moments as I search and process the results.",
-        author="News Bot"
+        content=f"🤔 Processing your request: '{request}'...\nThis may take a few moments.",
+        author="AI Assistant"
     )
     await msg.send()
     
     try:
-        # Run the news workflow
-        news_content = run_workflow(topic)
+        # Process the request using the universal orchestrator
+        response = await orchestrator.process_request(request)
         
         # Update the message with the results
         await cl.Message(
-            content=f"📰 Here are the latest news articles about '{topic}':\n\n{news_content}",
-            author="News Bot"
+            content=f"✅ Here's what I found:\n\n{response}",
+            author="AI Assistant"
         ).send()
     except Exception as e:
         # Handle any errors
-        error_message = f"❌ Sorry, I encountered an error while fetching news: {str(e)}"
+        error_message = f"❌ Sorry, I encountered an error: {str(e)}"
         if "429" in str(e):
-            error_message += "\nIt seems we've hit the DuckDuckGo rate limit. Please try again in a few minutes."
+            error_message += "\nIt seems we've hit an API rate limit. Please try again in a few minutes."
         await cl.Message(
             content=error_message,
-            author="News Bot"
+            author="AI Assistant"
         ).send()
 
 @cl.on_chat_start
@@ -67,13 +67,23 @@ async def start():
     """
     # Send a welcome message
     await cl.Message(
-        content="""👋 Welcome to the News Assistant!
+        content="""👋 Welcome to the AI Assistant!
 
-I can help you find and summarize the latest news on any topic. Simply type a topic or keyword you're interested in, and I'll:
-1. Search for recent news articles
-2. Process and summarize the findings
-3. Present them in an easy-to-read format
+I can help you with various tasks:
 
-What topic would you like to get news about?""",
-        author="News Bot"
+1. 🌐 Web Search and News:
+   - Find and summarize news articles
+   - Search for information on any topic
+   - Process and analyze web content
+
+2. 🏗️ Terraform Infrastructure:
+   - Create and manage Terraform configurations
+   - Analyze existing Terraform files
+   - Execute Terraform operations
+   - Get infrastructure recommendations
+
+Simply type your request, and I'll automatically determine the best way to help you!
+
+What would you like to do?""",
+        author="AI Assistant"
     ).send() 
