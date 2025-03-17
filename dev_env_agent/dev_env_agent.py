@@ -8,6 +8,7 @@ import json
 import webbrowser
 from pathlib import Path
 import sys
+import time
 
 model = get_model_config()
 logger = logging.getLogger(__name__)
@@ -79,24 +80,57 @@ def setup_jupyter_kernel(env_name):
         # Ensure the kernel directory exists
         os.makedirs(kernel_dir, exist_ok=True)
         
-        # Install the kernel
-        cmd = f"conda run -n {env_name} python -m ipykernel install --user --name {env_name} --display-name 'Python ({env_name})'"
-        logger.info(f"Installing kernel with command: {cmd}")
-        result = subprocess.run(cmd.split(), capture_output=True, text=True)
+        # Install the kernel using a list of arguments to avoid shell parsing issues
+        cmd = [
+            "conda", "run", "-n", env_name, 
+            "python", "-m", "ipykernel", "install",
+            "--user",
+            "--name", env_name,
+            "--display-name", f"Python ({env_name})"
+        ]
+        
+        logger.info(f"Installing kernel with command: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True)
         
         if result.returncode != 0:
             error_msg = result.stderr or "Unknown error occurred"
             logger.error(f"Failed to install kernel: {error_msg}")
-            return f"Error installing Jupyter kernel: {error_msg}"
+            
+            # Try alternative installation method if the first one fails
+            logger.info("Attempting alternative kernel installation method...")
+            alt_cmd = [
+                "conda", "run", "-n", env_name,
+                "ipython", "kernel", "install",
+                "--user",
+                "--name", env_name,
+                "--display-name", f"Python ({env_name})"
+            ]
+            
+            try:
+                alt_result = subprocess.run(alt_cmd, capture_output=True, text=True)
+                if alt_result.returncode == 0:
+                    logger.info("Alternative kernel installation succeeded")
+                else:
+                    logger.error(f"Alternative installation failed: {alt_result.stderr}")
+                    return f"Error installing Jupyter kernel: {error_msg}"
+            except Exception as e:
+                logger.error(f"Alternative installation failed with error: {str(e)}")
+                return f"Error installing Jupyter kernel: {error_msg}"
         
         # Verify the kernel installation
         kernel_path = os.path.join(kernel_dir, env_name)
         if os.path.exists(kernel_path):
             logger.info(f"Successfully installed kernel at {kernel_path}")
             return f"Successfully installed Jupyter kernel for {env_name}"
-        else:
-            logger.warning(f"Kernel directory not found at {kernel_path}")
-            return f"Kernel installation completed but kernel directory not found. You may need to restart Jupyter."
+        
+        # If kernel_path doesn't exist, check for json file
+        json_path = os.path.join(kernel_dir, f"{env_name}/kernel.json")
+        if os.path.exists(json_path):
+            logger.info(f"Successfully installed kernel (found kernel.json at {json_path})")
+            return f"Successfully installed Jupyter kernel for {env_name}"
+            
+        logger.warning(f"Kernel directory not found at {kernel_path}")
+        return f"Kernel installation completed but kernel directory not found. You may need to restart Jupyter."
             
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr if hasattr(e, 'stderr') else str(e)
@@ -179,94 +213,150 @@ env_setup_agent = Agent(
 def start_jupyter_server(env_name, notebook_dir=None):
     """Start a Jupyter notebook server in the specified environment."""
     try:
-        # If no directory specified, try user's home directory as fallback
-        if notebook_dir is None:
-            notebook_dir = os.path.expanduser("~/jupyter_notebooks")
-        
-        # Convert to absolute path and resolve any symlinks
-        notebook_dir = os.path.abspath(os.path.expanduser(notebook_dir))
-        
-        # Check if directory exists and is writable
-        if os.path.exists(notebook_dir):
-            if not os.access(notebook_dir, os.W_OK):
-                logger.error(f"Directory {notebook_dir} exists but is not writable")
-                # Try to create in home directory instead
-                notebook_dir = os.path.expanduser("~/jupyter_notebooks")
-                logger.info(f"Falling back to home directory: {notebook_dir}")
-        
-        # Create directory with proper permissions
+        # First verify the conda environment exists
         try:
-            os.makedirs(notebook_dir, mode=0o755, exist_ok=True)
-        except PermissionError as pe:
-            logger.error(f"Permission error creating directory {notebook_dir}: {str(pe)}")
-            # Final fallback to /tmp directory
-            notebook_dir = os.path.join("/tmp", f"jupyter_{env_name}")
-            logger.info(f"Falling back to temporary directory: {notebook_dir}")
-            os.makedirs(notebook_dir, mode=0o755, exist_ok=True)
+            env_check = subprocess.run(["conda", "env", "list"], capture_output=True, text=True)
+            if env_name not in env_check.stdout:
+                return f"Error: Conda environment '{env_name}' does not exist. Please create it first."
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Error checking conda environments: {str(e)}")
+            return "Error: Could not verify conda environments. Please check if conda is installed and working."
+
+        # Check if Jupyter is already installed in the environment without trying to run it
+        check_jupyter_cmd = ["conda", "run", "-n", env_name, "pip", "list"]
+        jupyter_check = subprocess.run(check_jupyter_cmd, capture_output=True, text=True)
+        needs_jupyter = "jupyter" not in jupyter_check.stdout.lower()
         
-        logger.info(f"Using notebook directory: {notebook_dir}")
-        
-        # Verify Jupyter is installed in the environment
-        check_cmd = f"conda run -n {env_name} jupyter --version"
-        try:
-            subprocess.run(check_cmd.split(), check=True, capture_output=True)
-        except subprocess.CalledProcessError:
-            logger.warning("Jupyter not found in environment, attempting to install...")
+        if needs_jupyter:
+            logger.info("Jupyter not found in environment, installing...")
             install_cmd = f"conda run -n {env_name} pip install jupyter notebook"
-            subprocess.run(install_cmd.split(), check=True)
-        
-        # Start Jupyter server in the background
-        cmd = f"conda run -n {env_name} jupyter notebook --notebook-dir='{notebook_dir}' --no-browser"
-        logger.info(f"Starting Jupyter server with command: {cmd}")
-        
-        process = subprocess.Popen(cmd.split(), 
-                                stdout=subprocess.PIPE, 
-                                stderr=subprocess.PIPE,
-                                universal_newlines=True)
-        
-        # Wait for server to start and get URL
-        import time
-        max_wait = 30  # Maximum seconds to wait
-        start_time = time.time()
-        url = None
-        
-        while time.time() - start_time < max_wait:
-            if process.poll() is not None:
-                # Process ended prematurely
-                error_output = process.stderr.read()
-                logger.error(f"Jupyter server failed to start: {error_output}")
-                return f"Failed to start Jupyter server: {error_output}"
-            
-            line = process.stderr.readline()
-            if "http://" in line:
-                url = line.split("http://")[1].split()[0]
-                url = f"http://{url}"
-                break
-            
-            time.sleep(0.5)
-        
-        if url:
             try:
-                webbrowser.open(url)
-                return f"Jupyter server started successfully at {url}\nNotebook directory: {notebook_dir}"
-            except Exception as e:
-                return f"Jupyter server started at {url} but couldn't open browser: {str(e)}\nNotebook directory: {notebook_dir}"
+                subprocess.run(install_cmd.split(), check=True)
+                logger.info("Successfully installed Jupyter")
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to install Jupyter: {str(e)}")
+                return f"Error: Failed to install Jupyter in environment {env_name}"
         else:
-            # Server might still be running but we couldn't get the URL
-            return f"Jupyter server started but couldn't get URL. Run 'jupyter notebook list' to find the URL.\nNotebook directory: {notebook_dir}"
+            logger.info("Jupyter already installed in environment")
+
+        # List of potential directories to try, in order of preference
+        potential_dirs = [
+            notebook_dir if notebook_dir else None,  # User specified directory (if any)
+            os.path.expanduser("~/jupyter_notebooks"),  # Home directory
+            os.path.expanduser("~/Documents/jupyter_notebooks"),  # Documents folder
+            os.path.join(os.path.expanduser("~"), "Desktop", "jupyter_notebooks"),  # Desktop
+            os.path.join("/tmp", f"jupyter_{env_name}"),  # Temporary directory
+        ]
+        
+        # Remove None entries
+        potential_dirs = [d for d in potential_dirs if d is not None]
+        
+        # Try each directory until we find one that works
+        notebook_dir = None
+        for dir_path in potential_dirs:
+            try:
+                # Convert to absolute path and resolve any symlinks
+                test_dir = os.path.abspath(os.path.expanduser(dir_path))
+                
+                # Try to create a test file to verify write permissions
+                test_file = os.path.join(test_dir, '.write_test')
+                os.makedirs(test_dir, mode=0o755, exist_ok=True)
+                with open(test_file, 'w') as f:
+                    f.write('test')
+                os.remove(test_file)
+                
+                # If we get here, the directory is writable
+                notebook_dir = test_dir
+                logger.info(f"Successfully found writable directory: {notebook_dir}")
+                break
+            except (OSError, PermissionError) as e:
+                logger.warning(f"Could not use directory {dir_path}: {str(e)}")
+                continue
+        
+        if notebook_dir is None:
+            raise PermissionError("Could not find any writable directory for Jupyter notebooks")
+        
+        # Check if a Jupyter server is already running
+        try:
+            result = subprocess.run(['jupyter', 'notebook', 'list'], 
+                                  capture_output=True, 
+                                  text=True)
+            if "http://localhost:8888" in result.stdout:
+                logger.info("Jupyter server already running")
+                return "Jupyter server is already running. Check 'jupyter notebook list' for details."
+        except Exception:
+            pass
+        
+        if sys.platform == "darwin":  # macOS
+            # Create a temporary shell script to run Jupyter
+            script_dir = os.path.dirname(notebook_dir)  # Use parent directory for script
+            script_path = os.path.join(script_dir, "start_jupyter.command")
             
-    except PermissionError as pe:
-        error_msg = f"Permission error: {str(pe)}"
-        logger.error(error_msg)
-        return error_msg
-    except subprocess.CalledProcessError as ce:
-        error_msg = f"Command error: {ce.stderr if ce.stderr else str(ce)}"
-        logger.error(error_msg)
-        return error_msg
+            # Prepare the Jupyter command with explicit port and no-browser option
+            jupyter_cmd = f"conda run -n {env_name} jupyter notebook --notebook-dir='{notebook_dir}' --port=8888 --no-browser"
+            
+            try:
+                with open(script_path, "w") as f:
+                    f.write("#!/bin/bash\n")
+                    f.write(f"cd '{notebook_dir}'\n")
+                    f.write(jupyter_cmd + "\n")
+                
+                # Make the script executable
+                os.chmod(script_path, 0o755)
+                
+                # Open the script in a new terminal window
+                subprocess.Popen(["open", script_path])
+                
+                # Wait for server to start
+                max_attempts = 6
+                for attempt in range(max_attempts):
+                    time.sleep(5)  # Wait 5 seconds between checks
+                    try:
+                        result = subprocess.run(['jupyter', 'notebook', 'list'], 
+                                              capture_output=True, 
+                                              text=True)
+                        if "http://localhost:8888" in result.stdout:
+                            url = "http://localhost:8888"
+                            try:
+                                webbrowser.open(url)
+                            except Exception as e:
+                                logger.warning(f"Could not open browser: {str(e)}")
+                            
+                            return f"""Jupyter server started successfully!
+                            Directory: {notebook_dir}
+                            Access URL: {url}
+                            
+                            The server is running in a new terminal window.
+                            To stop the server, close the terminal window or press Ctrl+C in that window."""
+                    except Exception:
+                        continue
+                
+                return f"""Started Jupyter server in a new terminal window.
+                Directory: {notebook_dir}
+                
+                Please wait a moment and check the terminal window for the URL.
+                To stop the server, close the terminal window or press Ctrl+C in that window."""
+                
+            except Exception as e:
+                logger.error(f"Error creating startup script: {str(e)}")
+                # Fall through to non-macOS method if script creation fails
+        
+        # For non-macOS platforms or if macOS script method fails
+        # Prepare the command with explicit port
+        jupyter_cmd = f"conda run -n {env_name} jupyter notebook --notebook-dir='{notebook_dir}' --port=8888"
+        
+        return f"""To start Jupyter, open a new terminal and run:
+        {jupyter_cmd}
+        
+        Or run this in your current terminal:
+        {jupyter_cmd} &
+        
+        The notebook directory will be: {notebook_dir}"""
+            
     except Exception as e:
-        error_msg = f"Unexpected error: {str(e)}"
+        error_msg = f"Error starting Jupyter server: {str(e)}"
         logger.error(error_msg)
-        return error_msg
+        return f"{error_msg}\n\nPlease try running Jupyter directly in a new terminal with:\nconda run -n {env_name} jupyter notebook"
 
 @function_tool
 def create_notebook(env_name, notebook_name, notebook_dir=None):
