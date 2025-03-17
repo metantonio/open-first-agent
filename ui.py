@@ -106,6 +106,7 @@ I can help you with various tasks:
    • "Create a Conda environment for data science with Python 3.10"
    • "Configure Jupyter notebook in my ML environment"
    • "Start a Jupyter notebook server in the data-science environment"
+   • "List all running notebooks"
 
 4. 🔍 Cigar Price Comparison:
    - Compare prices across retailers
