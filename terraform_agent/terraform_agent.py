@@ -313,6 +313,7 @@ structure_analyzer = Agent(
        - Backend settings
        - Variable declarations
        - Output definitions
+       - Formatting
     
     3. Provide structural recommendations:
        - Code organization improvements
