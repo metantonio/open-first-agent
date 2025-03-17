@@ -20,3 +20,5 @@
 *.tfstate.backup.gz.part.2
 *.tfstate.gz
 *.tfstate.gz.part
+.terraform
+.terraform/
