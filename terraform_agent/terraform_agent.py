@@ -3,9 +3,15 @@ import os
 from agents import Agent, Runner, AsyncOpenAI, OpenAIChatCompletionsModel, function_tool, ModelSettings
 from .config import get_model_config
 import logging
+from duckduckgo_search import DDGS
+from datetime import datetime
+import requests
+from bs4 import BeautifulSoup
+import re
 
 model = get_model_config()
 logger = logging.getLogger(__name__)
+current_date = datetime.now().strftime("%Y-%m")
 
 # Ensure output directory exists
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'output')
@@ -115,6 +121,53 @@ def analyze_terraform_file(filename):
         return analysis_results
     except Exception as e:
         return f"Error analyzing Terraform file: {str(e)}"
+
+@function_tool
+def search_terraform_info(topic):
+    """Search for Terraform-related information using DuckDuckGo."""
+    print(f"Searching for Terraform information about: {topic}")
+    
+    ddg_api = DDGS()
+    results = ddg_api.text(f"terraform {topic} {current_date}", max_results=5)
+    if results:
+        search_results = "\n\n".join([f"Title: {result['title']}\nURL: {result['href']}\nDescription: {result['body']}" for result in results])
+        return search_results
+    else:
+        return f"Could not find results for {topic}."
+
+@function_tool
+def fetch_and_parse_html(url):
+    """Fetch HTML content from a URL and return only the body content."""
+    logger.info(f"Fetching HTML content from {url}")
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        # Parse HTML with BeautifulSoup
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Remove script and style elements
+        for script in soup(['script', 'style']):
+            script.decompose()
+            
+        # Get body content
+        body = soup.body
+        if body is None:
+            return "No body content found in the HTML"
+            
+        # Get text content
+        text = body.get_text(separator='\n', strip=True)
+        
+        # Clean up excessive newlines and spaces
+        text = re.sub(r'\n\s*\n', '\n\n', text)
+        text = re.sub(r' +', ' ', text)
+        
+        return text.strip()
+    except Exception as e:
+        return f"Error fetching URL: {str(e)}"
 
 # 2. Create Editor Agent for Terraform
 
@@ -302,6 +355,50 @@ analysis_coordinator = Agent(
     tools=[read_terraform_file, analyze_terraform_file]
 )
 
+# 2.3 Create Web Research Agent
+
+terraform_researcher = Agent(
+    name="Terraform Researcher",
+    instructions="""You are a Terraform research expert who finds and analyzes information from the web. Your responsibilities include:
+    
+    1. Research Terraform best practices:
+       - Search for latest Terraform patterns using search_terraform_info
+       - Find official documentation and parse with fetch_and_parse_html
+       - Gather community recommendations
+       - Identify common solutions
+    
+    2. Research specific components:
+       - Provider configurations
+       - Resource specifications
+       - Module patterns
+       - Configuration examples
+    
+    3. Analyze and validate findings:
+       - Verify information sources
+       - Check version compatibility
+       - Validate against official docs
+       - Compare community solutions
+    
+    4. Provide research-based recommendations:
+       - Best practice implementations
+       - Common pitfalls to avoid
+       - Version-specific considerations
+       - Community-tested solutions
+    
+    Use web search tools to find relevant and up-to-date information:
+    - Use search_terraform_info for initial searches
+    - Use fetch_and_parse_html to get detailed content from URLs
+    - Focus on official Terraform documentation and trusted sources
+    - Validate information across multiple sources""",
+    model=model,
+    tools=[
+        read_terraform_file,
+        analyze_terraform_file,
+        search_terraform_info,
+        fetch_and_parse_html
+    ]
+)
+
 # 3. Create Main Orchestrator Agent
 
 orchestrator_agent = Agent(
@@ -313,6 +410,7 @@ orchestrator_agent = Agent(
        - Validate the requested changes
        - Plan the appropriate steps to fulfill the request
        - For analysis requests, coordinate with the Analysis Coordinator
+       - For research needs, coordinate with the Terraform Researcher
 
     2. File Management:
        - Create new Terraform files when needed
@@ -335,13 +433,23 @@ orchestrator_agent = Agent(
 
     5. Analysis and Recommendations:
        - Coordinate with Analysis Coordinator for reviews
+       - Use Terraform Researcher for latest best practices
        - Present analysis results in a clear format
        - Prioritize recommendations based on impact
        - Provide implementation guidance for improvements
 
-    IMPORTANT: Always validate configurations before applying changes.
-    Notify users of any potential risks or issues before proceeding with apply operations.
-    For analysis requests, ensure comprehensive review and clear recommendations.
+    6. Research and Documentation:
+       - Use web research when needed
+       - Find relevant documentation
+       - Validate against current best practices
+       - Incorporate community recommendations
+
+    IMPORTANT: 
+    - Always validate configurations before applying changes
+    - Notify users of any potential risks or issues
+    - Use web research to validate uncertain configurations
+    - Ensure recommendations are based on current best practices
+    - For analysis requests, ensure comprehensive review
     """,
     tools=[
         create_terraform_file,
@@ -360,7 +468,8 @@ orchestrator_agent = Agent(
         cost_optimizer,
         compliance_checker,
         performance_optimizer,
-        structure_analyzer
+        structure_analyzer,
+        terraform_researcher
     ]
 )
 
@@ -375,13 +484,15 @@ def run_workflow(request):
         f"""Process this Terraform request: {request}
 
         1. Analyze the request and determine required actions
-        2. If creating/modifying files, use the terraform_editor for proper formatting
-        3. If analyzing existing files, use the terraform_analyzer for recommendations
-        4. Validate changes with terraform plan when needed
-        5. If apply is requested and plan is successful, run terraform apply
-        6. Return detailed status of all operations
+        2. If research is needed, use the Terraform Researcher
+        3. If creating/modifying files, use the terraform_editor
+        4. If analyzing existing files, use specialized analyzers
+        5. Validate changes with terraform plan when needed
+        6. If apply is requested and plan is successful, run terraform apply
+        7. Return detailed status of all operations
 
         IMPORTANT: 
+        - Research uncertain configurations
         - Validate all changes before applying
         - Provide clear error messages if any issues occur
         - Ensure proper state management
