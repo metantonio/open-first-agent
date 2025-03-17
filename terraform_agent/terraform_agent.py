@@ -208,8 +208,21 @@ terraform_editor = Agent(
     7. Follow security best practices
     8. Include necessary backend configuration
     
-    Always format the Terraform code properly and include necessary comments.""",
-    model=model
+    Always format the Terraform code properly and include necessary comments.
+    
+    When creating or modifying Terraform files:
+    1. Use create_terraform_file to create new files
+    2. Use read_terraform_file to read existing files
+    3. Ensure all configurations are properly formatted
+    4. Include all necessary provider blocks
+    5. Define required variables
+    6. Configure resources with proper naming and tags""",
+    model=model,
+    tools=[
+        create_terraform_file,
+        read_terraform_file,
+        delete_terraform_file
+    ]
 )
 
 # 2.1 Create Specialized Analysis Agents
