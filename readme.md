@@ -108,6 +108,29 @@ A specialized multi-agent system for setting up and configuring development envi
   - Handles virtual environments
   - Configures environment variables
 
+- **Jupyter Runner Agent**: Expert in managing Jupyter notebook execution
+  - Starts and manages notebook servers
+  - Creates new notebooks with templates
+  - Configures notebook environments
+  - Manages notebook directories
+  - Handles server configuration
+  - Provides access URLs and status
+
+- **Notebook Monitor Agent**: Specialist in monitoring Jupyter notebook instances
+  - Lists running notebook servers
+  - Shows server URLs and directories
+  - Monitors server status
+  - Provides access information
+  - Helps with server cleanup
+  - Tracks notebook health
+
+- **Help Agent**: Expert in explaining agent capabilities
+  - Provides detailed information about all agents
+  - Shows usage examples and workflows
+  - Shares best practices
+  - Guides users to appropriate tools
+  - Answers capability questions
+
 #### Key Features
 
 - **VS Code Configuration**:
@@ -126,6 +149,9 @@ A specialized multi-agent system for setting up and configuring development envi
   - Kernel setup
   - Notebook configuration
   - Extension management
+  - Server management
+  - Notebook monitoring
+  - Environment-specific kernels
 
 Each agent has specific tools and capabilities:
 
@@ -136,6 +162,18 @@ Each agent has specific tools and capabilities:
 - **Environment Setup Tools**:
   - `setup_conda_env`: Creates and configures Conda environments
   - `setup_jupyter_kernel`: Sets up Jupyter kernels for environments
+
+- **Jupyter Runner Tools**:
+  - `start_jupyter_server`: Starts a Jupyter notebook server in a specific environment
+  - `create_notebook`: Creates a new Jupyter notebook with basic setup
+  - `list_running_notebooks`: Shows all running Jupyter notebook servers
+
+- **Notebook Monitor Tools**:
+  - `get_notebook_details`: Gets detailed information about running notebooks
+
+- **Help Tools**:
+  - `get_agent_capabilities`: Gets detailed information about all agents
+  - `get_best_practices`: Gets development environment best practices
 
 Each agent has specific responsibilities and tools:
 
