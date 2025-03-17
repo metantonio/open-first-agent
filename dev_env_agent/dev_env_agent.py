@@ -5,7 +5,6 @@ from .config import get_model_config
 import logging
 from datetime import datetime
 import json
-import yaml
 
 model = get_model_config()
 logger = logging.getLogger(__name__)

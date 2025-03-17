@@ -5,3 +5,6 @@ openai-agents==0.0.3
 pydantic==2.10.6
 chainlit 
 duckduckgo-search
+ipykernel
+jupyter
+conda-env
