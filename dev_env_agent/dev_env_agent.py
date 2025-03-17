@@ -616,6 +616,74 @@ help_agent = Agent(
     tools=[get_agent_capabilities, get_best_practices]
 )
 
+# Create Notebook Monitor Agent
+@function_tool
+def get_notebook_details():
+    """Get detailed information about running notebooks including URLs, directories, and environments."""
+    try:
+        # Get list of running notebooks
+        result = subprocess.run(['jupyter', 'notebook', 'list'], 
+                              capture_output=True, 
+                              text=True)
+        
+        if result.returncode != 0:
+            return "No running notebooks found or error listing notebooks."
+        
+        # Parse the output to get detailed information
+        notebooks = []
+        for line in result.stdout.split('\n'):
+            if 'http://' in line or 'https://' in line:
+                parts = line.split(' :: ')
+                if len(parts) >= 2:
+                    url = parts[0].strip()
+                    directory = parts[1].strip()
+                    notebooks.append({
+                        'url': url,
+                        'directory': directory,
+                        'status': 'Running'
+                    })
+        
+        if not notebooks:
+            return "No running notebooks found."
+        
+        # Format the output
+        output = "Running Notebooks:\n"
+        for idx, nb in enumerate(notebooks, 1):
+            output += f"\n{idx}. URL: {nb['url']}\n   Directory: {nb['directory']}\n   Status: {nb['status']}\n"
+        
+        return output
+    
+    except Exception as e:
+        logger.error(f"Error getting notebook details: {str(e)}")
+        return f"Error listing notebooks: {str(e)}"
+
+notebook_monitor_agent = Agent(
+    name="Notebook Monitor Agent",
+    instructions="""You are a Jupyter notebook monitoring specialist. Your responsibilities include:
+    
+    1. List running notebooks:
+       - Show active notebook servers
+       - Display server URLs
+       - Show notebook directories
+       - Indicate server status
+    
+    2. Provide monitoring information:
+       - Check if servers are responsive
+       - Show which environments are being used
+       - Display notebook locations
+       - Monitor server health
+    
+    3. Help with notebook management:
+       - Guide users to running notebooks
+       - Help identify unused servers
+       - Assist with server cleanup
+       - Provide access information
+    
+    Focus on providing clear, accurate information about running notebook instances.""",
+    model=model,
+    tools=[get_notebook_details]
+)
+
 # 3. Create Main Orchestrator
 
 orchestrator_agent = Agent(
@@ -643,10 +711,15 @@ orchestrator_agent = Agent(
        - Show relevant examples
        - Guide users to appropriate tools
     
+    5. Monitor notebook instances:
+       - Track running notebooks
+       - Provide server status
+       - Help manage notebook sessions
+    
     Ensure a smooth and consistent setup process.""",
     model=model,
     model_settings=ModelSettings(temperature=0.1),
-    handoffs=[ide_setup_agent, env_setup_agent, jupyter_runner_agent, help_agent]
+    handoffs=[ide_setup_agent, env_setup_agent, jupyter_runner_agent, help_agent, notebook_monitor_agent]
 )
 
 # 4. Main workflow function
