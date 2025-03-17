@@ -5,6 +5,8 @@ from .config import get_model_config
 import logging
 from datetime import datetime
 import json
+import webbrowser
+from pathlib import Path
 
 model = get_model_config()
 logger = logging.getLogger(__name__)
@@ -129,6 +131,127 @@ env_setup_agent = Agent(
     tools=[setup_conda_env, setup_jupyter_kernel]
 )
 
+# Add Jupyter Runner Tools and Agent
+@function_tool
+def start_jupyter_server(env_name, notebook_dir=None):
+    """Start a Jupyter notebook server in the specified environment."""
+    if notebook_dir is None:
+        notebook_dir = os.getcwd()
+    
+    # Ensure the directory exists
+    os.makedirs(notebook_dir, exist_ok=True)
+    
+    # Start Jupyter server in the background
+    cmd = f"conda run -n {env_name} jupyter notebook --notebook-dir={notebook_dir} --no-browser"
+    process = subprocess.Popen(cmd.split(), 
+                             stdout=subprocess.PIPE, 
+                             stderr=subprocess.PIPE)
+    
+    # Wait briefly for the server to start and get the URL
+    import time
+    time.sleep(3)
+    
+    # Read output to get the URL
+    output = process.stderr.readline().decode()
+    url = None
+    while "http://" not in output and process.poll() is None:
+        output = process.stderr.readline().decode()
+        if "http://" in output:
+            url = output.split("http://")[1].split()[0]
+            url = f"http://{url}"
+            break
+    
+    if url:
+        webbrowser.open(url)
+        return f"Jupyter server started at {url}"
+    else:
+        return "Started Jupyter server, but couldn't get URL. Check 'jupyter notebook list' for access."
+
+@function_tool
+def create_notebook(env_name, notebook_name, notebook_dir=None):
+    """Create a new Jupyter notebook with basic setup."""
+    if notebook_dir is None:
+        notebook_dir = os.getcwd()
+    
+    # Ensure the directory exists
+    os.makedirs(notebook_dir, exist_ok=True)
+    
+    # Full path for the notebook
+    notebook_path = os.path.join(notebook_dir, f"{notebook_name}.ipynb")
+    
+    # Basic notebook structure with Python 3 kernel
+    notebook_content = {
+        "cells": [
+            {
+                "cell_type": "markdown",
+                "metadata": {},
+                "source": ["# " + notebook_name + "\n", "Created on: " + datetime.now().strftime("%Y-%m-%d")]
+            },
+            {
+                "cell_type": "code",
+                "metadata": {},
+                "source": ["# Import common libraries\nimport numpy as np\nimport pandas as pd\nimport matplotlib.pyplot as plt"],
+                "outputs": [],
+                "execution_count": None
+            }
+        ],
+        "metadata": {
+            "kernelspec": {
+                "display_name": env_name,
+                "language": "python",
+                "name": env_name
+            }
+        },
+        "nbformat": 4,
+        "nbformat_minor": 4
+    }
+    
+    # Write the notebook
+    with open(notebook_path, 'w') as f:
+        json.dump(notebook_content, f, indent=2)
+    
+    return f"Created notebook: {notebook_path}"
+
+@function_tool
+def list_running_notebooks():
+    """List all running Jupyter notebook servers."""
+    cmd = "jupyter notebook list"
+    result = subprocess.run(cmd.split(), capture_output=True, text=True)
+    return result.stdout
+
+jupyter_runner_agent = Agent(
+    name="Jupyter Runner Agent",
+    instructions="""You are a Jupyter notebook execution expert. Your responsibilities include:
+    
+    1. Manage Jupyter servers:
+       - Start notebook servers
+       - Monitor running instances
+       - Handle server configuration
+       - Manage notebook directories
+    
+    2. Create and organize notebooks:
+       - Create new notebooks
+       - Set up basic templates
+       - Configure kernels
+       - Organize notebook structure
+    
+    3. Handle notebook execution:
+       - Start notebooks in correct environments
+       - Monitor notebook status
+       - Manage running instances
+       - Provide access URLs
+    
+    4. Manage notebook workflow:
+       - Create proper directory structure
+       - Set up working directories
+       - Handle notebook dependencies
+       - Ensure proper kernel selection
+    
+    Focus on providing a smooth notebook execution experience.""",
+    model=model,
+    tools=[start_jupyter_server, create_notebook, list_running_notebooks]
+)
+
 # Add Help Agent
 @function_tool
 def get_agent_capabilities():
@@ -174,6 +297,28 @@ def get_agent_capabilities():
                 "Install TensorFlow and PyTorch in my ML environment",
                 "Create a Python environment with specific package versions",
                 "Set up a development environment for web development"
+            ]
+        },
+        "Jupyter Runner Agent": {
+            "description": "Manages and runs Jupyter notebooks",
+            "capabilities": [
+                "Start Jupyter servers",
+                "Create new notebooks",
+                "Monitor running instances",
+                "Manage notebook directories",
+                "Configure notebook environments"
+            ],
+            "tools": [
+                "start_jupyter_server: Start a Jupyter notebook server in a specific environment",
+                "create_notebook: Create a new Jupyter notebook with basic setup",
+                "list_running_notebooks: Show all running Jupyter notebook servers"
+            ],
+            "examples": [
+                "Start a Jupyter server in my data-science environment",
+                "Create a new notebook for my machine learning project",
+                "Show me all running Jupyter servers",
+                "Set up a new data analysis notebook in the projects directory",
+                "Start Jupyter in my ML environment with TensorFlow"
             ]
         },
         "Help Agent": {
@@ -230,6 +375,16 @@ def get_best_practices():
             "Regular checkpoint saves",
             "Use clear notebook naming conventions",
             "Separate code and data directories"
+        ],
+        "Jupyter Workflow": [
+            "Use clear notebook naming conventions",
+            "Organize notebooks in project-specific directories",
+            "Regular notebook checkpoints",
+            "Clear cell output before sharing",
+            "Use markdown for documentation",
+            "Keep code cells focused and modular",
+            "Use environment-specific kernels",
+            "Version control your notebooks"
         ]
     }
     return best_practices
@@ -284,6 +439,7 @@ orchestrator_agent = Agent(
        - IDE setup
        - Environment management
        - Jupyter configuration
+       - Notebook execution
     
     3. Handle user preferences:
        - Custom configurations
@@ -298,7 +454,7 @@ orchestrator_agent = Agent(
     Ensure a smooth and consistent setup process.""",
     model=model,
     model_settings=ModelSettings(temperature=0.1),
-    handoffs=[ide_setup_agent, env_setup_agent, help_agent]
+    handoffs=[ide_setup_agent, env_setup_agent, jupyter_runner_agent, help_agent]
 )
 
 # 4. Main workflow function
