@@ -419,6 +419,7 @@ jupyter_runner_agent = Agent(
        - Monitor running instances
        - Handle server configuration
        - Manage notebook directories
+       - Tell the user that the server is running and provide the URL http://localhost:8888
     
     2. Create and organize notebooks:
        - Create new notebooks
