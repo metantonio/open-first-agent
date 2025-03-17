@@ -7,43 +7,57 @@ import logging
 model = get_model_config()
 logger = logging.getLogger(__name__)
 
+# Ensure output directory exists
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'output')
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+def get_terraform_file_path(filename: str) -> str:
+    """Get the full path for a Terraform file in the output directory."""
+    if not filename.endswith('.tf'):
+        filename = f"{filename}.tf"
+    return os.path.join(OUTPUT_DIR, filename)
+
 # 1. Create Tools
 
 @function_tool
 def create_terraform_file(filename, content):
-    """Create a new Terraform file with the specified content."""
+    """Create a new Terraform file with the specified content in the output directory."""
     try:
-        with open(filename, 'w') as f:
+        filepath = get_terraform_file_path(filename)
+        with open(filepath, 'w') as f:
             f.write(content)
-        return f"Successfully created Terraform file: {filename}"
+        return f"Successfully created Terraform file: {filepath}"
     except Exception as e:
         return f"Error creating Terraform file: {str(e)}"
 
 @function_tool
 def delete_terraform_file(filename):
-    """Delete a Terraform file."""
+    """Delete a Terraform file from the output directory."""
     try:
-        os.remove(filename)
-        return f"Successfully deleted Terraform file: {filename}"
+        filepath = get_terraform_file_path(filename)
+        os.remove(filepath)
+        return f"Successfully deleted Terraform file: {filepath}"
     except Exception as e:
         return f"Error deleting Terraform file: {str(e)}"
 
 @function_tool
 def read_terraform_file(filename):
-    """Read the contents of a Terraform file."""
+    """Read the contents of a Terraform file from the output directory."""
     try:
-        with open(filename, 'r') as f:
+        filepath = get_terraform_file_path(filename)
+        with open(filepath, 'r') as f:
             return f.read()
     except Exception as e:
         return f"Error reading Terraform file: {str(e)}"
 
 @function_tool
 def run_terraform_plan():
-    """Execute 'terraform plan' command."""
+    """Execute 'terraform plan' command in the output directory."""
     try:
         result = subprocess.run(['terraform', 'plan'], 
                               capture_output=True, 
-                              text=True)
+                              text=True,
+                              cwd=OUTPUT_DIR)
         if result.returncode != 0:
             return f"Terraform plan failed:\n{result.stderr}"
         return f"Terraform plan output:\n{result.stdout}"
@@ -52,11 +66,12 @@ def run_terraform_plan():
 
 @function_tool
 def run_terraform_apply():
-    """Execute 'terraform apply' command with auto-approve."""
+    """Execute 'terraform apply' command with auto-approve in the output directory."""
     try:
         result = subprocess.run(['terraform', 'apply', '-auto-approve'], 
                               capture_output=True, 
-                              text=True)
+                              text=True,
+                              cwd=OUTPUT_DIR)
         if result.returncode != 0:
             return f"Terraform apply failed:\n{result.stderr}"
         return f"Terraform apply output:\n{result.stdout}"
@@ -67,24 +82,34 @@ def run_terraform_apply():
 def analyze_terraform_file(filename):
     """Analyze a Terraform file for best practices and potential improvements."""
     try:
+        filepath = get_terraform_file_path(filename)
+        example_path = os.path.join(os.path.dirname(__file__), 'terraform_example.tf')
+        
         # Run terraform fmt to check formatting
-        fmt_result = subprocess.run(['terraform', 'fmt', '-check', filename],
+        fmt_result = subprocess.run(['terraform', 'fmt', '-check', filepath],
                                   capture_output=True,
-                                  text=True)
+                                  text=True,
+                                  cwd=OUTPUT_DIR)
         
         # Run terraform validate for syntax and configuration validation
         validate_result = subprocess.run(['terraform', 'validate'],
                                        capture_output=True,
-                                       text=True)
+                                       text=True,
+                                       cwd=OUTPUT_DIR)
         
         # Read the file content for custom analysis
-        with open(filename, 'r') as f:
+        with open(filepath, 'r') as f:
             content = f.read()
+            
+        # Read the example file for comparison
+        with open(example_path, 'r') as f:
+            example_content = f.read()
             
         analysis_results = {
             'formatting': 'Properly formatted' if fmt_result.returncode == 0 else 'Needs formatting',
             'validation': validate_result.stdout if validate_result.returncode == 0 else validate_result.stderr,
-            'content': content
+            'content': content,
+            'example': example_content
         }
         
         return analysis_results
@@ -113,39 +138,58 @@ terraform_editor = Agent(
 
 terraform_analyzer = Agent(
     name="Terraform Analyzer",
-    instructions="""You are a Terraform analysis and optimization expert. Your responsibilities include:
-    1. Analyze existing Terraform configurations for:
-       - Security best practices
-       - Resource optimization opportunities
-       - Cost optimization recommendations
+    instructions="""You are a Terraform analysis and optimization expert. Your responsibilities include analyzing Terraform configurations and providing recommendations based on best practices and the provided example configuration.
+
+    1. Compare with Example Configuration:
+       - Use the example configuration (provided in analysis_results['example']) as a reference
+       - Identify missing best practices from the example
+       - Suggest improvements based on the example patterns
+       - Recommend additional security measures shown in the example
+       
+    2. Analyze existing Terraform configurations for:
+       - Security best practices (like encryption, IMDSv2, minimal permissions)
+       - Resource optimization opportunities (like using gp3 vs gp2)
+       - Cost optimization recommendations (like t3 vs t2 instances)
        - Performance improvements
        - Maintainability improvements
        - Compliance with company standards
        
-    2. Provide detailed recommendations for:
-       - Security enhancements
-       - Cost savings
+    3. Check for Key Components (based on example):
+       - Provider configuration with proper version constraints
+       - Backend configuration for state management
+       - Variable declarations with descriptions and constraints
+       - Resource configurations with best practices
+       - Security group rules with proper restrictions
+       - Proper tagging strategy
+       - Lifecycle rules where appropriate
+       - Output definitions for important values
+       
+    4. Provide detailed recommendations for:
+       - Security enhancements (based on example patterns)
+       - Cost savings opportunities
        - Performance optimizations
        - Best practices implementation
        - Code structure improvements
        
-    3. Review and validate:
-       - Resource configurations
-       - Variable usage
+    5. Review and validate:
+       - Resource configurations against example
+       - Variable usage patterns
        - Provider configurations
        - Backend configurations
        - Module structure
        - Naming conventions
        - Tagging strategies
        
-    4. Generate comprehensive reports that include:
+    6. Generate comprehensive reports that include:
+       - Comparison with example configuration
        - Current state analysis
-       - Identified issues
+       - Identified gaps from best practices
        - Prioritized recommendations
        - Implementation suggestions
        - Potential risks and mitigation strategies
        
-    Always provide clear, actionable recommendations with explanations of their benefits and potential impacts.""",
+    Always provide clear, actionable recommendations with explanations of their benefits and potential impacts.
+    Use the example configuration as a guide for suggesting improvements.""",
     model=model,
     tools=[read_terraform_file, analyze_terraform_file]
 )

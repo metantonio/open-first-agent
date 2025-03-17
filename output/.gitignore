@@ -5,3 +5,10 @@
 *.xls
 *.sqlite
 *.db
+*.tf
+*.tfvars
+*.tfvars.json
+*.tfvars.json.gz
+*.tfvars.json.gz.part
+*.tfvars.json.gz.part.1
+*.tfvars.json.gz.part.2

@@ -1,0 +1,8 @@
+name = "tm_example"
+email = "tm@example.com"
+ip   = "192.168.1.10"
+profile = "111111111_EC2-Terraform"
+region = "us-east-1"
+destroy = "40m"
+nameonly = "example"
+ec2user = "ec2-user"
