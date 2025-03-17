@@ -108,12 +108,6 @@ I can help you with various tasks:
    • "Start a Jupyter notebook server in the data-science environment"
    • "List all running notebooks"
 
-4. 🔍 Cigar Price Comparison:
-   - Compare prices across retailers
-   - Analyze product information
-   - Export results in various formats
-   
-
 
 💡 Need help? Try these:
 • "What can you help me with?"
