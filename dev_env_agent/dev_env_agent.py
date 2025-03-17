@@ -7,6 +7,7 @@ from datetime import datetime
 import json
 import webbrowser
 from pathlib import Path
+import sys
 
 model = get_model_config()
 logger = logging.getLogger(__name__)
@@ -59,9 +60,51 @@ def setup_conda_env(env_name, python_version, packages=None):
 @function_tool
 def setup_jupyter_kernel(env_name):
     """Set up Jupyter kernel for Conda environment."""
-    cmd = f"conda run -n {env_name} python -m ipykernel install --user --name {env_name}"
-    subprocess.run(cmd.split(), check=True)
-    return f"Installed Jupyter kernel for {env_name}"
+    logger.info(f"Setting up Jupyter kernel for {env_name}")
+    
+    try:
+        # First, ensure ipykernel is installed in the environment
+        install_cmd = f"conda run -n {env_name} pip install ipykernel"
+        logger.info("Installing ipykernel...")
+        subprocess.run(install_cmd.split(), check=True)
+        
+        # Get the platform-specific user directory for kernel specs
+        if sys.platform == "darwin":  # macOS
+            kernel_dir = os.path.expanduser("~/Library/Jupyter/kernels")
+        elif sys.platform == "linux":  # Linux
+            kernel_dir = os.path.expanduser("~/.local/share/jupyter/kernels")
+        else:  # Windows or others
+            kernel_dir = os.path.expanduser("~/.jupyter/kernels")
+        
+        # Ensure the kernel directory exists
+        os.makedirs(kernel_dir, exist_ok=True)
+        
+        # Install the kernel
+        cmd = f"conda run -n {env_name} python -m ipykernel install --user --name {env_name} --display-name 'Python ({env_name})'"
+        logger.info(f"Installing kernel with command: {cmd}")
+        result = subprocess.run(cmd.split(), capture_output=True, text=True)
+        
+        if result.returncode != 0:
+            error_msg = result.stderr or "Unknown error occurred"
+            logger.error(f"Failed to install kernel: {error_msg}")
+            return f"Error installing Jupyter kernel: {error_msg}"
+        
+        # Verify the kernel installation
+        kernel_path = os.path.join(kernel_dir, env_name)
+        if os.path.exists(kernel_path):
+            logger.info(f"Successfully installed kernel at {kernel_path}")
+            return f"Successfully installed Jupyter kernel for {env_name}"
+        else:
+            logger.warning(f"Kernel directory not found at {kernel_path}")
+            return f"Kernel installation completed but kernel directory not found. You may need to restart Jupyter."
+            
+    except subprocess.CalledProcessError as e:
+        error_msg = e.stderr if hasattr(e, 'stderr') else str(e)
+        logger.error(f"Error during kernel setup: {error_msg}")
+        return f"Failed to set up Jupyter kernel: {error_msg}"
+    except Exception as e:
+        logger.error(f"Unexpected error during kernel setup: {str(e)}")
+        return f"Unexpected error during kernel setup: {str(e)}"
 
 @function_tool
 def configure_vscode_extensions(extensions=None):
