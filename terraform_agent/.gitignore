@@ -1,0 +1,16 @@
+*.tfvars.json
+*.tfvars.json.gz
+*.tfvars.json.gz.part
+*.tfvars.json.gz.part.1
+*.tfvars.json.gz.part.2
+*.tfstate
+*.tfstate.backup
+*.tfstate.backup.gz
+*.tfstate.backup.gz.part
+*.tfstate.backup.gz.part.1
+*.tfstate.backup.gz.part.2
+*.tfstate.gz
+*.tfstate.gz.part
+.terraform
+.terraform/
+__pycache__

@@ -194,6 +194,20 @@ def run_terraform_check(filename=None):
     except Exception as e:
         return f"Error running terraform check: {str(e)}"
 
+@function_tool
+def run_terraform_init():
+    """Execute 'terraform init' command in the output directory."""
+    try:
+        result = subprocess.run(['terraform', 'init'],
+                              capture_output=True,
+                              text=True,
+                              cwd=OUTPUT_DIR)
+        if result.returncode != 0:
+            return f"Terraform init failed:\n{result.stderr}"
+        return f"Terraform init output:\n{result.stdout}"
+    except Exception as e:
+        return f"Error running terraform init: {str(e)}"
+
 # 2. Create Editor Agent for Terraform
 
 terraform_editor = Agent(
@@ -222,7 +236,8 @@ terraform_editor = Agent(
         create_terraform_file,
         read_terraform_file,
         delete_terraform_file,
-        run_terraform_check
+        run_terraform_check,
+        run_terraform_init
     ]
 )
 
