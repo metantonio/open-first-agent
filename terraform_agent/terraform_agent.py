@@ -63,6 +63,34 @@ def run_terraform_apply():
     except Exception as e:
         return f"Error running terraform apply: {str(e)}"
 
+@function_tool
+def analyze_terraform_file(filename):
+    """Analyze a Terraform file for best practices and potential improvements."""
+    try:
+        # Run terraform fmt to check formatting
+        fmt_result = subprocess.run(['terraform', 'fmt', '-check', filename],
+                                  capture_output=True,
+                                  text=True)
+        
+        # Run terraform validate for syntax and configuration validation
+        validate_result = subprocess.run(['terraform', 'validate'],
+                                       capture_output=True,
+                                       text=True)
+        
+        # Read the file content for custom analysis
+        with open(filename, 'r') as f:
+            content = f.read()
+            
+        analysis_results = {
+            'formatting': 'Properly formatted' if fmt_result.returncode == 0 else 'Needs formatting',
+            'validation': validate_result.stdout if validate_result.returncode == 0 else validate_result.stderr,
+            'content': content
+        }
+        
+        return analysis_results
+    except Exception as e:
+        return f"Error analyzing Terraform file: {str(e)}"
+
 # 2. Create Editor Agent for Terraform
 
 terraform_editor = Agent(
@@ -81,6 +109,47 @@ terraform_editor = Agent(
     model=model
 )
 
+# 2.1 Create Analyzer Agent for Terraform
+
+terraform_analyzer = Agent(
+    name="Terraform Analyzer",
+    instructions="""You are a Terraform analysis and optimization expert. Your responsibilities include:
+    1. Analyze existing Terraform configurations for:
+       - Security best practices
+       - Resource optimization opportunities
+       - Cost optimization recommendations
+       - Performance improvements
+       - Maintainability improvements
+       - Compliance with company standards
+       
+    2. Provide detailed recommendations for:
+       - Security enhancements
+       - Cost savings
+       - Performance optimizations
+       - Best practices implementation
+       - Code structure improvements
+       
+    3. Review and validate:
+       - Resource configurations
+       - Variable usage
+       - Provider configurations
+       - Backend configurations
+       - Module structure
+       - Naming conventions
+       - Tagging strategies
+       
+    4. Generate comprehensive reports that include:
+       - Current state analysis
+       - Identified issues
+       - Prioritized recommendations
+       - Implementation suggestions
+       - Potential risks and mitigation strategies
+       
+    Always provide clear, actionable recommendations with explanations of their benefits and potential impacts.""",
+    model=model,
+    tools=[read_terraform_file, analyze_terraform_file]
+)
+
 # 3. Create Main Orchestrator Agent
 
 orchestrator_agent = Agent(
@@ -91,6 +160,7 @@ orchestrator_agent = Agent(
        - Analyze the user's request for Terraform operations
        - Validate the requested changes
        - Plan the appropriate steps to fulfill the request
+       - For analysis requests, coordinate with the Terraform Analyzer
 
     2. File Management:
        - Create new Terraform files when needed
@@ -111,19 +181,27 @@ orchestrator_agent = Agent(
        - Verify all required providers are configured
        - Handle errors and provide clear feedback
 
+    5. Analysis and Recommendations:
+       - Coordinate with Terraform Analyzer for configuration reviews
+       - Present analysis results in a clear format
+       - Prioritize recommendations based on impact
+       - Provide implementation guidance for suggested improvements
+
     IMPORTANT: Always validate configurations before applying changes.
     Notify users of any potential risks or issues before proceeding with apply operations.
+    For analysis requests, ensure comprehensive review and clear recommendations.
     """,
     tools=[
         create_terraform_file,
         delete_terraform_file,
         read_terraform_file,
         run_terraform_plan,
-        run_terraform_apply
+        run_terraform_apply,
+        analyze_terraform_file
     ],
     model=model,
     model_settings=ModelSettings(temperature=0.1),
-    handoffs=[terraform_editor]
+    handoffs=[terraform_editor, terraform_analyzer]
 )
 
 # 4. Main workflow function
@@ -138,15 +216,17 @@ def run_workflow(request):
 
         1. Analyze the request and determine required actions
         2. If creating/modifying files, use the terraform_editor for proper formatting
-        3. Validate changes with terraform plan
-        4. If apply is requested and plan is successful, run terraform apply
-        5. Return detailed status of all operations
+        3. If analyzing existing files, use the terraform_analyzer for recommendations
+        4. Validate changes with terraform plan when needed
+        5. If apply is requested and plan is successful, run terraform apply
+        6. Return detailed status of all operations
 
         IMPORTANT: 
         - Validate all changes before applying
         - Provide clear error messages if any issues occur
         - Ensure proper state management
         - Follow security best practices
+        - For analysis requests, provide comprehensive recommendations
 
         Handle all steps appropriately and provide detailed feedback.
         """
