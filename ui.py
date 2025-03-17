@@ -106,14 +106,6 @@ I can help you with various tasks:
    • "Create a Conda environment for data science with Python 3.10"
    • "Configure Jupyter notebook in my ML environment"
 
-4. 🔍 Cigar Price Comparison:
-   - Compare prices across retailers
-   - Analyze product information
-   - Export results in various formats
-   
-   Examples:
-   • "Compare prices for Cohiba cigars"
-   • "Find the best deals on Cuban cigars"
 
 💡 Need help? Try these:
 • "What can you help me with?"
