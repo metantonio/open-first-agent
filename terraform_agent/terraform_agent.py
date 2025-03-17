@@ -221,7 +221,8 @@ terraform_editor = Agent(
     tools=[
         create_terraform_file,
         read_terraform_file,
-        delete_terraform_file
+        delete_terraform_file,
+        run_terraform_check
     ]
 )
 
