@@ -47,6 +47,48 @@ An intelligent agent that interacts with DuckDuckGo search:
 - **DDS Agent**: Performs automated searches and processes results
 - **Chainlit UI**: Interactive web interface for the agent
 
+### 3. Terraform Agents
+
+A comprehensive multi-agent system for managing Infrastructure as Code with Terraform:
+
+#### Main Agents
+
+- **Terraform Orchestrator**: The main controller that coordinates all Terraform operations and other specialized agents
+- **Terraform Editor**: Expert in creating and modifying Terraform configurations with best practices
+- **Terraform Checker**: Validates configurations and provides detailed feedback
+
+#### Specialized Analysis Agents
+
+- **Security Analyzer**: Focuses on security configurations, IAM roles, and access controls
+- **Cost Optimizer**: Analyzes and optimizes resource configurations for cost efficiency
+- **Compliance Checker**: Ensures adherence to standards, naming conventions, and required settings
+- **Performance Optimizer**: Analyzes and improves performance configurations
+- **Structure Analyzer**: Reviews code organization, module structure, and best practices
+- **Analysis Coordinator**: Coordinates the analysis process across specialized agents
+- **Terraform Researcher**: Gathers and analyzes information from the web about Terraform best practices
+
+Each agent has specific responsibilities and tools:
+
+- **Terraform Editor Tools**:
+  - Create, read, and delete Terraform files
+  - Run Terraform init and check commands
+  - Validate configurations
+
+- **Analysis Tools**:
+  - Security analysis
+  - Cost optimization
+  - Compliance checking
+  - Performance analysis
+  - Code structure review
+  - Web research for best practices
+
+The agents work together to:
+- Create and manage Terraform configurations
+- Validate and check configurations before applying
+- Analyze existing configurations for improvements
+- Research and apply best practices
+- Ensure security, compliance, and cost optimization
+
 ## Installation
 
 1. Clone the repository and create an environment:
