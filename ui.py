@@ -75,6 +75,10 @@ I can help you with various tasks:
    - Find and summarize news articles
    - Search for information on any topic
    - Process and analyze web content
+   
+   Examples:
+   • "Search for recent developments in quantum computing"
+   • "Find news about renewable energy technologies"
 
 2. 🏗️ Terraform Infrastructure:
    - Create and manage Terraform configurations
@@ -83,6 +87,11 @@ I can help you with various tasks:
    - Validate infrastructure compliance
    - Optimize resource configurations
    - Research best practices
+   
+   Examples:
+   • "Create a Terraform configuration for an AWS EC2 instance"
+   • "Analyze the security of my Terraform configuration"
+   • "Help me optimize my infrastructure costs"
 
 3. 💻 Development Environment Setup:
    - Configure VS Code for remote development
@@ -91,7 +100,25 @@ I can help you with various tasks:
    - Create and configure Conda environments
    - Set up Jupyter notebooks and kernels
    - Manage Python packages and dependencies
+   
+   Examples:
+   • "Set up VS Code for remote development on my Linux server"
+   • "Create a Conda environment for data science with Python 3.10"
+   • "Configure Jupyter notebook in my ML environment"
 
+4. 🔍 Cigar Price Comparison:
+   - Compare prices across retailers
+   - Analyze product information
+   - Export results in various formats
+   
+   Examples:
+   • "Compare prices for Cohiba cigars"
+   • "Find the best deals on Cuban cigars"
+
+💡 Need help? Try these:
+• "What can you help me with?"
+• "Show me examples for [specific task]"
+• "How do I [specific action]?"
 
 Simply type your request, and I'll automatically determine the best way to help you!
 

@@ -129,6 +129,146 @@ env_setup_agent = Agent(
     tools=[setup_conda_env, setup_jupyter_kernel]
 )
 
+# Add Help Agent
+@function_tool
+def get_agent_capabilities():
+    """Get detailed information about agent capabilities and examples."""
+    capabilities = {
+        "IDE Setup Agent": {
+            "description": "Configures VS Code and development tools",
+            "capabilities": [
+                "Remote SSH setup",
+                "Extension management",
+                "Workspace configuration",
+                "Git integration",
+                "Debugging setup"
+            ],
+            "tools": [
+                "setup_vscode_remote: Configure VS Code for remote SSH connections",
+                "configure_vscode_extensions: Install and manage VS Code extensions"
+            ],
+            "examples": [
+                "Set up VS Code for remote development on my Linux server at 192.168.1.100",
+                "Install Python and Jupyter extensions in VS Code",
+                "Configure VS Code for Python debugging",
+                "Set up Git integration in VS Code",
+                "Configure my workspace settings for Python development"
+            ]
+        },
+        "Environment Setup Agent": {
+            "description": "Manages Python environments and tools",
+            "capabilities": [
+                "Conda environment creation",
+                "Package management",
+                "Jupyter integration",
+                "Virtual environment handling",
+                "Dependency resolution"
+            ],
+            "tools": [
+                "setup_conda_env: Create and configure Conda environments with specific Python versions and packages",
+                "setup_jupyter_kernel: Set up Jupyter kernels for Conda environments"
+            ],
+            "examples": [
+                "Create a new Conda environment for data science with Python 3.10",
+                "Set up Jupyter notebook in my data-science environment",
+                "Install TensorFlow and PyTorch in my ML environment",
+                "Create a Python environment with specific package versions",
+                "Set up a development environment for web development"
+            ]
+        },
+        "Help Agent": {
+            "description": "Provides guidance and information about the development environment system",
+            "capabilities": [
+                "Explain agent capabilities",
+                "Provide usage examples",
+                "Answer capability questions",
+                "Suggest best practices",
+                "Guide users to appropriate agents"
+            ],
+            "tools": [
+                "get_agent_capabilities: Get detailed information about all agents and their capabilities"
+            ],
+            "examples": [
+                "What can the IDE Setup Agent do?",
+                "Show me examples of environment setup",
+                "How do I set up a remote development environment?",
+                "What are the best practices for Python development?",
+                "Which agent should I use for Jupyter setup?"
+            ]
+        }
+    }
+    return capabilities
+
+@function_tool
+def get_best_practices():
+    """Get development environment best practices and recommendations."""
+    best_practices = {
+        "VS Code Setup": [
+            "Always use version control extensions",
+            "Configure autosave and formatting",
+            "Set up consistent indentation",
+            "Use integrated terminal",
+            "Enable multi-root workspaces for complex projects"
+        ],
+        "Python Environment": [
+            "Use virtual environments for each project",
+            "Maintain requirements.txt or environment.yml",
+            "Pin dependency versions",
+            "Use .env files for environment variables",
+            "Regular environment cleanup"
+        ],
+        "Remote Development": [
+            "Use SSH keys instead of passwords",
+            "Configure proper file synchronization",
+            "Set up local backup of configurations",
+            "Use workspace-specific settings",
+            "Enable port forwarding when needed"
+        ],
+        "Jupyter Integration": [
+            "Use environment-specific kernels",
+            "Enable notebook extensions",
+            "Regular checkpoint saves",
+            "Use clear notebook naming conventions",
+            "Separate code and data directories"
+        ]
+    }
+    return best_practices
+
+# Update Help Agent with tools
+help_agent = Agent(
+    name="Help Agent",
+    instructions="""You are an expert in explaining the capabilities of all development environment agents. Your responsibilities include:
+    
+    1. Explain agent capabilities:
+       - Use get_agent_capabilities to obtain detailed information
+       - Describe what each agent can do
+       - List available tools and their purposes
+       - Provide specific examples
+       - Suggest common use cases
+    
+    2. Provide usage examples:
+       - Show example commands
+       - Demonstrate typical workflows
+       - Explain expected outcomes
+       - Include real-world scenarios
+    
+    3. Share best practices:
+       - Use get_best_practices to provide recommendations
+       - Suggest optimal configurations
+       - Guide on tool selection
+       - Advise on common pitfalls
+    
+    4. Answer capability questions:
+       - Clarify agent limitations
+       - Explain tool interactions
+       - Guide users to appropriate agents
+       - Provide context-specific advice
+    
+    Focus on making the system easy to understand and use. Always provide specific, actionable information based on the tools' output.""",
+    model=model,
+    tools=[get_agent_capabilities, get_best_practices]
+)
+
 # 3. Create Main Orchestrator
 
 orchestrator_agent = Agent(
@@ -150,10 +290,15 @@ orchestrator_agent = Agent(
        - Tool preferences
        - Workflow optimization
     
+    4. Provide help and guidance:
+       - Explain available capabilities
+       - Show relevant examples
+       - Guide users to appropriate tools
+    
     Ensure a smooth and consistent setup process.""",
     model=model,
     model_settings=ModelSettings(temperature=0.1),
-    handoffs=[ide_setup_agent, env_setup_agent]
+    handoffs=[ide_setup_agent, env_setup_agent, help_agent]
 )
 
 # 4. Main workflow function
@@ -166,17 +311,24 @@ def run_workflow(request):
         orchestrator_agent,
         f"""Process this development environment setup request: {request}
 
-        1. Analyze the requirements
-        2. Set up IDE configurations
-        3. Create and configure Python environment
-        4. Set up Jupyter integration if needed
-        5. Validate the setup
+        1. If this is a help request or contains '?', use the help agent to:
+           - Explain relevant capabilities
+           - Provide specific examples
+           - Suggest next steps
+
+        2. For setup requests:
+           - Analyze the requirements
+           - Set up IDE configurations
+           - Create and configure Python environment
+           - Set up Jupyter integration if needed
+           - Validate the setup
 
         IMPORTANT: 
         - Ensure all tools are properly configured
         - Handle errors gracefully
         - Provide clear feedback
         - Document the setup process
+        - For help requests, be thorough in explanations
 
         Handle all steps appropriately and provide detailed feedback.
         """
