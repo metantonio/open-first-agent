@@ -679,7 +679,7 @@ notebook_monitor_agent = Agent(
        - Assist with server cleanup
        - Provide access information
     
-    Focus on providing clear, accurate information about running notebook instances.""",
+    Focus on providing clear, accurate information about running notebook instances. Use the get_notebook_details tool to get the details of the running notebooks.""",
     model=model,
     tools=[get_notebook_details]
 )
