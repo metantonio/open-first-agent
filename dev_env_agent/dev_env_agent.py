@@ -178,37 +178,95 @@ env_setup_agent = Agent(
 @function_tool
 def start_jupyter_server(env_name, notebook_dir=None):
     """Start a Jupyter notebook server in the specified environment."""
-    if notebook_dir is None:
-        notebook_dir = os.getcwd()
-    
-    # Ensure the directory exists
-    os.makedirs(notebook_dir, exist_ok=True)
-    
-    # Start Jupyter server in the background
-    cmd = f"conda run -n {env_name} jupyter notebook --notebook-dir={notebook_dir} --no-browser"
-    process = subprocess.Popen(cmd.split(), 
-                             stdout=subprocess.PIPE, 
-                             stderr=subprocess.PIPE)
-    
-    # Wait briefly for the server to start and get the URL
-    import time
-    time.sleep(3)
-    
-    # Read output to get the URL
-    output = process.stderr.readline().decode()
-    url = None
-    while "http://" not in output and process.poll() is None:
-        output = process.stderr.readline().decode()
-        if "http://" in output:
-            url = output.split("http://")[1].split()[0]
-            url = f"http://{url}"
-            break
-    
-    if url:
-        webbrowser.open(url)
-        return f"Jupyter server started at {url}"
-    else:
-        return "Started Jupyter server, but couldn't get URL. Check 'jupyter notebook list' for access."
+    try:
+        # If no directory specified, try user's home directory as fallback
+        if notebook_dir is None:
+            notebook_dir = os.path.expanduser("~/jupyter_notebooks")
+        
+        # Convert to absolute path and resolve any symlinks
+        notebook_dir = os.path.abspath(os.path.expanduser(notebook_dir))
+        
+        # Check if directory exists and is writable
+        if os.path.exists(notebook_dir):
+            if not os.access(notebook_dir, os.W_OK):
+                logger.error(f"Directory {notebook_dir} exists but is not writable")
+                # Try to create in home directory instead
+                notebook_dir = os.path.expanduser("~/jupyter_notebooks")
+                logger.info(f"Falling back to home directory: {notebook_dir}")
+        
+        # Create directory with proper permissions
+        try:
+            os.makedirs(notebook_dir, mode=0o755, exist_ok=True)
+        except PermissionError as pe:
+            logger.error(f"Permission error creating directory {notebook_dir}: {str(pe)}")
+            # Final fallback to /tmp directory
+            notebook_dir = os.path.join("/tmp", f"jupyter_{env_name}")
+            logger.info(f"Falling back to temporary directory: {notebook_dir}")
+            os.makedirs(notebook_dir, mode=0o755, exist_ok=True)
+        
+        logger.info(f"Using notebook directory: {notebook_dir}")
+        
+        # Verify Jupyter is installed in the environment
+        check_cmd = f"conda run -n {env_name} jupyter --version"
+        try:
+            subprocess.run(check_cmd.split(), check=True, capture_output=True)
+        except subprocess.CalledProcessError:
+            logger.warning("Jupyter not found in environment, attempting to install...")
+            install_cmd = f"conda run -n {env_name} pip install jupyter notebook"
+            subprocess.run(install_cmd.split(), check=True)
+        
+        # Start Jupyter server in the background
+        cmd = f"conda run -n {env_name} jupyter notebook --notebook-dir='{notebook_dir}' --no-browser"
+        logger.info(f"Starting Jupyter server with command: {cmd}")
+        
+        process = subprocess.Popen(cmd.split(), 
+                                stdout=subprocess.PIPE, 
+                                stderr=subprocess.PIPE,
+                                universal_newlines=True)
+        
+        # Wait for server to start and get URL
+        import time
+        max_wait = 30  # Maximum seconds to wait
+        start_time = time.time()
+        url = None
+        
+        while time.time() - start_time < max_wait:
+            if process.poll() is not None:
+                # Process ended prematurely
+                error_output = process.stderr.read()
+                logger.error(f"Jupyter server failed to start: {error_output}")
+                return f"Failed to start Jupyter server: {error_output}"
+            
+            line = process.stderr.readline()
+            if "http://" in line:
+                url = line.split("http://")[1].split()[0]
+                url = f"http://{url}"
+                break
+            
+            time.sleep(0.5)
+        
+        if url:
+            try:
+                webbrowser.open(url)
+                return f"Jupyter server started successfully at {url}\nNotebook directory: {notebook_dir}"
+            except Exception as e:
+                return f"Jupyter server started at {url} but couldn't open browser: {str(e)}\nNotebook directory: {notebook_dir}"
+        else:
+            # Server might still be running but we couldn't get the URL
+            return f"Jupyter server started but couldn't get URL. Run 'jupyter notebook list' to find the URL.\nNotebook directory: {notebook_dir}"
+            
+    except PermissionError as pe:
+        error_msg = f"Permission error: {str(pe)}"
+        logger.error(error_msg)
+        return error_msg
+    except subprocess.CalledProcessError as ce:
+        error_msg = f"Command error: {ce.stderr if ce.stderr else str(ce)}"
+        logger.error(error_msg)
+        return error_msg
+    except Exception as e:
+        error_msg = f"Unexpected error: {str(e)}"
+        logger.error(error_msg)
+        return error_msg
 
 @function_tool
 def create_notebook(env_name, notebook_name, notebook_dir=None):
