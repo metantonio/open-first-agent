@@ -4,29 +4,49 @@ This project implements multiple intelligent agent systems for web automation ta
 
 ## Overview
 
-The project consists of two main agent systems:
+The project consists of four main agent systems:
 1. **Cigar Price Comparison Agent**: Scrapes, compares, and analyzes cigar prices from multiple online retailers
 2. **Duck Browser Agent**: Automates DuckDuckGo searches and result processing
+3. **Terraform Agent**: Manages and analyzes Infrastructure as Code configurations
+4. **Development Environment Agent**: Automates setup of development environments and tools
 
 ## Project Structure
 
 ```
 .
-├── cigar_agents/                 # Cigar price comparison agents
+├── cigar_agents/                 # Cigar price comparison system
 │   ├── __init__.py
 │   ├── config.py                # Configuration for cigar agents
 │   ├── orchestrator_agent.py    # Main orchestrator for cigar operations
-│   ├── scraper_agent.py        # Website-specific scraping
-│   ├── html_parser_agent.py    # Generic HTML parsing
-│   └── export_agents.py        # Data export handling
-├── duck_browser_agent/          # DuckDuckGo search automation
+│   ├── scraper_agent.py         # Website-specific scraping
+│   ├── html_parser_agent.py     # Generic HTML parsing
+│   └── export_agents.py         # Data export handling
+│
+├── duck_browser_agent/          # DuckDuckGo search system
 │   ├── __init__.py
 │   ├── config.py               # Configuration for duck browser agent
-│   └── dds_agent.py           # DuckDuckGo search agent
-├── tools/                      # Shared tools and utilities
-├── ui.py                       # Chainlit UI for duck browser agent
-├── main.py                     # Main script for cigar agents
-└── requirements.txt            # Project dependencies
+│   └── dds_agent.py            # DuckDuckGo search agent
+│
+├── terraform_agent/            # Infrastructure as Code system
+│   ├── __init__.py
+│   ├── config.py              # Configuration for terraform agents
+│   ├── terraform_agent.py     # Main terraform agent implementation
+│   └── terraform.tfvars       # Terraform variables
+│
+├── dev_env_agent/             # Development environment system
+│   ├── __init__.py
+│   ├── config.py             # Configuration for dev environment agents
+│   └── dev_env_agent.py      # Development environment setup agents
+│
+├── tools/                     # Shared tools and utilities
+│   └── __init__.py
+│
+├── universal_orchestrator.py  # Main orchestrator for all agent systems
+├── ui.py                     # Chainlit UI for interactive usage
+├── main.py                   # Main application entry point
+├── config.py                 # Global configuration
+├── requirements.txt          # Project dependencies
+└── README.md                 # Project documentation
 ```
 
 ## Agent Systems
@@ -66,6 +86,56 @@ A comprehensive multi-agent system for managing Infrastructure as Code with Terr
 - **Structure Analyzer**: Reviews code organization, module structure, and best practices
 - **Analysis Coordinator**: Coordinates the analysis process across specialized agents
 - **Terraform Researcher**: Gathers and analyzes information from the web about Terraform best practices
+
+### 4. Development Environment Agents
+
+A specialized multi-agent system for setting up and configuring development environments:
+
+#### Main Components
+
+- **Development Environment Orchestrator**: Coordinates the entire setup process and manages interactions between specialized agents
+- **IDE Setup Agent**: Expert in configuring VS Code and development tools
+  - Configures VS Code for remote development
+  - Sets up SSH configurations
+  - Manages extensions and workspace settings
+  - Handles Git integration
+  - Configures debugging and user preferences
+
+- **Environment Setup Agent**: Specialist in Python environment management
+  - Creates and configures Conda environments
+  - Sets up Jupyter integration
+  - Manages package dependencies
+  - Handles virtual environments
+  - Configures environment variables
+
+#### Key Features
+
+- **VS Code Configuration**:
+  - Remote SSH setup
+  - Extension management
+  - Workspace settings
+  - Debugging configurations
+
+- **Python Environment Management**:
+  - Conda environment creation
+  - Package installation
+  - Dependency resolution
+  - Virtual environment handling
+
+- **Jupyter Integration**:
+  - Kernel setup
+  - Notebook configuration
+  - Extension management
+
+Each agent has specific tools and capabilities:
+
+- **IDE Setup Tools**:
+  - `setup_vscode_remote`: Configures VS Code for remote SSH connections
+  - `configure_vscode_extensions`: Installs and manages VS Code extensions
+
+- **Environment Setup Tools**:
+  - `setup_conda_env`: Creates and configures Conda environments
+  - `setup_jupyter_kernel`: Sets up Jupyter kernels for environments
 
 Each agent has specific responsibilities and tools:
 

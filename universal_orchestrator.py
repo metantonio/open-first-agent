@@ -1,6 +1,7 @@
 from agents import Agent, Runner, AsyncOpenAI, OpenAIChatCompletionsModel, function_tool, ModelSettings
 from duck_browser_agent.dds_agent import run_workflow as run_browser_workflow
 from terraform_agent.terraform_agent import run_workflow as run_terraform_workflow
+from dev_env_agent.dev_env_agent import run_workflow as run_dev_env_workflow
 import logging
 from config import get_model_config
 
@@ -21,6 +22,7 @@ class UniversalOrchestrator:
             2. Agent Management:
                - Browser Agent: For web searches and content analysis
                - Terraform Agent: For infrastructure as code management
+               - Development Environment Agent: For setting up development environments
                - [Future agents can be added here]
 
             3. Response Coordination:
@@ -51,8 +53,9 @@ class UniversalOrchestrator:
             Available agents:
             1. Browser Agent - For web searches, news gathering, content analysis
             2. Terraform Agent - For infrastructure as code, terraform file management, terraform operations
+            3. Development Environment Agent - For setting up development environments, IDE configuration, Python/Conda setup
             
-            Respond with either 'browser' or 'terraform' based on the request content.
+            Respond with either 'browser', 'terraform', or 'dev_env' based on the request content.
             """
         )
         return agent_response.final_output.strip().lower()
@@ -66,6 +69,8 @@ class UniversalOrchestrator:
                 return run_browser_workflow(request)
             elif agent_type == "terraform":
                 return run_terraform_workflow(request)
+            elif agent_type == "dev_env":
+                return run_dev_env_workflow(request)
             else:
                 return f"Error: Unknown agent type '{agent_type}'"
                 
