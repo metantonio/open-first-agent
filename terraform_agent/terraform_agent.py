@@ -169,6 +169,31 @@ def fetch_and_parse_html(url):
     except Exception as e:
         return f"Error fetching URL: {str(e)}"
 
+@function_tool
+def run_terraform_check(filename=None):
+    """Execute 'terraform check' command in the output directory."""
+    try:
+        # Change to output directory
+        check_cmd = ['terraform', 'check']
+        if filename:
+            filepath = get_terraform_file_path(filename)
+            check_cmd.append(filepath)
+            
+        result = subprocess.run(check_cmd,
+                              capture_output=True,
+                              text=True,
+                              cwd=OUTPUT_DIR)
+                              
+        check_results = {
+            'success': result.returncode == 0,
+            'output': result.stdout if result.returncode == 0 else result.stderr,
+            'file': filename if filename else 'all files'
+        }
+        
+        return check_results
+    except Exception as e:
+        return f"Error running terraform check: {str(e)}"
+
 # 2. Create Editor Agent for Terraform
 
 terraform_editor = Agent(
@@ -400,6 +425,45 @@ terraform_researcher = Agent(
     ]
 )
 
+# 2.4 Create Terraform Check Agent
+
+terraform_checker = Agent(
+    name="Terraform Checker",
+    instructions="""You are a Terraform configuration validation expert. Your responsibilities include:
+    
+    1. Execute and analyze terraform check:
+       - Run terraform check on specific files or entire configuration
+       - Analyze check results in detail
+       - Identify configuration issues
+       - Validate resource dependencies
+    
+    2. Interpret check results:
+       - Parse error messages and warnings
+       - Identify root causes of issues
+       - Explain problems in clear terms
+       - Suggest specific fixes
+    
+    3. Provide validation reports:
+       - Detailed check results
+       - Configuration status
+       - Identified issues
+       - Required corrections
+    
+    4. Coordinate with other agents:
+       - Share check results
+       - Highlight security concerns
+       - Flag performance issues
+       - Identify compliance problems
+    
+    Always run terraform check before suggesting changes or applying configurations.
+    Provide clear, actionable feedback about configuration validity.""",
+    model=model,
+    tools=[
+        read_terraform_file,
+        run_terraform_check
+    ]
+)
+
 # 3. Create Main Orchestrator Agent
 
 orchestrator_agent = Agent(
@@ -412,6 +476,7 @@ orchestrator_agent = Agent(
        - Plan the appropriate steps to fulfill the request
        - For analysis requests, coordinate with the Analysis Coordinator
        - For research needs, coordinate with the Terraform Researcher
+       - For configuration checks, use the Terraform Checker
 
     2. File Management:
        - Create new Terraform files when needed
@@ -420,12 +485,14 @@ orchestrator_agent = Agent(
        - Ensure proper file structure and organization
 
     3. Terraform Operations:
+       - Run terraform check to validate configurations
        - Run terraform plan to validate changes
        - Execute terraform apply when confirmed
        - Handle and report any errors appropriately
        - Ensure proper state management
 
     4. Quality Control:
+       - Use Terraform Checker for configuration validation
        - Validate Terraform syntax
        - Check for security best practices
        - Ensure proper resource naming
@@ -446,7 +513,7 @@ orchestrator_agent = Agent(
        - Incorporate community recommendations
 
     IMPORTANT: 
-    - Always validate configurations before applying changes
+    - Always validate configurations with terraform check before other operations
     - Notify users of any potential risks or issues
     - Use web research to validate uncertain configurations
     - Ensure recommendations are based on current best practices
@@ -456,6 +523,7 @@ orchestrator_agent = Agent(
         create_terraform_file,
         delete_terraform_file,
         read_terraform_file,
+        run_terraform_check,
         run_terraform_plan,
         run_terraform_apply,
         analyze_terraform_file
@@ -470,7 +538,8 @@ orchestrator_agent = Agent(
         compliance_checker,
         performance_optimizer,
         structure_analyzer,
-        terraform_researcher
+        terraform_researcher,
+        terraform_checker
     ]
 )
 
@@ -487,12 +556,14 @@ def run_workflow(request):
         1. Analyze the request and determine required actions
         2. If research is needed, use the Terraform Researcher
         3. If creating/modifying files, use the terraform_editor
-        4. If analyzing existing files, use specialized analyzers
-        5. Validate changes with terraform plan when needed
-        6. If apply is requested and plan is successful, run terraform apply
-        7. Return detailed status of all operations
+        4. Run terraform check using the Terraform Checker
+        5. If analyzing existing files, use specialized analyzers
+        6. Validate changes with terraform plan when needed
+        7. If apply is requested and plan is successful, run terraform apply
+        8. Return detailed status of all operations
 
         IMPORTANT: 
+        - Always run terraform check before other operations
         - Research uncertain configurations
         - Validate all changes before applying
         - Provide clear error messages if any issues occur
