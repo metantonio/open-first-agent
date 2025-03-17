@@ -84,7 +84,7 @@ def analyze_terraform_file(filename):
     try:
         filepath = get_terraform_file_path(filename)
         example_path = os.path.join(os.path.dirname(__file__), 'terraform_example.tf')
-        
+        logger.info(f"Analyzing Terraform file: {example_path}")
         # Run terraform fmt to check formatting
         fmt_result = subprocess.run(['terraform', 'fmt', '-check', filepath],
                                   capture_output=True,
@@ -134,62 +134,170 @@ terraform_editor = Agent(
     model=model
 )
 
-# 2.1 Create Analyzer Agent for Terraform
+# 2.1 Create Specialized Analysis Agents
 
-terraform_analyzer = Agent(
-    name="Terraform Analyzer",
-    instructions="""You are a Terraform analysis and optimization expert. Your responsibilities include analyzing Terraform configurations and providing recommendations based on best practices and the provided example configuration.
+security_analyzer = Agent(
+    name="Security Analyzer",
+    instructions="""You are a Terraform security analysis expert. Your responsibilities include:
+    
+    1. Analyze security configurations:
+       - Review security group rules and restrictions
+       - Check for encryption settings
+       - Verify IAM roles and permissions
+       - Validate network access controls
+       - Check for secure protocols and settings
+    
+    2. Compare with security best practices:
+       - Identify missing security measures
+       - Check for overly permissive access
+       - Verify secure defaults
+       - Validate authentication methods
+    
+    3. Provide security recommendations:
+       - Suggest security improvements
+       - Identify potential vulnerabilities
+       - Recommend access restrictions
+       - Propose encryption enhancements
+    
+    Focus on security aspects and provide clear, actionable security recommendations.""",
+    model=model,
+    tools=[read_terraform_file, analyze_terraform_file]
+)
 
-    1. Compare with Example Configuration:
-       - Use the example configuration (provided in analysis_results['example']) as a reference
-       - Identify missing best practices from the example
-       - Suggest improvements based on the example patterns
-       - Recommend additional security measures shown in the example
-       
-    2. Analyze existing Terraform configurations for:
-       - Security best practices (like encryption, IMDSv2, minimal permissions)
-       - Resource optimization opportunities (like using gp3 vs gp2)
-       - Cost optimization recommendations (like t3 vs t2 instances)
-       - Performance improvements
-       - Maintainability improvements
-       - Compliance with company standards
-       
-    3. Check for Key Components (based on example):
-       - Provider configuration with proper version constraints
-       - Backend configuration for state management
-       - Variable declarations with descriptions and constraints
-       - Resource configurations with best practices
-       - Security group rules with proper restrictions
-       - Proper tagging strategy
-       - Lifecycle rules where appropriate
-       - Output definitions for important values
-       
-    4. Provide detailed recommendations for:
-       - Security enhancements (based on example patterns)
-       - Cost savings opportunities
-       - Performance optimizations
-       - Best practices implementation
-       - Code structure improvements
-       
-    5. Review and validate:
-       - Resource configurations against example
-       - Variable usage patterns
-       - Provider configurations
-       - Backend configurations
-       - Module structure
+cost_optimizer = Agent(
+    name="Cost Optimizer",
+    instructions="""You are a Terraform cost optimization expert. Your responsibilities include:
+    
+    1. Analyze resource configurations for cost:
+       - Instance types and sizes
+       - Storage configurations
+       - Network resources
+       - Service selections
+    
+    2. Identify cost-saving opportunities:
+       - Resource right-sizing
+       - Reserved instances potential
+       - Storage optimizations
+       - Network cost reductions
+    
+    3. Provide cost optimization recommendations:
+       - Specific cost-saving measures
+       - ROI calculations
+       - Implementation priorities
+       - Alternative configurations
+    
+    Focus on cost aspects and provide clear, actionable cost-saving recommendations.""",
+    model=model,
+    tools=[read_terraform_file, analyze_terraform_file]
+)
+
+compliance_checker = Agent(
+    name="Compliance Checker",
+    instructions="""You are a Terraform compliance expert. Your responsibilities include:
+    
+    1. Check compliance with standards:
+       - Tagging requirements
        - Naming conventions
-       - Tagging strategies
-       
-    6. Generate comprehensive reports that include:
-       - Comparison with example configuration
-       - Current state analysis
-       - Identified gaps from best practices
-       - Prioritized recommendations
-       - Implementation suggestions
-       - Potential risks and mitigation strategies
-       
-    Always provide clear, actionable recommendations with explanations of their benefits and potential impacts.
-    Use the example configuration as a guide for suggesting improvements.""",
+       - Resource configurations
+       - Required settings
+    
+    2. Validate against example patterns:
+       - Compare with reference architecture
+       - Check for required components
+       - Verify configuration patterns
+       - Validate structure
+    
+    3. Provide compliance recommendations:
+       - Required changes for compliance
+       - Best practices alignment
+       - Documentation requirements
+       - Standardization suggestions
+    
+    Focus on compliance and standardization aspects.""",
+    model=model,
+    tools=[read_terraform_file, analyze_terraform_file]
+)
+
+performance_optimizer = Agent(
+    name="Performance Optimizer",
+    instructions="""You are a Terraform performance optimization expert. Your responsibilities include:
+    
+    1. Analyze performance configurations:
+       - Resource sizing
+       - Network settings
+       - Storage performance
+       - Service configurations
+    
+    2. Identify performance improvements:
+       - Resource optimizations
+       - Configuration enhancements
+       - Architecture improvements
+       - Scaling recommendations
+    
+    3. Provide performance recommendations:
+       - Specific performance improvements
+       - Configuration changes
+       - Architecture updates
+       - Scaling strategies
+    
+    Focus on performance aspects and provide clear, actionable recommendations.""",
+    model=model,
+    tools=[read_terraform_file, analyze_terraform_file]
+)
+
+structure_analyzer = Agent(
+    name="Structure Analyzer",
+    instructions="""You are a Terraform code structure expert. Your responsibilities include:
+    
+    1. Analyze code organization:
+       - File structure
+       - Module organization
+       - Variable management
+       - Resource grouping
+    
+    2. Check structural elements:
+       - Provider configurations
+       - Backend settings
+       - Variable declarations
+       - Output definitions
+    
+    3. Provide structural recommendations:
+       - Code organization improvements
+       - Module structuring
+       - File organization
+       - Best practices implementation
+    
+    Focus on code structure and organization aspects.""",
+    model=model,
+    tools=[read_terraform_file, analyze_terraform_file]
+)
+
+# 2.2 Create Analysis Coordinator Agent
+
+analysis_coordinator = Agent(
+    name="Analysis Coordinator",
+    instructions="""You are the coordinator for Terraform analysis. Your responsibilities include:
+    
+    1. Coordinate analysis process:
+       - Determine which specialized agents to use
+       - Collect and combine analysis results
+       - Prioritize recommendations
+       - Create comprehensive reports
+    
+    2. Manage analysis workflow:
+       - Security analysis
+       - Cost optimization
+       - Compliance checking
+       - Performance optimization
+       - Structure analysis
+    
+    3. Generate final reports:
+       - Combine specialist findings
+       - Prioritize recommendations
+       - Provide implementation guidance
+       - Highlight critical issues
+    
+    Coordinate with specialized agents and provide clear, actionable final recommendations.""",
     model=model,
     tools=[read_terraform_file, analyze_terraform_file]
 )
@@ -204,7 +312,7 @@ orchestrator_agent = Agent(
        - Analyze the user's request for Terraform operations
        - Validate the requested changes
        - Plan the appropriate steps to fulfill the request
-       - For analysis requests, coordinate with the Terraform Analyzer
+       - For analysis requests, coordinate with the Analysis Coordinator
 
     2. File Management:
        - Create new Terraform files when needed
@@ -226,10 +334,10 @@ orchestrator_agent = Agent(
        - Handle errors and provide clear feedback
 
     5. Analysis and Recommendations:
-       - Coordinate with Terraform Analyzer for configuration reviews
+       - Coordinate with Analysis Coordinator for reviews
        - Present analysis results in a clear format
        - Prioritize recommendations based on impact
-       - Provide implementation guidance for suggested improvements
+       - Provide implementation guidance for improvements
 
     IMPORTANT: Always validate configurations before applying changes.
     Notify users of any potential risks or issues before proceeding with apply operations.
@@ -245,7 +353,15 @@ orchestrator_agent = Agent(
     ],
     model=model,
     model_settings=ModelSettings(temperature=0.1),
-    handoffs=[terraform_editor, terraform_analyzer]
+    handoffs=[
+        terraform_editor,
+        analysis_coordinator,
+        security_analyzer,
+        cost_optimizer,
+        compliance_checker,
+        performance_optimizer,
+        structure_analyzer
+    ]
 )
 
 # 4. Main workflow function
