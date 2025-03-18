@@ -170,7 +170,8 @@ async def main(message: cl.Message):
                 description=f"Execute in {cmd['dir']} directory",
                 payload={
                     "command": cmd['command'],
-                    "working_dir": get_working_directory(cmd['command'])
+                    "working_dir": get_working_directory(cmd['command']),
+                    "is_background": False
                 }
             )
             
@@ -229,20 +230,20 @@ async def main(message: cl.Message):
             error_message += "\nIt seems we've hit an API rate limit. Please try again in a few minutes."
         await cl.Message(content=error_message).send()
 
-@cl.action_callback("run_")
+@cl.action_callback("run")
 async def on_action(action: cl.Action):
     """Handle execution of code blocks when action buttons are clicked."""
-    command = action.value
-    payload = action.payload
-    is_background = payload.get("is_background", False)
-    working_dir = payload.get("working_dir")
-    
-    # Send execution message
-    await cl.Message(
-        content=f"💻 Executing: `{command}` in {os.path.basename(working_dir)}"
-    ).send()
-    
     try:
+        command = action.value
+        payload = action.payload
+        is_background = payload.get("is_background", False)
+        working_dir = payload.get("working_dir")
+        
+        # Send execution message
+        await cl.Message(
+            content=f"💻 Executing: `{command}` in {os.path.basename(working_dir)}"
+        ).send()
+        
         # Execute the command
         result = await execute_command(command, is_background, working_dir)
         
