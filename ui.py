@@ -53,15 +53,7 @@ def get_shell_info() -> tuple[bool, str]:
 
 def get_working_directory(command: str) -> str:
     """Determine the appropriate working directory for a command."""
-    # Check if it's a Terraform command
-    if command.strip().startswith('terraform'):
-        # Get the terraform working directory from environment or use default
-        terraform_dir = os.getenv('TERRAFORM_WORKING_DIR', os.path.join(os.getcwd(), 'terraform'))
-        # Create the directory if it doesn't exist
-        os.makedirs(terraform_dir, exist_ok=True)
-        return terraform_dir
-    
-    # For other commands, use the output directory by default
+    # Always use the output directory for all commands
     output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'output')
     os.makedirs(output_dir, exist_ok=True)
     return output_dir
