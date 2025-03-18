@@ -44,7 +44,7 @@ conda-env/
 .settings/
 
 # Data files
-*.json
+#*.json
 *.csv
 *.xlsx
 *.xls

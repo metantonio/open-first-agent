@@ -1,0 +1,106 @@
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Sid": "S3BucketActions",
+			"Effect": "Allow",
+			"Action": [
+				"s3:ListBucket",
+				"s3:ListAllMyBuckets",
+				"s3:ListBucketVersions",
+				"s3:GetBucketVersioning",
+				"s3:GetBucketLocation",
+				"s3:CreateBucket",
+				"s3:PutBucketAcl",
+				"s3:PutEncryptionConfiguration",
+				"s3:PutBucketTagging",
+				"s3:GetObject",
+				"s3:GetObjectVersion",
+				"s3:PutObject",
+				"s3:DeleteObject",
+				"s3:GetBucketWebsite",
+				"s3:GetBucketAcl",
+				"s3:GetAccessGrant",
+				"s3:GetBucketPolicy",
+				"s3:GetBucketTagging",
+				"s3:TagResource",
+				"s3:DeleteBucket",
+				"s3:GetBucketLogging",
+				"s3:ListAccessGrants",
+				"s3:ListBucket",
+				"S3:GetBucketCors",
+				"s3:GetAccelerateConfiguration"
+			],
+			"Resource": "arn:aws:s3:::general-purpose-bucket-sharma",
+			"Condition": {
+				"StringEquals": {
+					"aws:RequestedRegion": "us-east-1"
+				}
+			}
+		},
+		{
+			"Sid": "ECRActions",
+			"Effect": "Allow",
+			"Action": [
+				"ecr:CreateRepository",
+				"ecr:DescribeRepositories",
+				"ecr:ListTagsForResource",
+				"ecr:DeleteRepository",
+				"ecr:GetAuthorizationToken",
+				"ecr:TagResource",
+				"ecr:BatchCheckLayerAvailability",
+				"ecr:BatchGetImage",
+				"ecr:PutImage",
+				"ecr:InitiateLayerUpload",
+				"ecr:UploadLayerPart",
+				"ecr:CompleteLayerUpload",
+				"ecr:DescribeImages"
+			],
+			"Resource": "arn:aws:ecr:us-east-1:590183861941:repository/ecr_repo_tm_sharma",
+			"Condition": {
+				"StringEquals": {
+					"aws:RequestedRegion": "us-east-1"
+				}
+			}
+		},
+		{
+			"Sid": "CloudWatchMetric",
+			"Effect": "Allow",
+			"Action": [
+				"cloudwatch:DescribeAlarms",
+				"cloudwatch:ListMetrics",
+				"cloudwatch:DescribeAlarmsForMetric",
+				"cloudwatch:GetMetricData"
+			],
+			"Resource": "*",
+			"Condition": {
+				"StringEquals": {
+					"aws:RequestedRegion": "us-east-1"
+				}
+			}
+		},
+		{
+			"Sid": "CloudWatchLogsActions",
+			"Effect": "Allow",
+			"Action": [
+				"logs:CreateLogGroup",
+				"logs:DescribeLogGroups",
+				"logs:CreateLogStream",
+				"logs:PutLogEvents",
+				"logs:DescribeLogGroups",
+				"logs:DescribeLogStreams",
+				"logs:GetLogEvents",
+				"logs:FilterLogEvents"
+			],
+			"Resource": [
+				"arn:aws:logs:us-east-1:590183861941:log-group:*",
+				"arn:aws:logs:us-east-1:590183861941:log-group:*:log-stream:*"
+			],
+			"Condition": {
+				"StringEquals": {
+					"aws:RequestedRegion": "us-east-1"
+				}
+			}
+		}
+	]
+}
