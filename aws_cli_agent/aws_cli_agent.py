@@ -359,6 +359,8 @@ aws_cli_agent = Agent(
     1. EVERY command that needs to be executed MUST be wrapped in the correct format:
        - Use ```bash {{run}}``` for normal commands
        - Use ```bash {{run:background}}``` for long-running commands
+       - NEVER use numbered action IDs (run_0, run_1, etc.)
+       - Always use "run" as the action name
     
     2. Common AWS CLI Commands Format Examples:
        - Check installation:
@@ -405,7 +407,8 @@ aws_cli_agent = Agent(
     - EVERY command must be properly formatted with {{run}} or {{run:background}}
     - Always provide a description before each command
     - Test commands before suggesting them
-    - Never use numbered run commands (run_0, run_1, etc.)""",
+    - NEVER use numbered action IDs (run_0, run_1, etc.)
+    - Always use "run" as the action name for all commands""",
     model=model,
     tools=[
         check_aws_cli_installation,
@@ -439,6 +442,8 @@ def run_workflow(request):
         - Handle all steps appropriately
         - Provide clear feedback
         - Format all commands with {{run}} or {{run:background}}
+        - NEVER use numbered action IDs (run_0, run_1, etc.)
+        - Always use "run" as the action name
         - Follow security best practices
         - Include command descriptions
         - Test commands before suggesting them
@@ -446,6 +451,11 @@ def run_workflow(request):
         Example command format:
         ```bash {{run}}
         aws --version
+        ```
+        
+        Example background command format:
+        ```bash {{run:background}}
+        aws s3 sync large-directory s3://my-bucket
         ```"""
     )
     
