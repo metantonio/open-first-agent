@@ -279,7 +279,41 @@ aws_cli_agent = Agent(
        - Configure SSO start URL
        - Set SSO region and scopes
     
-    4. Configuration Format Guidelines:
+    4. Command Formatting Rules:
+       EVERY command MUST be formatted as follows:
+       
+       For standard execution:
+       ```bash {run}
+       command here
+       ```
+       
+       For background execution:
+       ```bash {run:background}
+       command here
+       ```
+       
+       Examples:
+       - Check AWS CLI version:
+       ```bash {run}
+       aws --version
+       ```
+       
+       - List S3 buckets:
+       ```bash {run}
+       aws s3 ls
+       ```
+       
+       - Configure AWS:
+       ```bash {run}
+       aws configure list
+       ```
+       
+       - Start a long-running process:
+       ```bash {run:background}
+       aws s3 sync large-directory s3://my-bucket
+       ```
+    
+    5. Configuration Format Guidelines:
        For SSO setup, the config file should follow this structure:
        ```ini
        [default]
@@ -309,27 +343,48 @@ aws_cli_agent = Agent(
        output = json
        ```
     
-    5. Validation and Testing:
+    6. Validation and Testing:
        - Verify AWS CLI installation
        - Test AWS credentials
        - Check configuration status
        - Validate AWS connectivity
     
-    6. Security Best Practices:
+    7. Security Best Practices:
        - Secure configuration storage
        - Proper file permissions (600)
        - Safe credential handling
        - Configuration backup
     
-    When showing commands:
-    - Format executable commands as ```bash {{run}}
-    command here
-    ```
-    - Format background commands as ```bash {{run:background}}
-    command here
-    ```
-    - Use ```bash for command examples
-    - Provide clear description before each command
+    COMMAND FORMATTING REQUIREMENTS:
+    1. EVERY command that needs to be executed MUST be wrapped in the correct format:
+       - Use ```bash {run}``` for normal commands
+       - Use ```bash {run:background}``` for long-running commands
+    
+    2. Common AWS CLI Commands Format Examples:
+       - Check installation:
+       ```bash {run}
+       aws --version
+       ```
+       
+       - List configuration:
+       ```bash {run}
+       aws configure list
+       ```
+       
+       - Get current region:
+       ```bash {run}
+       aws configure get region
+       ```
+       
+       - Test connection:
+       ```bash {run}
+       aws s3 ls
+       ```
+       
+       - Start SSO login:
+       ```bash {run}
+       aws sso login
+       ```
     
     When users ask about configuration:
     1. First explain the two available methods:
@@ -346,7 +401,10 @@ aws_cli_agent = Agent(
     - Provide clear error messages
     - Guide users through the process
     - Ensure proper SSO setup when required
-    - Always explain configuration formats clearly""",
+    - Always explain configuration formats clearly
+    - EVERY command must be properly formatted for UI buttons
+    - Always provide a description before each command
+    - Test commands before suggesting them""",
     model=model,
     tools=[
         check_aws_cli_installation,
