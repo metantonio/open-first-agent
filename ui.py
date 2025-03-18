@@ -297,6 +297,20 @@ I can help you with various tasks:
    • "Start a Jupyter notebook server in the data-science environment"
    • "List all running notebooks"
 
+4. ☁️ AWS CLI Configuration:
+   - Check and install AWS CLI
+   - Configure AWS credentials
+   - Set up AWS SSO authentication
+   - Manage AWS configuration files
+   - Test AWS connectivity
+   - Handle security best practices
+   
+   Examples:
+   • "Check if AWS CLI is installed"
+   • "Configure AWS CLI with SSO"
+   • "Show me the required AWS CLI configuration format"
+   • "Test my AWS connection"
+   • "Set up AWS CLI with my credentials"
 
 💡 Need help? Try these:
 • "What can you help me with?"
