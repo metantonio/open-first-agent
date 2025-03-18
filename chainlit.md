@@ -1,8 +1,8 @@
-👋 Welcome to the AI Assistant!
+# 👋 Welcome to the AI Assistant!
 
 I can help you with various tasks:
 
-1. 🌐 Web Search and News:
+## 1. 🌐 Web Search and News:
    - Find and summarize news articles
    - Search for information on any topic
    - Process and analyze web content
@@ -11,7 +11,7 @@ I can help you with various tasks:
    • "Search for recent developments in quantum computing"
    • "Find news about renewable energy technologies"
 
-2. 🏗️ Terraform Infrastructure:
+## 2. 🏗️ Terraform Infrastructure:
    - Create and manage Terraform configurations
    - Analyze security, cost, and performance
    - Execute Terraform operations
@@ -24,7 +24,7 @@ I can help you with various tasks:
    • "Analyze the security of my Terraform configuration"
    • "Help me optimize my infrastructure costs"
 
-3. 💻 Development Environment Setup:
+## 3. 💻 Development Environment Setup:
    - Configure VS Code for remote development
    - Set up SSH connections and workspace settings
    - Install and manage VS Code extensions
@@ -39,7 +39,7 @@ I can help you with various tasks:
    • "Start a Jupyter notebook server in the data-science environment"
    • "List all running notebooks"
 
-4. ☁️ AWS CLI Configuration:
+## 4. ☁️ AWS CLI Configuration:
    - Check and install AWS CLI
    - Configure AWS credentials
    - Set up AWS SSO authentication
@@ -61,8 +61,8 @@ I can help you with various tasks:
 
 Simply type your request, and I'll automatically determine the best way to help you!
 
-These Agents have been created by [Antonio Martínez](https://github.com/metantonio) from Qualex Consulting Services, INC.
+### These Agents have been created by [Antonio Martínez](https://github.com/metantonio) from Qualex Consulting Services, INC.
 
-Tools used:
+## Tools used:
  - Chainlit (UI)
  - OpenAI Agents SDK
