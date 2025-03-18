@@ -17,6 +17,10 @@ current_date = datetime.now().strftime("%Y-%m")
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'output')
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+def get_working_directory() -> str:
+    """Get the output directory path."""
+    return OUTPUT_DIR
+
 def get_terraform_file_path(filename: str) -> str:
     """Get the full path for a Terraform file in the output directory."""
     if not filename.endswith('.tf'):
