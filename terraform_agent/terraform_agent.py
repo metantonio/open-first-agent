@@ -208,6 +208,79 @@ def run_terraform_init():
     except Exception as e:
         return f"Error running terraform init: {str(e)}"
 
+@function_tool
+def manage_tfvars_file():
+    """Check if terraform.tfvars exists in output directory, if not copy from example and return needed variables."""
+    try:
+        tfvars_path = os.path.join(OUTPUT_DIR, 'terraform.tfvars')
+        example_path = os.path.join(os.path.dirname(__file__), 'terraform.tfvars.example')
+        
+        # Check if terraform.tfvars already exists
+        if os.path.exists(tfvars_path):
+            with open(tfvars_path, 'r') as f:
+                current_vars = f.read()
+            return {
+                'status': 'exists',
+                'message': 'terraform.tfvars already exists',
+                'content': current_vars
+            }
+        
+        # Copy from example if it exists
+        if os.path.exists(example_path):
+            with open(example_path, 'r') as f:
+                example_content = f.read()
+            
+            # Create new tfvars file
+            with open(tfvars_path, 'w') as f:
+                f.write(example_content)
+            
+            # Parse variables that need to be configured
+            vars_needed = {}
+            for line in example_content.split('\n'):
+                if '=' in line:
+                    var_name = line.split('=')[0].strip()
+                    var_value = line.split('=')[1].strip().strip('"')
+                    vars_needed[var_name] = var_value
+            
+            return {
+                'status': 'created',
+                'message': 'terraform.tfvars created from example',
+                'variables_needed': vars_needed
+            }
+        else:
+            return {
+                'status': 'error',
+                'message': 'terraform.tfvars.example not found'
+            }
+    except Exception as e:
+        return {
+            'status': 'error',
+            'message': f'Error managing tfvars file: {str(e)}'
+        }
+
+@function_tool
+def update_tfvars_file(variables):
+    """Update terraform.tfvars with provided variable values."""
+    try:
+        tfvars_path = os.path.join(OUTPUT_DIR, 'terraform.tfvars')
+        
+        # Create content with new variables
+        content = '\n'.join([f'{key} = "{value}"' for key, value in variables.items()])
+        
+        # Write to file
+        with open(tfvars_path, 'w') as f:
+            f.write(content)
+            
+        return {
+            'status': 'success',
+            'message': 'terraform.tfvars updated successfully'
+        }
+    except Exception as e:
+        return {
+            'status': 'error',
+            'message': f'Error updating tfvars file: {str(e)}'
+        }
+
 # 2. Create Editor Agent for Terraform
 
 terraform_editor = Agent(
@@ -493,6 +566,37 @@ terraform_checker = Agent(
     ]
 )
 
+# Create TFVars Manager Agent
+tfvars_manager = Agent(
+    name="TFVars Manager",
+    instructions="""You are a Terraform variables management expert. Your responsibilities include:
+    
+    1. Check and manage terraform.tfvars:
+       - Verify if terraform.tfvars exists in output directory
+       - Create from example if it doesn't exist
+       - Identify required variables
+       - Guide users through variable configuration
+    
+    2. Handle variable updates:
+       - Validate variable values
+       - Update terraform.tfvars with new values
+       - Ensure proper formatting
+       - Maintain variable consistency
+    
+    3. Provide clear guidance:
+       - Explain required variables
+       - Suggest appropriate values
+       - Validate user input
+       - Handle errors appropriately
+    
+    Always ensure terraform.tfvars is properly configured before any Terraform operations.""",
+    model=model,
+    tools=[
+        manage_tfvars_file,
+        update_tfvars_file
+    ]
+)
+
 # 3. Create Main Orchestrator Agent
 
 orchestrator_agent = Agent(
@@ -555,7 +659,9 @@ orchestrator_agent = Agent(
         run_terraform_check,
         run_terraform_plan,
         run_terraform_apply,
-        analyze_terraform_file
+        analyze_terraform_file,
+        manage_tfvars_file,
+        update_tfvars_file
     ],
     model=model,
     model_settings=ModelSettings(temperature=0.1),
@@ -568,7 +674,8 @@ orchestrator_agent = Agent(
         performance_optimizer,
         structure_analyzer,
         terraform_researcher,
-        terraform_checker
+        terraform_checker,
+        tfvars_manager
     ]
 )
 
