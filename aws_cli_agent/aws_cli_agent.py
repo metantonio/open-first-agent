@@ -127,6 +127,45 @@ output = {output_format}
         }
 
 @function_tool
+def configure_aws_cli_sso(sso_start_url: str, sso_account_id: str, sso_role_name: str = "EC2-Terraform", 
+                         region: str = "us-east-1", output_format: str = "json"):
+    """Configure AWS CLI with SSO credentials and settings."""
+    try:
+        # Create AWS credentials directory
+        credentials_dir = os.path.expanduser('~/.aws')
+        os.makedirs(credentials_dir, exist_ok=True)
+        
+        # Write config file with SSO configuration
+        config_file = os.path.join(credentials_dir, 'config')
+        with open(config_file, 'w') as f:
+            f.write(f"""[default]
+sso_session = aws
+sso_account_id = {sso_account_id}
+sso_role_name = {sso_role_name}
+region = {region}
+output = {output_format}
+
+[sso-session aws]
+sso_start_url = {sso_start_url}
+sso_region = {region}
+sso_registration_scopes = sso:account:access
+""")
+        
+        # Set proper permissions
+        os.chmod(config_file, 0o600)
+        
+        return {
+            'success': True,
+            'message': 'AWS CLI SSO configuration completed successfully',
+            'config_path': config_file
+        }
+    except Exception as e:
+        return {
+            'success': False,
+            'message': f'Error configuring AWS CLI SSO: {str(e)}'
+        }
+
+@function_tool
 def check_aws_configuration():
     """Check current AWS CLI configuration."""
     try:
@@ -184,19 +223,27 @@ aws_cli_agent = Agent(
        - Handle different operating systems
     
     2. Configuration Management:
-       - Configure AWS credentials
+       - Configure AWS credentials (both standard and SSO)
        - Set up AWS CLI settings
        - Manage configuration files
        - Handle security best practices
+       - Configure SSO authentication
     
-    3. Validation and Testing:
+    3. SSO Configuration:
+       - Set up AWS SSO configuration
+       - Configure SSO session parameters
+       - Set account ID and role name
+       - Configure SSO start URL
+       - Set SSO region and scopes
+    
+    4. Validation and Testing:
        - Verify AWS CLI installation
        - Test AWS credentials
        - Check configuration status
        - Validate AWS connectivity
     
-    4. Security Best Practices:
-       - Secure credential storage
+    5. Security Best Practices:
+       - Secure configuration storage
        - Proper file permissions
        - Safe credential handling
        - Configuration backup
@@ -216,12 +263,14 @@ aws_cli_agent = Agent(
     - Follow security best practices
     - Validate all configurations
     - Provide clear error messages
-    - Guide users through the process""",
+    - Guide users through the process
+    - Ensure proper SSO setup when required""",
     model=model,
     tools=[
         check_aws_cli_installation,
         install_aws_cli,
         configure_aws_cli,
+        configure_aws_cli_sso,
         check_aws_configuration,
         test_aws_connection
     ]
