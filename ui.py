@@ -145,9 +145,45 @@ async def main(message: cl.Message):
     """Main function to handle user messages and route them to appropriate agents."""
     request = message.content
     
+    # Special handling for command examples
+    if request.lower().strip() in ['show command ls examples']:
+        # Send example message
+        await cl.Message(content="Here are some example commands you can try:").send()
+        
+        # Test commands
+        test_commands = [
+            {
+                'command': 'ls -la',
+                'dir': 'output'
+            },
+            {
+                'command': 'terraform --version',
+                'dir': 'terraform'
+            }
+        ]
+        
+        # Send each test command
+        for i, cmd in enumerate(test_commands):
+            action = cl.Action(
+                name=f"run_{i}",
+                value=cmd['command'],
+                description=f"Execute in {cmd['dir']} directory",
+                args={
+                    "working_dir": get_working_directory(cmd['command'])
+                }
+            )
+            
+            msg = cl.Message(
+                content=f"Example {i+1}: `{cmd['command']}` (in {cmd['dir']} directory)",
+                actions=[action]
+            )
+            await msg.send()
+        
+        return
+
+    # Normal request processing
     msg = cl.Message(
-        content=f"🤔 Processing your request: '{request}'...\nThis may take a few moments.",
-        author="AI Assistant"
+        content=f"🤔 Processing your request: '{request}'...\nThis may take a few moments."
     )
     await msg.send()
     
@@ -166,30 +202,21 @@ async def main(message: cl.Message):
             
             # Then send each command block
             for i, cmd_block in enumerate(command_blocks):
-                # Create the button for execution
-                run_button = cl.Button(
+                action = cl.Action(
                     name=cmd_block['action_id'],
-                    content="▶ Run" + (" in background" if cmd_block['is_background'] else ""),
                     value=cmd_block['code'],
+                    description=f"Execute command in {os.path.basename(cmd_block['working_dir'])}",
                     args={
                         "is_background": cmd_block['is_background'],
                         "working_dir": cmd_block['working_dir']
                     }
                 )
                 
-                # Create the message with command and button
-                await cl.Message(
-                    content=f"Command {i+1} (will run in {os.path.basename(cmd_block['working_dir'])})",
-                    elements=[
-                        cl.Text(
-                            name=f"cmd_{i}",
-                            content=cmd_block['code'],
-                            language="bash",
-                            show_copy_button=True
-                        )
-                    ],
-                    actions=[run_button]
-                ).send()
+                msg = cl.Message(
+                    content=f"Command {i+1}: `{cmd_block['code']}` (in {os.path.basename(cmd_block['working_dir'])})",
+                    actions=[action]
+                )
+                await msg.send()
         else:
             # If no commands, just send the content
             await cl.Message(content=response).send()
@@ -209,15 +236,7 @@ async def on_action(action: cl.Action):
     
     # Send execution message
     await cl.Message(
-        content=f"Executing command in {os.path.basename(working_dir)}:",
-        elements=[
-            cl.Text(
-                name="command",
-                content=command,
-                language="bash",
-                show_copy_button=True
-            )
-        ]
+        content=f"💻 Executing: `{command}` in {os.path.basename(working_dir)}"
     ).send()
     
     try:
@@ -227,15 +246,7 @@ async def on_action(action: cl.Action):
         # Send the result
         if result.strip():
             await cl.Message(
-                content="Command output:",
-                elements=[
-                    cl.Text(
-                        name="output",
-                        content=result,
-                        language="bash",
-                        show_copy_button=True
-                    )
-                ]
+                content=f"📝 Output:\n```\n{result}\n```"
             ).send()
         else:
             await cl.Message(content="✅ Command executed successfully (no output)").send()
