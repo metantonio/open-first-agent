@@ -104,55 +104,66 @@ async def execute_command(command: str, is_background: bool = False, working_dir
     except Exception as e:
         return f"Failed to execute command: {str(e)}"
 
-def process_code_blocks(content: str) -> tuple[str, list]:
-    """Process content to find code blocks with run tags and create actions."""
+def process_code_blocks(content: str) -> tuple[str, list[cl.Action], list[cl.Text]]:
+    """Process content to find code blocks with run tags and create Chainlit elements."""
     actions = []
+    elements = []
     
     # Pattern to match code blocks with {run} or {run:background}
     pattern = r"```bash\s*{(run(?::background)?)}(.*?)```"
     
-    def replacement(match):
-        tag, code = match.groups()
+    def create_command_block(code: str, is_background: bool) -> tuple[cl.Action, cl.Text]:
+        """Create a command block with its associated action."""
         code = code.strip()
-        is_background = tag == "run:background"
-        
-        # Create unique action ID
         action_id = f"run_{len(actions)}"
-        
-        # Determine working directory based on command
         working_dir = get_working_directory(code)
         
-        # Add action for this code block
+        # Create the action
         action = cl.Action(
             name=action_id,
             value=code,
-            description=f"Run this command{' in background' if is_background else ''} (in {os.path.basename(working_dir)})",
+            description=f"Run command{' in background' if is_background else ''} (in {os.path.basename(working_dir)})",
             args={
                 "is_background": is_background,
                 "os": platform.system().lower(),
                 "working_dir": working_dir
             }
         )
-        actions.append(action)
         
-        # Return modified code block with button reference
-        button_text = "▶ Run in background" if is_background else "▶ Run"
-        return f"```bash\n{code}\n```\n\n{button_text} <click>{action_id}</click>"
+        # Create the text element with the command
+        text_element = cl.Text(
+            name=f"cmd_{action_id}",
+            content=code,
+            language="bash",
+            show_copy_button=True
+        )
+        
+        return action, text_element
+    
+    def replacement(match):
+        tag, code = match.groups()
+        is_background = tag == "run:background"
+        
+        # Create command block elements
+        action, text_element = create_command_block(code, is_background)
+        
+        # Add to our collections
+        actions.append(action)
+        elements.append(text_element)
+        
+        # Return empty string as we'll handle the display separately
+        return ""
     
     # Process all code blocks
-    processed_content = re.sub(pattern, replacement, content, flags=re.DOTALL)
+    content_without_commands = re.sub(pattern, replacement, content, flags=re.DOTALL)
     
-    return processed_content, actions
+    return content_without_commands, actions, elements
 
 @cl.on_message
 async def main(message: cl.Message):
-    """
-    Main function to handle user messages and route them to appropriate agents.
-    """
-    # Get the user request
+    """Main function to handle user messages and route them to appropriate agents."""
     request = message.content
     
-    # Send a thinking message and show a loading indicator
     msg = cl.Message(
         content=f"🤔 Processing your request: '{request}'...\nThis may take a few moments.",
         author="AI Assistant"
@@ -164,27 +175,31 @@ async def main(message: cl.Message):
         response = await orchestrator.process_request(request)
         
         # Process the response for executable code blocks
-        processed_content, actions = process_code_blocks(response)
+        content, actions, elements = process_code_blocks(response)
         
-        # Create message with actions
-        msg = cl.Message(content=processed_content)
-        
-        # Add actions to the message
+        # If we have commands to display
         if actions:
-            for action in actions:
-                msg.content += f"\n{action.description}"
-            msg.actions = actions
-        
-        await msg.send()
+            # First send the main content if any
+            if content.strip():
+                await cl.Message(content=content).send()
+            
+            # Then send each command block with its action
+            for i, (element, action) in enumerate(zip(elements, actions)):
+                msg = cl.Message(
+                    content=f"Command {i+1}:",
+                    elements=[element],
+                    actions=[action]
+                )
+                await msg.send()
+        else:
+            # If no commands, just send the content
+            await cl.Message(content=response).send()
+            
     except Exception as e:
-        # Handle any errors
         error_message = f"❌ Sorry, I encountered an error: {str(e)}"
         if "429" in str(e):
             error_message += "\nIt seems we've hit an API rate limit. Please try again in a few minutes."
-        await cl.Message(
-            content=error_message,
-            author="AI Assistant"
-        ).send()
+        await cl.Message(content=error_message).send()
 
 @cl.action_callback("run_")
 async def on_action(action: cl.Action):
@@ -193,47 +208,37 @@ async def on_action(action: cl.Action):
     is_background = action.args.get("is_background", False)
     working_dir = action.args.get("working_dir")
     
-    # Create an elements list for the response
-    elements = []
-    
-    # Add command to be executed
-    elements.append(
-        cl.Text(
-            name="command",
-            content=command,
-            language="bash",
-            show_copy_button=True
-        )
-    )
-    
-    # Send a message indicating command execution with the command as copyable text
+    # Send execution message
     await cl.Message(
         content=f"Executing command in {os.path.basename(working_dir)}:",
-        elements=elements,
-        author="AI Assistant"
+        elements=[
+            cl.Text(
+                name="command",
+                content=command,
+                language="bash",
+                show_copy_button=True
+            )
+        ]
     ).send()
     
     # Execute the command
     result = await execute_command(command, is_background, working_dir)
     
-    # Create elements for the result
-    result_elements = []
-    if isinstance(result, str) and result.strip():
-        result_elements.append(
-            cl.Text(
-                name="output",
-                content=result,
-                language="bash",
-                show_copy_button=True
-            )
-        )
-    
-    # Send the result with copyable output
-    await cl.Message(
-        content="Command output:",
-        elements=result_elements,
-        author="AI Assistant"
-    ).send()
+    # Send the result
+    if result.strip():
+        await cl.Message(
+            content="Command output:",
+            elements=[
+                cl.Text(
+                    name="output",
+                    content=result,
+                    language="bash",
+                    show_copy_button=True
+                )
+            ]
+        ).send()
+    else:
+        await cl.Message(content="Command executed (no output)").send()
 
 @cl.on_chat_start
 async def start():

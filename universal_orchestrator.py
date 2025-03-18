@@ -64,7 +64,7 @@ class UniversalOrchestrator:
         """Process the user request using the appropriate agent."""
         try:
             agent_type = await self.determine_agent(request)
-            
+            logger.info(f"Determined agent type: {agent_type}")
             if agent_type == "browser":
                 return run_browser_workflow(request)
             elif agent_type == "terraform":
