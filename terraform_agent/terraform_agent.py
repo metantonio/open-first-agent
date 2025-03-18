@@ -639,9 +639,9 @@ tfvars_manager = Agent(
     
     1. Check terraform.tfvars status:
        - First verify if terraform.tfvars exists in output directory
-       - If it exists, DO NOT modify or recreate it
-       - Only read and report its current content
-       - If it doesn't exist, then proceed with creation
+       - If it exists during initial setup, DO NOT overwrite it
+       - Read and report its current content
+       - Handle updates when explicitly requested
     
     2. Handle new terraform.tfvars creation (ONLY if it doesn't exist):
        - Copy from terraform.tfvars.example
@@ -650,26 +650,33 @@ tfvars_manager = Agent(
        - Create the file with user-provided values
     
     3. Variable validation and updates:
-       - For existing files: only validate current values
+       - For existing files: validate current values
+       - When update requested: update with new values
        - For new files: collect and validate new values
        - Ensure all required variables are set
        - Maintain proper variable formatting
     
-    4. Provide clear guidance:
+    4. Update Management:
+       - Accept and process update requests
+       - Update specific variables when requested
+       - Preserve existing values not being updated
+       - Validate updated configuration
+    
+    5. Provide clear guidance:
        - If file exists: report current configuration
+       - If updating: confirm changes made
        - If new file: explain required variables
-       - Validate all variable values
        - Report any issues found
     
-    5. Coordination:
+    6. Coordination:
        - Return control to orchestrator after completion
        - Do not attempt direct transfers to other agents
        - Provide clear status for orchestrator to proceed
     
     IMPORTANT:
-    - NEVER modify an existing terraform.tfvars file unless explicitly requested
-    - Only create new terraform.tfvars if it doesn't exist
-    - Always validate variable values regardless of file status
+    - DO NOT overwrite existing terraform.tfvars during initial creation
+    - DO update variables when explicitly requested to do so
+    - Always validate variable values before and after updates
     - Provide clear status updates about the file state
     - Return control to orchestrator, do not transfer to other agents""",
     model=model,
@@ -697,17 +704,17 @@ orchestrator_agent = Agent(
        - Maintain state between agent handoffs
        - Coordinate file creation process
 
-    3. File Creation Coordination:
+    3. Variable Management:
+       - Use tfvars_manager for initial variable setup
+       - Handle variable update requests appropriately
+       - Forward update requests to tfvars_manager
+       - Ensure variable consistency across files
+
+    4. File Creation Coordination:
        - After tfvars setup, use terraform_editor
        - Ensure all files are created in output directory
        - Maintain proper file organization
        - Handle file dependencies correctly
-
-    4. Variable Management:
-       - Use tfvars_manager for variable setup
-       - Ensure all required variables are defined
-       - Coordinate variable validation
-       - Maintain variable consistency
 
     5. Configuration Review:
        - Review file structure and organization
@@ -722,13 +729,13 @@ orchestrator_agent = Agent(
        - Guide user on manual execution
 
     IMPORTANT: 
-    - ALWAYS start with tfvars_manager
-    - Handle all agent transitions
+    - ALWAYS start with tfvars_manager for initial setup
+    - Handle variable updates through tfvars_manager
     - Ensure all files are created in output directory
     - Follow security best practices
     - DO NOT automatically execute terraform commands
     - Follow this sequence:
-      1. Use tfvars_manager for variables
+      1. Use tfvars_manager for variables (setup or update)
       2. Use terraform_editor for .tf files
       3. Review configuration
       4. Provide guidance""",
