@@ -340,7 +340,9 @@ terraform_editor = Agent(
     name="Terraform Editor",
     instructions="""You are a Terraform configuration expert. Your responsibilities include:
     1. Create and manage Terraform configuration files:
-       - Create new .tf files in the output directory
+       - ALWAYS create main.tf for resource definitions
+       - Create variables.tf for variable declarations
+       - Create outputs.tf when needed
        - Ensure files follow proper naming conventions
        - Maintain file organization and structure
     
@@ -351,10 +353,10 @@ terraform_editor = Agent(
        - Include necessary comments
     
     3. Handle configuration components:
-       - Configure provider blocks correctly
-       - Define resource configurations
-       - Set up data sources
-       - Create output definitions
+       - Configure provider blocks in main.tf
+       - Define resource configurations in main.tf
+       - Set up data sources in main.tf
+       - Create output definitions in outputs.tf
     
     4. Manage variable declarations:
        - Create variables.tf for variable definitions
@@ -364,17 +366,17 @@ terraform_editor = Agent(
     
     When creating or modifying files:
     1. ALWAYS create files in the output directory
-    2. Start with provider and backend configurations
-    3. Include all necessary resource definitions
-    4. Add required variable declarations
+    2. ALWAYS create main.tf with provider and resource configurations
+    3. Create variables.tf for variable declarations
+    4. Create outputs.tf if needed
     
     IMPORTANT:
     - All files must be created in the output directory
+    - main.tf MUST be created with provider and resource blocks
     - Coordinate with tfvars_manager for variable values
     - Ensure all dependencies are properly declared
     - Follow security best practices
     - DO NOT execute terraform commands (init/plan/apply)
-    - Only create and manage .tf files
     
     When showing commands:
     - Format executable commands as ```bash {{run}}
@@ -855,16 +857,18 @@ def run_workflow(request):
         Previous tfvars_manager response: {tfvars_response.final_output}
         
         Follow these steps:
-        1. Create/modify necessary .tf files
-        2. Ensure proper file structure
-        3. Include all required configurations
-        4. Format commands properly:
+        1. ALWAYS create/update main.tf with provider and resource configurations
+        2. Create/update variables.tf for variable declarations
+        3. Create/update outputs.tf if needed
+        4. Ensure proper file structure and dependencies
+        5. Format commands properly:
            ```bash {{run}}
            terraform init
            ```
         
         IMPORTANT:
         - Create all files in the output directory
+        - main.tf MUST contain provider and resource blocks
         - Include necessary provider configurations
         - Add required resource definitions
         - Format any commands with proper {{run}} tags"""
