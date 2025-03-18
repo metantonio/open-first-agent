@@ -253,162 +253,141 @@ aws_secret_access_key = YOUR_SECRET_KEY
 - aws_secret_access_key: Your AWS secret key"""
     }
 
-# 2. Create AWS CLI Configuration Agent
+# 2. Create Specialized Agents
 
-aws_cli_agent = Agent(
-    name="AWS CLI Configuration Agent",
-    instructions="""You are an AWS CLI configuration expert. Your responsibilities include:
-
-    1. Installation Management:
-       - Check if AWS CLI is installed
-       - Install AWS CLI if needed
-       - Verify installation success
-       - Handle different operating systems
+installation_checker = Agent(
+    name="AWS CLI Installation Checker",
+    instructions="""You are an AWS CLI installation verification expert. Your responsibilities include:
     
-    2. Configuration Management:
-       - Configure AWS credentials (both standard and SSO)
-       - Set up AWS CLI settings
-       - Manage configuration files
-       - Handle security best practices
-       - Configure SSO authentication
+    1. Check AWS CLI Installation:
+       - Verify if AWS CLI is installed
+       - Check version information
+       - Report installation status
+       - Provide clear feedback
     
-    3. SSO Configuration:
-       - Set up AWS SSO configuration
-       - Configure SSO session parameters
-       - Set account ID and role name
-       - Configure SSO start URL
-       - Set SSO region and scopes
-    
-    4. Command Formatting Rules:
-       EVERY command MUST be formatted exactly as follows:
-       
-       For standard execution:
-       ```bash {{run}}
-       command here
-       ```
-       
-       For background execution:
-       ```bash {{run:background}}
-       command here
-       ```
-       
-       Examples:
-       - Check AWS CLI version:
+    2. Command Formatting:
+       Always format commands as follows:
        ```bash {{run}}
        aws --version
        ```
-       
-       - List S3 buckets:
-       ```bash {{run}}
-       aws s3 ls
-       ```
-       
-       - Configure AWS:
-       ```bash {{run}}
-       aws configure list
-       ```
-       
-       - Start a long-running process:
-       ```bash {{run:background}}
-       aws s3 sync large-directory s3://my-bucket
-       ```
-    
-    5. Configuration Format Guidelines:
-       For SSO setup, the config file should follow this structure:
-       ```ini
-       [default]
-       sso_session = aws
-       sso_account_id = YOUR_ACCOUNT_ID
-       sso_role_name = EC2-Terraform
-       region = us-east-1
-       output = json
-
-       [sso-session aws]
-       sso_start_url = YOUR_SSO_START_URL
-       sso_region = us-east-1
-       sso_registration_scopes = sso:account:access
-       ```
-
-       For standard setup, the credentials file should follow:
-       ```ini
-       [default]
-       aws_access_key_id = YOUR_ACCESS_KEY
-       aws_secret_access_key = YOUR_SECRET_KEY
-       ```
-
-       And the config file:
-       ```ini
-       [default]
-       region = us-east-1
-       output = json
-       ```
-    
-    6. Validation and Testing:
-       - Verify AWS CLI installation
-       - Test AWS credentials
-       - Check configuration status
-       - Validate AWS connectivity
-    
-    7. Security Best Practices:
-       - Secure configuration storage
-       - Proper file permissions (600)
-       - Safe credential handling
-       - Configuration backup
-    
-    COMMAND FORMATTING REQUIREMENTS:
-    1. EVERY command that needs to be executed MUST be wrapped in the correct format:
-       - Use ```bash {{run}}``` for normal commands
-       - Use ```bash {{run:background}}``` for long-running commands
-       - NEVER use numbered action IDs (run_0, run_1, etc.)
-       - Always use "run" as the action name
-    
-    2. Common AWS CLI Commands Format Examples:
-       - Check installation:
-       ```bash {{run}}
-       aws --version
-       ```
-       
-       - List configuration:
-       ```bash {{run}}
-       aws configure list
-       ```
-       
-       - Get current region:
-       ```bash {{run}}
-       aws configure get region
-       ```
-       
-       - Test connection:
-       ```bash {{run}}
-       aws s3 ls
-       ```
-       
-       - Start SSO login:
-       ```bash {{run}}
-       aws sso login
-       ```
-    
-    When users ask about configuration:
-    1. First explain the two available methods:
-       - SSO-based authentication (recommended for AWS organizations)
-       - Standard authentication with access keys
-    2. Show the required format using the show_config_format tool
-    3. Guide them through the appropriate configuration process
-    4. Validate the configuration after setup
     
     IMPORTANT:
-    - Always check installation first
-    - Follow security best practices
-    - Validate all configurations
-    - Provide clear error messages
-    - Guide users through the process
-    - Ensure proper SSO setup when required
-    - Always explain configuration formats clearly
-    - EVERY command must be properly formatted with {{run}} or {{run:background}}
-    - Always provide a description before each command
-    - Test commands before suggesting them
-    - NEVER use numbered action IDs (run_0, run_1, etc.)
-    - Always use "run" as the action name for all commands""",
+    - Always check installation status first
+    - Provide clear version information
+    - Format commands with {{run}} tags
+    - Never use numbered action IDs
+    - Always use "run" as the action name""",
+    model=model,
+    tools=[check_aws_cli_installation]
+)
+
+installation_manager = Agent(
+    name="AWS CLI Installation Manager",
+    instructions="""You are an AWS CLI installation expert. Your responsibilities include:
+    
+    1. Install AWS CLI:
+       - Handle OS-specific installation
+       - Verify installation success
+       - Report installation results
+       - Handle errors appropriately
+    
+    2. Command Formatting:
+       Always format commands as follows:
+       ```bash {{run}}
+       command here
+       ```
+    
+    IMPORTANT:
+    - Handle OS-specific requirements
+    - Verify installation success
+    - Format commands with {{run}} tags
+    - Never use numbered action IDs
+    - Always use "run" as the action name""",
+    model=model,
+    tools=[install_aws_cli]
+)
+
+connection_tester = Agent(
+    name="AWS CLI Connection Tester",
+    instructions="""You are an AWS CLI connection testing expert. Your responsibilities include:
+    
+    1. Test AWS Connection:
+       - Check AWS credentials
+       - Test S3 connectivity
+       - Verify configuration
+       - Report connection status
+    
+    2. Command Formatting:
+       Always format commands as follows:
+       ```bash {{run}}
+       aws s3 ls
+       ```
+    
+    IMPORTANT:
+    - Test basic connectivity first
+    - Check configuration status
+    - Format commands with {{run}} tags
+    - Never use numbered action IDs
+    - Always use "run" as the action name""",
+    model=model,
+    tools=[test_aws_connection, check_aws_configuration]
+)
+
+configuration_manager = Agent(
+    name="AWS CLI Configuration Manager",
+    instructions="""You are an AWS CLI configuration expert. Your responsibilities include:
+    
+    1. Manage AWS Configuration:
+       - Handle credentials setup
+       - Configure AWS settings
+       - Set up SSO if needed
+       - Manage config files
+    
+    2. Command Formatting:
+       Always format commands as follows:
+       ```bash {{run}}
+       aws configure list
+       ```
+    
+    IMPORTANT:
+    - Handle both standard and SSO config
+    - Secure credential storage
+    - Format commands with {{run}} tags
+    - Never use numbered action IDs
+    - Always use "run" as the action name""",
+    model=model,
+    tools=[configure_aws_cli, configure_aws_cli_sso, show_config_format]
+)
+
+# Update the main AWS CLI agent to be an orchestrator
+aws_cli_agent = Agent(
+    name="AWS CLI Orchestrator",
+    instructions="""You are the main orchestrator for AWS CLI operations. Your responsibilities include:
+
+    1. Coordinate Between Specialized Agents:
+       - Use installation_checker for installation verification
+       - Use installation_manager for installation tasks
+       - Use connection_tester for connectivity tests
+       - Use configuration_manager for setup tasks
+    
+    2. Workflow Management:
+       - Start with installation check
+       - Handle installation if needed
+       - Proceed to configuration tasks
+       - End with connection testing
+    
+    3. Command Formatting:
+       Always format commands as follows:
+       ```bash {{run}}
+       command here
+       ```
+    
+    IMPORTANT:
+    - Coordinate agent transitions
+    - Maintain workflow state
+    - Format commands with {{run}} tags
+    - Never use numbered action IDs
+    - Always use "run" as the action name""",
     model=model,
     tools=[
         check_aws_cli_installation,
@@ -418,49 +397,60 @@ aws_cli_agent = Agent(
         check_aws_configuration,
         test_aws_connection,
         show_config_format
+    ],
+    handoffs=[
+        installation_checker,
+        installation_manager,
+        connection_tester,
+        configuration_manager
     ]
 )
 
 # 3. Main workflow function
 
 def run_workflow(request):
-    """Run the AWS CLI configuration workflow."""
-    logger.info(f"Starting AWS CLI configuration workflow for request: {request}")
+    """Run the AWS CLI workflow with specialized agents."""
+    logger.info(f"Starting AWS CLI workflow for request: {request}")
     
-    response = Runner.run_sync(
+    # First, check installation
+    installation_check = Runner.run_sync(
+        installation_checker,
+        "Check if AWS CLI is installed and get version information."
+    )
+    logger.info("Installation Check Response: %s", installation_check.final_output)
+    
+    # If installation needed, handle it
+    if "not installed" in installation_check.final_output.lower():
+        installation_result = Runner.run_sync(
+            installation_manager,
+            "Install AWS CLI for the current operating system."
+        )
+        logger.info("Installation Result: %s", installation_result.final_output)
+    
+    # Test connection and configuration
+    connection_test = Runner.run_sync(
+        connection_tester,
+        "Test AWS connection and verify configuration."
+    )
+    logger.info("Connection Test Response: %s", connection_test.final_output)
+    
+    # Use orchestrator for final response
+    final_response = Runner.run_sync(
         aws_cli_agent,
-        f"""Process this AWS CLI configuration request: {request}
-
-        Follow these steps:
-        1. Check AWS CLI installation
-        2. Install if needed
-        3. Configure credentials if provided
-        4. Validate configuration
-        5. Test connection
+        f"""Provide a final response for this request: {request}
+        
+        Context:
+        - Installation Status: {installation_check.final_output}
+        - Connection Status: {connection_test.final_output}
         
         IMPORTANT:
-        - Handle all steps appropriately
-        - Provide clear feedback
-        - Format all commands with {{run}} or {{run:background}}
-        - NEVER use numbered action IDs (run_0, run_1, etc.)
-        - Always use "run" as the action name
-        - Follow security best practices
-        - Include command descriptions
-        - Test commands before suggesting them
-        
-        Example command format:
-        ```bash {{run}}
-        aws --version
-        ```
-        
-        Example background command format:
-        ```bash {{run:background}}
-        aws s3 sync large-directory s3://my-bucket
-        ```"""
+        - Summarize the results
+        - Format any commands with {{run}} tags
+        - Never use numbered action IDs
+        - Always use "run" as the action name"""
     )
     
-    logger.info("AWS CLI Agent Response: %s", response.final_output)
-    return response.final_output
+    return final_response.final_output
 
 # Only run the test if this file is run directly
 if __name__ == "__main__":
