@@ -38,6 +38,11 @@ The project consists of four main agent systems:
 │   ├── config.py             # Configuration for dev environment agents
 │   └── dev_env_agent.py      # Development environment setup agents
 │
+├── aws_cli_agent/           # AWS CLI management system
+│   ├── __init__.py
+│   ├── config.py            # Configuration for AWS CLI agent
+│   └── aws_cli_agent.py     # AWS CLI setup and configuration agent
+│
 ├── tools/                     # Shared tools and utilities
 │   └── __init__.py
 │
@@ -152,6 +157,58 @@ A specialized multi-agent system for setting up and configuring development envi
   - Server management
   - Notebook monitoring
   - Environment-specific kernels
+
+### 5. AWS CLI Agent
+
+A specialized agent system for managing AWS CLI installation, configuration, and testing:
+
+#### Main Components
+
+- **AWS CLI Configuration Agent**: Expert in AWS CLI setup and management
+  - Checks AWS CLI installation status
+  - Handles installation on different operating systems
+  - Manages AWS credentials and configuration
+  - Tests AWS connectivity
+  - Ensures secure credential storage
+
+#### Key Features
+
+- **Installation Management**:
+  - AWS CLI version detection
+  - Operating system-specific installation
+  - Installation verification
+  - Version management
+
+- **Configuration Management**:
+  - AWS credentials setup
+  - Region configuration
+  - Output format settings
+  - Multiple profile support
+  - Secure credential storage
+
+- **Security Features**:
+  - Secure credential file permissions
+  - Safe credential handling
+  - Configuration backup
+  - Best practices enforcement
+
+#### Tools and Capabilities
+
+- **Installation Tools**:
+  - `check_aws_cli_installation`: Verifies AWS CLI installation and version
+  - `install_aws_cli`: Handles OS-specific AWS CLI installation
+
+- **Configuration Tools**:
+  - `configure_aws_cli`: Sets up AWS credentials and configuration
+  - `check_aws_configuration`: Validates current AWS setup
+  - `test_aws_connection`: Tests AWS connectivity
+
+The agent ensures:
+- Proper AWS CLI installation and configuration
+- Secure handling of AWS credentials
+- Correct file permissions and storage
+- Successful AWS connectivity
+- Best practices implementation
 
 Each agent has specific tools and capabilities:
 
