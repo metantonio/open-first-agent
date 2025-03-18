@@ -373,10 +373,10 @@ terraform_editor = Agent(
     - Only create and manage .tf files
     
     When showing commands:
-    - Format executable commands as ```bash {run}
+    - Format executable commands as ```bash {{run}}
     command here
     ```
-    - Format background commands as ```bash {run:background}
+    - Format background commands as ```bash {{run:background}}
     command here
     ```
     - Use ```bash for command examples
@@ -637,10 +637,10 @@ terraform_checker = Agent(
     Provide clear, actionable feedback about configuration validity.
 
     When showing commands:
-    - Format executable commands as ```bash {run}
+    - Format executable commands as ```bash {{run}}
     command here
     ```
-    - Format background commands as ```bash {run:background}
+    - Format background commands as ```bash {{run:background}}
     command here
     ```
     - Use ```bash for command examples
@@ -697,10 +697,10 @@ tfvars_manager = Agent(
        - Format response for the orchestrator to proceed
     
     When showing commands:
-    - Format executable commands as ```bash {run}
+    - Format executable commands as ```bash {{run}}
     command here
     ```
-    - Format background commands as ```bash {run:background}
+    - Format background commands as ```bash {{run:background}}
     command here
     ```
     - Use ```bash for command examples
@@ -760,23 +760,23 @@ orchestrator_agent = Agent(
     6. Command Formatting:
        When showing commands to the user:
        - Format executable commands as:
-         ```bash {run}
+         ```bash {{run}}
          command here
          ```
        - Format background commands as:
-         ```bash {run:background}
+         ```bash {{run:background}}
          command here
          ```
        - Use ```bash for command examples
        - Always provide clear descriptions before each command
        - Example terraform commands:
-         ```bash {run}
+         ```bash {{run}}
          terraform init
          ```
-         ```bash {run}
+         ```bash {{run}}
          terraform plan
          ```
-         ```bash {run}
+         ```bash {{run}}
          terraform apply
          ```
     
@@ -829,43 +829,80 @@ def run_workflow(request):
     """Run the Terraform workflow with the orchestrator as the main controller."""
     logger.info(f"Starting Terraform workflow for request: {request}")
     
-    orchestrator_response = Runner.run_sync(
-        orchestrator_agent,
-        f"""Process this Terraform request: {request}
-
-        Follow these steps in order:
-        1. Check and setup terraform.tfvars first
-           - Use tfvars_manager to check/create terraform.tfvars
-           - Get required variables from user if needed
+    # First, handle tfvars setup with tfvars_manager
+    tfvars_response = Runner.run_sync(
+        tfvars_manager,
+        f"""Check the status of terraform.tfvars and handle accordingly:
+        1. Check if terraform.tfvars exists
+        2. If it exists, read and report its content
+        3. If it doesn't exist, create it from example
+        4. Return clear status about the current state
         
-        2. Create or modify Terraform files
-           - Use terraform_editor for file creation
-           - Ensure all files are in output directory
-           - Follow proper file structure
-        
-        3. Review configuration
-           - Check file structure
-           - Verify all required files exist
-           - Review for basic syntax issues
-        
-        4. Provide guidance
-           - List created/modified files
-           - Explain next steps
-           - Show available terraform commands
-           - Guide on manual execution
-
-        IMPORTANT: 
-        - ALWAYS start with tfvars setup
-        - Create all files in output directory
-        - DO NOT execute terraform commands
-        - Provide clear documentation
-        - Follow security best practices
-
-        Handle all steps appropriately and provide detailed feedback.
-        """
+        Request context: {request}"""
     )
     
-    return orchestrator_response.final_output
+    logger.info("TFVars Manager Response: %s", tfvars_response.final_output)
+    
+    # Then, proceed with terraform_editor regardless of tfvars status
+    editor_response = Runner.run_sync(
+        terraform_editor,
+        f"""Create or modify Terraform configuration files based on this request: {request}
+        
+        Previous tfvars_manager response: {tfvars_response.final_output}
+        
+        Follow these steps:
+        1. Create/modify necessary .tf files
+        2. Ensure proper file structure
+        3. Include all required configurations
+        4. Format commands properly:
+           ```bash {{run}}
+           terraform init
+           ```
+        
+        IMPORTANT:
+        - Create all files in the output directory
+        - Include necessary provider configurations
+        - Add required resource definitions
+        - Format any commands with proper {{run}} tags"""
+    )
+    
+    logger.info("Terraform Editor Response: %s", editor_response.final_output)
+    
+    # Finally, use orchestrator to provide final response and guidance
+    orchestrator_response = Runner.run_sync(
+        orchestrator_agent,
+        f"""Provide a final response for this request: {request}
+
+        Context:
+        - TFVars Status: {tfvars_response.final_output}
+        - Editor Actions: {editor_response.final_output}
+
+        Include in your response:
+        1. Summary of what was done
+        2. Current state of files
+        3. Available commands with proper formatting:
+           ```bash {{run}}
+           terraform init
+           ```
+        4. Next steps for the user
+
+        Remember to:
+        - Format all commands properly with {{run}} tags
+        - Provide clear guidance on next steps
+        - Include all necessary terraform commands
+        - Explain what each command does"""
+    )
+    
+    # Combine all responses into a coherent output
+    final_output = f"""
+{tfvars_response.final_output}
+
+{editor_response.final_output}
+
+{orchestrator_response.final_output}
+"""
+    
+    return final_output
 
 # Only run the test if this file is run directly
 if __name__ == "__main__":
