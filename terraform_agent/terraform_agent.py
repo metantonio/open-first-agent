@@ -623,7 +623,14 @@ terraform_checker = Agent(
        - Identify compliance problems
     
     Always run terraform check before suggesting changes or applying configurations.
-    Provide clear, actionable feedback about configuration validity.""",
+    Provide clear, actionable feedback about configuration validity.
+
+    When showing commands:
+    - Format executable commands as ```bash {run}
+    - Format background commands as ```bash {run:background}
+    - Use ```bash for command examples
+    - Provide clear description before each command
+    """,
     model=model,
     tools=[
         read_terraform_file,
@@ -668,21 +675,25 @@ tfvars_manager = Agent(
        - If new file: explain required variables
        - Report any issues found
     
-    6. Coordination:
-       - Return control to orchestrator after completion
-       - Do not attempt direct transfers to other agents
-       - Provide clear status for orchestrator to proceed
+    6. Return Status:
+       - Always return a clear status message about what was done
+       - Include information about the current state of variables
+       - If file exists: include current configuration
+       - If new file: include what variables need to be set
+       - Format response for the orchestrator to proceed
     
     IMPORTANT:
     - DO NOT overwrite existing terraform.tfvars during initial creation
     - DO update variables when explicitly requested to do so
     - Always validate variable values before and after updates
-    - Provide clear status updates about the file state
-    - Return control to orchestrator, do not transfer to other agents""",
+    - Return clear status messages about actions taken
+    - DO NOT attempt to transfer control to other agents
+    - Let the orchestrator handle all agent transitions""",
     model=model,
     tools=[
         manage_tfvars_file,
-        update_tfvars_file
+        update_tfvars_file,
+        run_terminal_cmd
     ]
 )
 
@@ -694,58 +705,64 @@ orchestrator_agent = Agent(
 
     1. Initial Setup and Validation:
        - FIRST use tfvars_manager to check/setup terraform.tfvars
-       - After tfvars setup, proceed with terraform_editor
-       - Ensure output directory exists
-       - Coordinate all agent interactions
+       - Wait for tfvars_manager to complete and return status
+       - Based on tfvars_manager status, proceed with terraform_editor
+       - Ensure proper sequence of operations
     
     2. Workflow Management:
-       - Handle transitions between agents
-       - Ensure proper sequence of operations
-       - Maintain state between agent handoffs
-       - Coordinate file creation process
-
+       - Handle all transitions between agents
+       - Maintain workflow state
+       - Coordinate file operations
+       - Ensure proper sequence of steps
+    
     3. Variable Management:
-       - Use tfvars_manager for initial variable setup
-       - Handle variable update requests appropriately
-       - Forward update requests to tfvars_manager
-       - Ensure variable consistency across files
-
+       - Use tfvars_manager for all variable operations
+       - Handle tfvars_manager responses appropriately
+       - Coordinate variable updates when needed
+       - Maintain variable state consistency
+    
     4. File Creation Coordination:
        - After tfvars setup, use terraform_editor
-       - Ensure all files are created in output directory
+       - Ensure all files are created in terraform directory
        - Maintain proper file organization
        - Handle file dependencies correctly
-
+    
     5. Configuration Review:
        - Review file structure and organization
        - Check for basic syntax issues
        - Verify resource declarations
        - Ensure all required files are present
-
+    
     6. Documentation and Guidance:
        - Provide clear documentation of created files
-       - Explain next steps for the user
-       - List available terraform commands
+       - Format commands using ```bash {run} for execution
+       - List available terraform commands with execution buttons
        - Guide user on manual execution
-
+       - Use proper command block formatting:
+         * ```bash {run} for executable commands
+         * ```bash {run:background} for background tasks
+         * ```bash for command examples/documentation
+    
     IMPORTANT: 
     - ALWAYS start with tfvars_manager for initial setup
     - Handle variable updates through tfvars_manager
-    - Ensure all files are created in output directory
+    - Ensure all files are created in terraform directory
     - Follow security best practices
     - DO NOT automatically execute terraform commands
     - Follow this sequence:
       1. Use tfvars_manager for variables (setup or update)
-      2. Use terraform_editor for .tf files
-      3. Review configuration
-      4. Provide guidance""",
+      2. Wait for tfvars_manager completion
+      3. Use terraform_editor for .tf files
+      4. Review configuration
+      5. Provide guidance""",
     tools=[
         create_terraform_file,
         delete_terraform_file,
         read_terraform_file,
         analyze_terraform_file,
         manage_tfvars_file,
-        update_tfvars_file
+        update_tfvars_file,
+        run_terminal_cmd
     ],
     model=model,
     model_settings=ModelSettings(temperature=0.1),
