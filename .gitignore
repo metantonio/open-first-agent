@@ -30,6 +30,7 @@ venv.bak/
 .venv
 .conda/
 conda-env/
+.chainlit/
 
 # IDE files
 .idea/
