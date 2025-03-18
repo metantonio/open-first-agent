@@ -210,6 +210,49 @@ def test_aws_connection():
             'message': f'Error testing AWS connection: {str(e)}'
         }
 
+@function_tool
+def show_config_format():
+    """Show the required format for AWS CLI configuration."""
+    return {
+        'standard_config': """# Standard AWS CLI configuration format:
+[default]
+region = us-east-1
+output = json
+
+# Required parameters:
+- region: AWS region (e.g., us-east-1, us-west-2)
+- output: Output format (json, text, table)""",
+
+        'sso_config': """# AWS CLI SSO configuration format:
+[default]
+sso_session = aws
+sso_account_id = YOUR_ACCOUNT_ID
+sso_role_name = EC2-Terraform
+region = us-east-1
+output = json
+
+[sso-session aws]
+sso_start_url = YOUR_SSO_START_URL
+sso_region = us-east-1
+sso_registration_scopes = sso:account:access
+
+# Required parameters for SSO:
+- sso_start_url: Your AWS SSO start URL
+- sso_account_id: Your AWS account ID
+- sso_role_name: Role name (default: EC2-Terraform)
+- region: AWS region (default: us-east-1)
+- output: Output format (default: json)""",
+
+        'credentials_config': """# AWS CLI credentials format (for non-SSO):
+[default]
+aws_access_key_id = YOUR_ACCESS_KEY
+aws_secret_access_key = YOUR_SECRET_KEY
+
+# Required parameters:
+- aws_access_key_id: Your AWS access key
+- aws_secret_access_key: Your AWS secret key"""
+    }
+
 # 2. Create AWS CLI Configuration Agent
 
 aws_cli_agent = Agent(
@@ -236,15 +279,45 @@ aws_cli_agent = Agent(
        - Configure SSO start URL
        - Set SSO region and scopes
     
-    4. Validation and Testing:
+    4. Configuration Format Guidelines:
+       For SSO setup, the config file should follow this structure:
+       ```ini
+       [default]
+       sso_session = aws
+       sso_account_id = YOUR_ACCOUNT_ID
+       sso_role_name = EC2-Terraform
+       region = us-east-1
+       output = json
+
+       [sso-session aws]
+       sso_start_url = YOUR_SSO_START_URL
+       sso_region = us-east-1
+       sso_registration_scopes = sso:account:access
+       ```
+
+       For standard setup, the credentials file should follow:
+       ```ini
+       [default]
+       aws_access_key_id = YOUR_ACCESS_KEY
+       aws_secret_access_key = YOUR_SECRET_KEY
+       ```
+
+       And the config file:
+       ```ini
+       [default]
+       region = us-east-1
+       output = json
+       ```
+    
+    5. Validation and Testing:
        - Verify AWS CLI installation
        - Test AWS credentials
        - Check configuration status
        - Validate AWS connectivity
     
-    5. Security Best Practices:
+    6. Security Best Practices:
        - Secure configuration storage
-       - Proper file permissions
+       - Proper file permissions (600)
        - Safe credential handling
        - Configuration backup
     
@@ -258,13 +331,22 @@ aws_cli_agent = Agent(
     - Use ```bash for command examples
     - Provide clear description before each command
     
+    When users ask about configuration:
+    1. First explain the two available methods:
+       - SSO-based authentication (recommended for AWS organizations)
+       - Standard authentication with access keys
+    2. Show the required format using the show_config_format tool
+    3. Guide them through the appropriate configuration process
+    4. Validate the configuration after setup
+    
     IMPORTANT:
     - Always check installation first
     - Follow security best practices
     - Validate all configurations
     - Provide clear error messages
     - Guide users through the process
-    - Ensure proper SSO setup when required""",
+    - Ensure proper SSO setup when required
+    - Always explain configuration formats clearly""",
     model=model,
     tools=[
         check_aws_cli_installation,
@@ -272,7 +354,8 @@ aws_cli_agent = Agent(
         configure_aws_cli,
         configure_aws_cli_sso,
         check_aws_configuration,
-        test_aws_connection
+        test_aws_connection,
+        show_config_format
     ]
 )
 
