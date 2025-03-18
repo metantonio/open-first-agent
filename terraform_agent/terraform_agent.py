@@ -218,11 +218,22 @@ def manage_tfvars_file():
         # Check if terraform.tfvars already exists
         if os.path.exists(tfvars_path):
             with open(tfvars_path, 'r') as f:
-                current_vars = f.read()
+                current_content = f.read()
+            
+            # Parse current variables
+            current_vars = {}
+            for line in current_content.split('\n'):
+                if '=' in line:
+                    var_name = line.split('=')[0].strip()
+                    var_value = line.split('=')[1].strip().strip('"')
+                    current_vars[var_name] = var_value
+                    
             return {
                 'status': 'exists',
-                'message': 'terraform.tfvars already exists',
-                'content': current_vars
+                'message': 'terraform.tfvars already exists and will not be modified',
+                'current_variables': current_vars,
+                'content': current_content,
+                'file_path': tfvars_path
             }
         
         # Copy from example if it exists
@@ -244,13 +255,15 @@ def manage_tfvars_file():
             
             return {
                 'status': 'created',
-                'message': 'terraform.tfvars created from example',
-                'variables_needed': vars_needed
+                'message': 'terraform.tfvars was created from example',
+                'variables_needed': vars_needed,
+                'file_path': tfvars_path
             }
         else:
             return {
                 'status': 'error',
-                'message': 'terraform.tfvars.example not found'
+                'message': 'terraform.tfvars.example not found',
+                'example_path': example_path
             }
     except Exception as e:
         return {
@@ -286,24 +299,41 @@ def update_tfvars_file(variables):
 terraform_editor = Agent(
     name="Terraform Editor",
     instructions="""You are a Terraform configuration expert. Your responsibilities include:
-    1. Create well-structured Terraform configurations
-    2. Follow Terraform best practices
-    3. Include proper provider configurations
-    4. Use clear resource naming
-    5. Add appropriate tags and descriptions
-    6. Implement proper variable declarations
-    7. Follow security best practices
-    8. Include necessary backend configuration
+    1. Create and manage Terraform configuration files:
+       - Create new .tf files in the output directory
+       - Ensure files follow proper naming conventions
+       - Maintain file organization and structure
     
-    Always format the Terraform code properly and include necessary comments.
+    2. Implement Terraform best practices:
+       - Follow HashiCorp style guidelines
+       - Use proper resource naming
+       - Add appropriate tags and descriptions
+       - Include necessary comments
     
-    When creating or modifying Terraform files:
-    1. Use create_terraform_file to create new files
-    2. Use read_terraform_file to read existing files
-    3. Ensure all configurations are properly formatted
-    4. Include all necessary provider blocks
-    5. Define required variables
-    6. Configure resources with proper naming and tags""",
+    3. Handle configuration components:
+       - Configure provider blocks correctly
+       - Define resource configurations
+       - Set up data sources
+       - Create output definitions
+    
+    4. Manage variable declarations:
+       - Create variables.tf for variable definitions
+       - Define proper variable types and constraints
+       - Add meaningful variable descriptions
+       - Set default values when appropriate
+    
+    When creating or modifying files:
+    1. ALWAYS create files in the output directory
+    2. Start with provider and backend configurations
+    3. Include all necessary resource definitions
+    4. Add required variable declarations
+    5. Validate configurations with terraform check
+    
+    IMPORTANT:
+    - All files must be created in the output directory
+    - Coordinate with tfvars_manager for variable values
+    - Ensure all dependencies are properly declared
+    - Follow security best practices""",
     model=model,
     tools=[
         create_terraform_file,
@@ -571,25 +601,35 @@ tfvars_manager = Agent(
     name="TFVars Manager",
     instructions="""You are a Terraform variables management expert. Your responsibilities include:
     
-    1. Check and manage terraform.tfvars:
-       - Verify if terraform.tfvars exists in output directory
-       - Create from example if it doesn't exist
+    1. Check terraform.tfvars status:
+       - First verify if terraform.tfvars exists in output directory
+       - If it exists, DO NOT modify or recreate it
+       - Only read and report its current content
+       - If it doesn't exist, then proceed with creation
+    
+    2. Handle new terraform.tfvars creation (ONLY if it doesn't exist):
+       - Copy from terraform.tfvars.example
        - Identify required variables
        - Guide users through variable configuration
+       - Create the file with user-provided values
     
-    2. Handle variable updates:
-       - Validate variable values
-       - Update terraform.tfvars with new values
-       - Ensure proper formatting
-       - Maintain variable consistency
+    3. Variable validation and updates:
+       - For existing files: only validate current values
+       - For new files: collect and validate new values
+       - Ensure all required variables are set
+       - Maintain proper variable formatting
     
-    3. Provide clear guidance:
-       - Explain required variables
-       - Suggest appropriate values
-       - Validate user input
-       - Handle errors appropriately
+    4. Provide clear guidance:
+       - If file exists: report current configuration
+       - If new file: explain required variables
+       - Validate all variable values
+       - Report any issues found
     
-    Always ensure terraform.tfvars is properly configured before any Terraform operations.""",
+    IMPORTANT:
+    - NEVER modify an existing terraform.tfvars file unless explicitly requested
+    - Only create new terraform.tfvars if it doesn't exist
+    - Always validate variable values regardless of file status
+    - Provide clear status updates about the file state""",
     model=model,
     tools=[
         manage_tfvars_file,
@@ -603,55 +643,60 @@ orchestrator_agent = Agent(
     name="Terraform Orchestrator",
     instructions="""You are the main orchestrator for Terraform operations. Your responsibilities include:
 
-    1. Initial Analysis:
-       - Analyze the user's request for Terraform operations
-       - Validate the requested changes
-       - Plan the appropriate steps to fulfill the request
-       - For analysis requests, coordinate with the Analysis Coordinator
-       - For research needs, coordinate with the Terraform Researcher
-       - For configuration checks, use the Terraform Checker
+    1. Initial Setup and Validation:
+       - FIRST check and setup terraform.tfvars using tfvars_manager
+       - Ensure output directory exists and is properly configured
+       - Validate environment readiness
+       - Check for required dependencies
+    
+    2. File Creation and Management:
+       - Use terraform_editor to create initial .tf files
+       - Ensure all files are created in output directory
+       - Maintain proper file organization
+       - Handle file dependencies correctly
 
-    2. File Management:
-       - Create new Terraform files when needed
-       - Delete Terraform files when requested
-       - Read and validate existing Terraform configurations
-       - Ensure proper file structure and organization
+    3. Variable Management:
+       - Coordinate with tfvars_manager for variable setup
+       - Ensure all required variables are defined
+       - Validate variable values
+       - Maintain variable consistency
 
-    3. Terraform Operations:
-       - Run terraform check to validate configurations
-       - Run terraform plan to validate changes
-       - Execute terraform apply when confirmed
-       - Handle and report any errors appropriately
-       - Ensure proper state management
-
-    4. Quality Control:
+    4. Configuration Validation:
        - Use Terraform Checker for configuration validation
-       - Validate Terraform syntax
-       - Check for security best practices
-       - Ensure proper resource naming
-       - Verify all required providers are configured
-       - Handle errors and provide clear feedback
+       - Run terraform check before operations
+       - Validate syntax and structure
+       - Verify resource dependencies
 
-    5. Analysis and Recommendations:
-       - Coordinate with Analysis Coordinator for reviews
-       - Use Terraform Researcher for latest best practices
-       - Present analysis results in a clear format
-       - Prioritize recommendations based on impact
-       - Provide implementation guidance for improvements
+    5. Terraform Operations:
+       - Execute terraform init when needed
+       - Run terraform plan to preview changes
+       - Execute terraform apply when confirmed
+       - Handle state management properly
 
-    6. Research and Documentation:
-       - Use web research when needed
+    6. Analysis and Recommendations:
+       - Use Analysis Coordinator for reviews
+       - Coordinate with specialized analyzers
+       - Provide clear recommendations
+       - Prioritize improvements
+
+    7. Research and Documentation:
+       - Use Terraform Researcher for best practices
        - Find relevant documentation
-       - Validate against current best practices
+       - Validate configurations
        - Incorporate community recommendations
 
     IMPORTANT: 
-    - Always validate configurations with terraform check before other operations
-    - Notify users of any potential risks or issues
-    - Use web research to validate uncertain configurations
-    - Ensure recommendations are based on current best practices
-    - For analysis requests, ensure comprehensive review
-    """,
+    - ALWAYS start by checking/setting up terraform.tfvars
+    - Ensure all files are created in output directory
+    - Validate configurations before operations
+    - Follow security best practices
+    - Provide clear error messages
+    - For new configurations, follow this order:
+      1. Setup tfvars
+      2. Create main.tf
+      3. Create variables.tf
+      4. Create outputs.tf (if needed)
+      5. Initialize and validate""",
     tools=[
         create_terraform_file,
         delete_terraform_file,
@@ -689,23 +734,37 @@ def run_workflow(request):
         orchestrator_agent,
         f"""Process this Terraform request: {request}
 
-        1. Analyze the request and determine required actions
-        2. If research is needed, use the Terraform Researcher
-        3. If creating/modifying files, use the terraform_editor
-        4. Run terraform check using the Terraform Checker
-        5. If analyzing existing files, use specialized analyzers
-        6. Validate changes with terraform plan when needed
-        7. If apply is requested and plan is successful, run terraform apply
-        8. Return detailed status of all operations
+        Follow these steps in order:
+        1. Check and setup terraform.tfvars first
+           - Use tfvars_manager to check/create terraform.tfvars
+           - Get required variables from user if needed
+        
+        2. Create or modify Terraform files
+           - Use terraform_editor for file creation
+           - Ensure all files are in output directory
+           - Follow proper file structure
+        
+        3. Validate configurations
+           - Run terraform check
+           - Verify syntax and structure
+           - Check for errors
+        
+        4. Execute Terraform operations if needed
+           - Run terraform init for new configurations
+           - Run terraform plan if changes made
+           - Run terraform apply if requested
+        
+        5. Provide analysis and recommendations
+           - Use specialized analyzers if needed
+           - Give clear feedback on actions taken
+           - Suggest improvements if applicable
 
         IMPORTANT: 
-        - Always run terraform check before other operations
-        - Research uncertain configurations
-        - Validate all changes before applying
-        - Provide clear error messages if any issues occur
-        - Ensure proper state management
+        - ALWAYS start with tfvars setup
+        - Create all files in output directory
+        - Validate before operations
+        - Provide clear error messages
         - Follow security best practices
-        - For analysis requests, provide comprehensive recommendations
 
         Handle all steps appropriately and provide detailed feedback.
         """
