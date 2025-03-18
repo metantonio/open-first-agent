@@ -62,3 +62,7 @@ I can help you with various tasks:
 Simply type your request, and I'll automatically determine the best way to help you!
 
 These Agents have been created by [Antonio Martínez](https://github.com/metantonio) from Qualex Consulting Services, INC.
+
+Tools used:
+ - Chainlit (UI)
+ - OpenAI Agents SDK
