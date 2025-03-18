@@ -1,4 +1,4 @@
-*.tfvars.json
+*.tfvars
 *.tfvars.json.gz
 *.tfvars.json.gz.part
 *.tfvars.json.gz.part.1
