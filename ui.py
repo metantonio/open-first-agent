@@ -123,21 +123,21 @@ def process_code_blocks(content: str) -> tuple[str, list]:
         working_dir = get_working_directory(code)
         
         # Add action for this code block
-        actions.append(
-            cl.Action(
-                name=action_id,
-                value=code,
-                description=f"Run this command{' in background' if is_background else ''} (in {os.path.basename(working_dir)})",
-                args={
-                    "is_background": is_background,
-                    "os": platform.system().lower(),
-                    "working_dir": working_dir
-                }
-            )
+        action = cl.Action(
+            name=action_id,
+            value=code,
+            description=f"Run this command{' in background' if is_background else ''} (in {os.path.basename(working_dir)})",
+            args={
+                "is_background": is_background,
+                "os": platform.system().lower(),
+                "working_dir": working_dir
+            }
         )
+        actions.append(action)
         
         # Return modified code block with button reference
-        return f"```bash\n{code}\n```\n[Run Command in {os.path.basename(working_dir)}]($run_{len(actions)-1})"
+        button_text = "▶ Run in background" if is_background else "▶ Run"
+        return f"```bash\n{code}\n```\n\n{button_text} <click>{action_id}</click>"
     
     # Process all code blocks
     processed_content = re.sub(pattern, replacement, content, flags=re.DOTALL)
@@ -166,15 +166,15 @@ async def main(message: cl.Message):
         # Process the response for executable code blocks
         processed_content, actions = process_code_blocks(response)
         
-        # Send response with actions
-        msg = cl.Message(
-            content=processed_content,
-            author="AI Assistant"
-        )
+        # Create message with actions
+        msg = cl.Message(content=processed_content)
         
+        # Add actions to the message
         if actions:
+            for action in actions:
+                msg.content += f"\n{action.description}"
             msg.actions = actions
-            
+        
         await msg.send()
     except Exception as e:
         # Handle any errors
@@ -193,18 +193,45 @@ async def on_action(action: cl.Action):
     is_background = action.args.get("is_background", False)
     working_dir = action.args.get("working_dir")
     
-    # Send a message indicating command execution
+    # Create an elements list for the response
+    elements = []
+    
+    # Add command to be executed
+    elements.append(
+        cl.Text(
+            name="command",
+            content=command,
+            language="bash",
+            show_copy_button=True
+        )
+    )
+    
+    # Send a message indicating command execution with the command as copyable text
     await cl.Message(
-        content=f"Executing command in {os.path.basename(working_dir)}:\n```bash\n{command}\n```",
+        content=f"Executing command in {os.path.basename(working_dir)}:",
+        elements=elements,
         author="AI Assistant"
     ).send()
     
     # Execute the command
     result = await execute_command(command, is_background, working_dir)
     
-    # Send the result
+    # Create elements for the result
+    result_elements = []
+    if isinstance(result, str) and result.strip():
+        result_elements.append(
+            cl.Text(
+                name="output",
+                content=result,
+                language="bash",
+                show_copy_button=True
+            )
+        )
+    
+    # Send the result with copyable output
     await cl.Message(
-        content=f"Command output:\n```\n{result}\n```",
+        content="Command output:",
+        elements=result_elements,
         author="AI Assistant"
     ).send()
 
