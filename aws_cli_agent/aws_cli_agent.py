@@ -357,8 +357,8 @@ aws_cli_agent = Agent(
     
     COMMAND FORMATTING REQUIREMENTS:
     1. EVERY command that needs to be executed MUST be wrapped in the correct format:
-       - Use ```bash {run}``` for normal commands
-       - Use ```bash {run:background}``` for long-running commands
+       - Use ```bash {{run}}``` for normal commands
+       - Use ```bash {{run:background}}``` for long-running commands
     
     2. Common AWS CLI Commands Format Examples:
        - Check installation:
@@ -438,10 +438,18 @@ def run_workflow(request):
         IMPORTANT:
         - Handle all steps appropriately
         - Provide clear feedback
-        - Format commands properly
-        - Follow security best practices"""
+        - Format all commands with {{run}} or {{run:background}}
+        - Follow security best practices
+        - Include command descriptions
+        - Test commands before suggesting them
+        
+        Example command format:
+        ```bash {{run}}
+        aws --version
+        ```"""
     )
     
+    logger.info("AWS CLI Agent Response: %s", response.final_output)
     return response.final_output
 
 # Only run the test if this file is run directly
