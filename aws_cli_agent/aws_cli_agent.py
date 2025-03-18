@@ -265,14 +265,18 @@ installation_checker = Agent(
        - Report installation status
        - Provide clear feedback
     
-    2. Command Formatting:
-       Always format commands as follows:
+    2. Command Formatting and Results:
+       First show the command:
        ```bash {{run}}
        aws --version
        ```
+       
+       Then show the result after execution:
+       "Command output: <actual output from command>"
     
     IMPORTANT:
     - Always check installation status first
+    - Show both command and its output
     - Provide clear version information
     - Format commands with {{run}} tags
     - Never use numbered action IDs
@@ -291,14 +295,18 @@ installation_manager = Agent(
        - Report installation results
        - Handle errors appropriately
     
-    2. Command Formatting:
-       Always format commands as follows:
+    2. Command Formatting and Results:
+       First show the installation command:
        ```bash {{run}}
        command here
        ```
+       
+       Then show the result:
+       "Installation result: <actual output from command>"
     
     IMPORTANT:
     - Handle OS-specific requirements
+    - Show both command and result
     - Verify installation success
     - Format commands with {{run}} tags
     - Never use numbered action IDs
@@ -317,14 +325,22 @@ connection_tester = Agent(
        - Verify configuration
        - Report connection status
     
-    2. Command Formatting:
-       Always format commands as follows:
+    2. Command Formatting and Results:
+       First check configuration:
+       ```bash {{run}}
+       aws configure list
+       ```
+       Show result: "Configuration status: <actual output>"
+       
+       Then test connection:
        ```bash {{run}}
        aws s3 ls
        ```
+       Show result: "Connection test result: <actual output>"
     
     IMPORTANT:
     - Test basic connectivity first
+    - Show both commands and their outputs
     - Check configuration status
     - Format commands with {{run}} tags
     - Never use numbered action IDs
@@ -343,14 +359,18 @@ configuration_manager = Agent(
        - Set up SSO if needed
        - Manage config files
     
-    2. Command Formatting:
-       Always format commands as follows:
+    2. Command Formatting and Results:
+       First show the configuration check:
        ```bash {{run}}
        aws configure list
        ```
+       Show result: "Current configuration: <actual output>"
+       
+       If changes needed, show configuration commands and their results
     
     IMPORTANT:
     - Handle both standard and SSO config
+    - Show both commands and their outputs
     - Secure credential storage
     - Format commands with {{run}} tags
     - Never use numbered action IDs
@@ -376,14 +396,22 @@ aws_cli_agent = Agent(
        - Proceed to configuration tasks
        - End with connection testing
     
-    3. Command Formatting:
-       Always format commands as follows:
+    3. Results Presentation:
+       - Show each command executed
+       - Display command outputs
+       - Provide clear summaries
+       - Include error messages if any
+    
+    4. Command Formatting:
+       Show commands and their results:
        ```bash {{run}}
        command here
        ```
+       "Result: <actual output>"
     
     IMPORTANT:
     - Coordinate agent transitions
+    - Show all command outputs
     - Maintain workflow state
     - Format commands with {{run}} tags
     - Never use numbered action IDs
@@ -415,7 +443,8 @@ def run_workflow(request):
     # First, check installation
     installation_check = Runner.run_sync(
         installation_checker,
-        "Check if AWS CLI is installed and get version information."
+        """Check if AWS CLI is installed and get version information.
+        Show the command used and its output."""
     )
     logger.info("Installation Check Response: %s", installation_check.final_output)
     
@@ -423,14 +452,16 @@ def run_workflow(request):
     if "not installed" in installation_check.final_output.lower():
         installation_result = Runner.run_sync(
             installation_manager,
-            "Install AWS CLI for the current operating system."
+            """Install AWS CLI for the current operating system.
+            Show the installation command and its result."""
         )
         logger.info("Installation Result: %s", installation_result.final_output)
     
     # Test connection and configuration
     connection_test = Runner.run_sync(
         connection_tester,
-        "Test AWS connection and verify configuration."
+        """Test AWS connection and verify configuration.
+        Show all commands executed and their outputs."""
     )
     logger.info("Connection Test Response: %s", connection_test.final_output)
     
@@ -444,7 +475,8 @@ def run_workflow(request):
         - Connection Status: {connection_test.final_output}
         
         IMPORTANT:
-        - Summarize the results
+        - Summarize all results
+        - Include all command outputs
         - Format any commands with {{run}} tags
         - Never use numbered action IDs
         - Always use "run" as the action name"""
