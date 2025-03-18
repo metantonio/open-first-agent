@@ -217,6 +217,11 @@ pip install -r requirements.txt
 export OPENAI_API_KEY='your-api-key'
 ```
 
+4. Disable agents tracing to OpenAI (optional)
+```bash
+OPENAI_AGENTS_DISABLE_TRACING=1
+```
+
 ## Running the Agents
 
 ### Running the Cigar Price Comparison Agent

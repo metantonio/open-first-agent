@@ -294,6 +294,42 @@ def update_tfvars_file(variables):
             'message': f'Error updating tfvars file: {str(e)}'
         }
 
+@function_tool
+def run_terminal_cmd(command, is_background=False, require_user_approval=True):
+    """Execute a terminal command and return the output.
+    
+    Args:
+        command (str): The command to execute
+        is_background (bool): Whether to run the command in the background
+        require_user_approval (bool): Whether to require user approval before execution
+    """
+    try:
+        if is_background:
+            # For background processes, use nohup and redirect output
+            full_command = f"nohup {command} > /dev/null 2>&1 &"
+        else:
+            full_command = command
+            
+        result = subprocess.run(full_command, 
+                              shell=True,
+                              capture_output=True, 
+                              text=True,
+                              cwd=OUTPUT_DIR)
+                              
+        return {
+            'success': result.returncode == 0,
+            'output': result.stdout if result.returncode == 0 else result.stderr,
+            'command': command,
+            'is_background': is_background
+        }
+    except Exception as e:
+        return {
+            'success': False,
+            'error': f"Error running terminal command: {str(e)}",
+            'command': command,
+            'is_background': is_background
+        }
+
 # 2. Create Editor Agent for Terraform
 
 terraform_editor = Agent(
@@ -327,20 +363,19 @@ terraform_editor = Agent(
     2. Start with provider and backend configurations
     3. Include all necessary resource definitions
     4. Add required variable declarations
-    5. Validate configurations with terraform check
     
     IMPORTANT:
     - All files must be created in the output directory
     - Coordinate with tfvars_manager for variable values
     - Ensure all dependencies are properly declared
-    - Follow security best practices""",
+    - Follow security best practices
+    - DO NOT execute terraform commands (init/plan/apply)
+    - Only create and manage .tf files""",
     model=model,
     tools=[
         create_terraform_file,
         read_terraform_file,
-        delete_terraform_file,
-        run_terraform_check,
-        run_terraform_init
+        delete_terraform_file
     ]
 )
 
@@ -592,7 +627,8 @@ terraform_checker = Agent(
     model=model,
     tools=[
         read_terraform_file,
-        run_terraform_check
+        run_terraform_check,
+        run_terminal_cmd
     ]
 )
 
@@ -647,7 +683,6 @@ orchestrator_agent = Agent(
        - FIRST check and setup terraform.tfvars using tfvars_manager
        - Ensure output directory exists and is properly configured
        - Validate environment readiness
-       - Check for required dependencies
     
     2. File Creation and Management:
        - Use terraform_editor to create initial .tf files
@@ -661,49 +696,34 @@ orchestrator_agent = Agent(
        - Validate variable values
        - Maintain variable consistency
 
-    4. Configuration Validation:
-       - Use Terraform Checker for configuration validation
-       - Run terraform check before operations
-       - Validate syntax and structure
-       - Verify resource dependencies
+    4. Configuration Review:
+       - Review file structure and organization
+       - Check for basic syntax issues
+       - Verify resource declarations
+       - Ensure all required files are present
 
-    5. Terraform Operations:
-       - Execute terraform init when needed
-       - Run terraform plan to preview changes
-       - Execute terraform apply when confirmed
-       - Handle state management properly
-
-    6. Analysis and Recommendations:
-       - Use Analysis Coordinator for reviews
-       - Coordinate with specialized analyzers
-       - Provide clear recommendations
-       - Prioritize improvements
-
-    7. Research and Documentation:
-       - Use Terraform Researcher for best practices
-       - Find relevant documentation
-       - Validate configurations
-       - Incorporate community recommendations
+    5. Documentation and Guidance:
+       - Provide clear documentation of created files
+       - Explain next steps for the user
+       - List available terraform commands
+       - Guide user on manual execution
 
     IMPORTANT: 
     - ALWAYS start by checking/setting up terraform.tfvars
     - Ensure all files are created in output directory
-    - Validate configurations before operations
     - Follow security best practices
     - Provide clear error messages
+    - DO NOT automatically execute terraform commands
     - For new configurations, follow this order:
       1. Setup tfvars
       2. Create main.tf
       3. Create variables.tf
       4. Create outputs.tf (if needed)
-      5. Initialize and validate""",
+      5. Provide guidance for manual execution""",
     tools=[
         create_terraform_file,
         delete_terraform_file,
         read_terraform_file,
-        run_terraform_check,
-        run_terraform_plan,
-        run_terraform_apply,
         analyze_terraform_file,
         manage_tfvars_file,
         update_tfvars_file
@@ -744,26 +764,22 @@ def run_workflow(request):
            - Ensure all files are in output directory
            - Follow proper file structure
         
-        3. Validate configurations
-           - Run terraform check
-           - Verify syntax and structure
-           - Check for errors
+        3. Review configuration
+           - Check file structure
+           - Verify all required files exist
+           - Review for basic syntax issues
         
-        4. Execute Terraform operations if needed
-           - Run terraform init for new configurations
-           - Run terraform plan if changes made
-           - Run terraform apply if requested
-        
-        5. Provide analysis and recommendations
-           - Use specialized analyzers if needed
-           - Give clear feedback on actions taken
-           - Suggest improvements if applicable
+        4. Provide guidance
+           - List created/modified files
+           - Explain next steps
+           - Show available terraform commands
+           - Guide on manual execution
 
         IMPORTANT: 
         - ALWAYS start with tfvars setup
         - Create all files in output directory
-        - Validate before operations
-        - Provide clear error messages
+        - DO NOT execute terraform commands
+        - Provide clear documentation
         - Follow security best practices
 
         Handle all steps appropriately and provide detailed feedback.
