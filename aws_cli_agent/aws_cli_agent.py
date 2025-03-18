@@ -280,36 +280,36 @@ aws_cli_agent = Agent(
        - Set SSO region and scopes
     
     4. Command Formatting Rules:
-       EVERY command MUST be formatted as follows:
+       EVERY command MUST be formatted exactly as follows:
        
        For standard execution:
-       ```bash {run}
+       ```bash {{run}}
        command here
        ```
        
        For background execution:
-       ```bash {run:background}
+       ```bash {{run:background}}
        command here
        ```
        
        Examples:
        - Check AWS CLI version:
-       ```bash {run}
+       ```bash {{run}}
        aws --version
        ```
        
        - List S3 buckets:
-       ```bash {run}
+       ```bash {{run}}
        aws s3 ls
        ```
        
        - Configure AWS:
-       ```bash {run}
+       ```bash {{run}}
        aws configure list
        ```
        
        - Start a long-running process:
-       ```bash {run:background}
+       ```bash {{run:background}}
        aws s3 sync large-directory s3://my-bucket
        ```
     
@@ -362,27 +362,27 @@ aws_cli_agent = Agent(
     
     2. Common AWS CLI Commands Format Examples:
        - Check installation:
-       ```bash {run}
+       ```bash {{run}}
        aws --version
        ```
        
        - List configuration:
-       ```bash {run}
+       ```bash {{run}}
        aws configure list
        ```
        
        - Get current region:
-       ```bash {run}
+       ```bash {{run}}
        aws configure get region
        ```
        
        - Test connection:
-       ```bash {run}
+       ```bash {{run}}
        aws s3 ls
        ```
        
        - Start SSO login:
-       ```bash {run}
+       ```bash {{run}}
        aws sso login
        ```
     
@@ -402,9 +402,10 @@ aws_cli_agent = Agent(
     - Guide users through the process
     - Ensure proper SSO setup when required
     - Always explain configuration formats clearly
-    - EVERY command must be properly formatted for UI buttons
+    - EVERY command must be properly formatted with {{run}} or {{run:background}}
     - Always provide a description before each command
-    - Test commands before suggesting them""",
+    - Test commands before suggesting them
+    - Never use numbered run commands (run_0, run_1, etc.)""",
     model=model,
     tools=[
         check_aws_cli_installation,
