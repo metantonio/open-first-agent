@@ -168,7 +168,8 @@ async def main(message: cl.Message):
                 name=f"run_{i}",
                 value=cmd['command'],
                 description=f"Execute in {cmd['dir']} directory",
-                args={
+                payload={
+                    "command": cmd['command'],
                     "working_dir": get_working_directory(cmd['command'])
                 }
             )
@@ -206,7 +207,8 @@ async def main(message: cl.Message):
                     name=cmd_block['action_id'],
                     value=cmd_block['code'],
                     description=f"Execute command in {os.path.basename(cmd_block['working_dir'])}",
-                    args={
+                    payload={
+                        "command": cmd_block['code'],
                         "is_background": cmd_block['is_background'],
                         "working_dir": cmd_block['working_dir']
                     }
@@ -231,8 +233,9 @@ async def main(message: cl.Message):
 async def on_action(action: cl.Action):
     """Handle execution of code blocks when action buttons are clicked."""
     command = action.value
-    is_background = action.args.get("is_background", False)
-    working_dir = action.args.get("working_dir")
+    payload = action.payload
+    is_background = payload.get("is_background", False)
+    working_dir = payload.get("working_dir")
     
     # Send execution message
     await cl.Message(

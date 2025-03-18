@@ -370,12 +370,23 @@ terraform_editor = Agent(
     - Ensure all dependencies are properly declared
     - Follow security best practices
     - DO NOT execute terraform commands (init/plan/apply)
-    - Only create and manage .tf files""",
+    - Only create and manage .tf files
+    
+    When showing commands:
+    - Format executable commands as ```bash {run}
+    command here
+    ```
+    - Format background commands as ```bash {run:background}
+    command here
+    ```
+    - Use ```bash for command examples
+    - Provide clear description before each command""",
     model=model,
     tools=[
         create_terraform_file,
         read_terraform_file,
-        delete_terraform_file
+        delete_terraform_file,
+        run_terminal_cmd
     ]
 )
 
@@ -627,10 +638,13 @@ terraform_checker = Agent(
 
     When showing commands:
     - Format executable commands as ```bash {run}
+    command here
+    ```
     - Format background commands as ```bash {run:background}
+    command here
+    ```
     - Use ```bash for command examples
-    - Provide clear description before each command
-    """,
+    - Provide clear description before each command""",
     model=model,
     tools=[
         read_terraform_file,
@@ -681,6 +695,16 @@ tfvars_manager = Agent(
        - If file exists: include current configuration
        - If new file: include what variables need to be set
        - Format response for the orchestrator to proceed
+    
+    When showing commands:
+    - Format executable commands as ```bash {run}
+    command here
+    ```
+    - Format background commands as ```bash {run:background}
+    command here
+    ```
+    - Use ```bash for command examples
+    - Provide clear description before each command
     
     IMPORTANT:
     - DO NOT overwrite existing terraform.tfvars during initial creation
@@ -733,15 +757,34 @@ orchestrator_agent = Agent(
        - Verify resource declarations
        - Ensure all required files are present
     
-    6. Documentation and Guidance:
+    6. Command Formatting:
+       When showing commands to the user:
+       - Format executable commands as:
+         ```bash {run}
+         command here
+         ```
+       - Format background commands as:
+         ```bash {run:background}
+         command here
+         ```
+       - Use ```bash for command examples
+       - Always provide clear descriptions before each command
+       - Example terraform commands:
+         ```bash {run}
+         terraform init
+         ```
+         ```bash {run}
+         terraform plan
+         ```
+         ```bash {run}
+         terraform apply
+         ```
+    
+    7. Documentation and Guidance:
        - Provide clear documentation of created files
-       - Format commands using ```bash {run} for execution
-       - List available terraform commands with execution buttons
-       - Guide user on manual execution
-       - Use proper command block formatting:
-         * ```bash {run} for executable commands
-         * ```bash {run:background} for background tasks
-         * ```bash for command examples/documentation
+       - List available terraform commands with proper formatting
+       - Guide user on manual execution steps
+       - Include command descriptions and expected outcomes
     
     IMPORTANT: 
     - ALWAYS start with tfvars_manager for initial setup
@@ -754,7 +797,7 @@ orchestrator_agent = Agent(
       2. Wait for tfvars_manager completion
       3. Use terraform_editor for .tf files
       4. Review configuration
-      5. Provide guidance""",
+      5. Provide guidance with properly formatted commands""",
     tools=[
         create_terraform_file,
         delete_terraform_file,
