@@ -2,6 +2,7 @@ from agents import Agent, Runner, AsyncOpenAI, OpenAIChatCompletionsModel, funct
 from duck_browser_agent.dds_agent import run_workflow as run_browser_workflow
 from terraform_agent.terraform_agent import run_workflow as run_terraform_workflow
 from dev_env_agent.dev_env_agent import run_workflow as run_dev_env_workflow
+from aws_cli_agent.aws_cli_agent import run_workflow as run_aws_cli_workflow
 import logging
 from config import get_model_config
 
@@ -23,7 +24,8 @@ class UniversalOrchestrator:
                - Browser Agent: For web searches and content analysis
                - Terraform Agent: For infrastructure as code management
                - Development Environment Agent: For setting up development environments
-               - [Future agents can be added here]
+               - AWS CLI Agent: For AWS CLI installation, configuration, and management
+               
 
             3. Response Coordination:
                - Collect and format responses from agents
@@ -54,8 +56,9 @@ class UniversalOrchestrator:
             1. Browser Agent - For web searches, news gathering, content analysis
             2. Terraform Agent - For infrastructure as code, terraform file management, terraform operations
             3. Development Environment Agent - For setting up development environments, IDE configuration, Python/Conda setup
+            4. AWS CLI Agent - For AWS CLI installation, configuration, credentials management, and AWS connectivity testing
             
-            Respond with either 'browser', 'terraform', or 'dev_env' based on the request content.
+            Respond with either 'browser', 'terraform', 'dev_env', or 'aws_cli' based on the request content.
             """
         )
         return agent_response.final_output.strip().lower()
@@ -71,6 +74,8 @@ class UniversalOrchestrator:
                 return run_terraform_workflow(request)
             elif agent_type == "dev_env":
                 return run_dev_env_workflow(request)
+            elif agent_type == "aws_cli":
+                return run_aws_cli_workflow(request)
             else:
                 return f"Error: Unknown agent type '{agent_type}'"
                 
