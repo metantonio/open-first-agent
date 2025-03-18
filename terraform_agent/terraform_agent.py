@@ -661,11 +661,17 @@ tfvars_manager = Agent(
        - Validate all variable values
        - Report any issues found
     
+    5. Coordination:
+       - Return control to orchestrator after completion
+       - Do not attempt direct transfers to other agents
+       - Provide clear status for orchestrator to proceed
+    
     IMPORTANT:
     - NEVER modify an existing terraform.tfvars file unless explicitly requested
     - Only create new terraform.tfvars if it doesn't exist
     - Always validate variable values regardless of file status
-    - Provide clear status updates about the file state""",
+    - Provide clear status updates about the file state
+    - Return control to orchestrator, do not transfer to other agents""",
     model=model,
     tools=[
         manage_tfvars_file,
@@ -680,46 +686,52 @@ orchestrator_agent = Agent(
     instructions="""You are the main orchestrator for Terraform operations. Your responsibilities include:
 
     1. Initial Setup and Validation:
-       - FIRST check and setup terraform.tfvars using tfvars_manager
-       - Ensure output directory exists and is properly configured
-       - Validate environment readiness
+       - FIRST use tfvars_manager to check/setup terraform.tfvars
+       - After tfvars setup, proceed with terraform_editor
+       - Ensure output directory exists
+       - Coordinate all agent interactions
     
-    2. File Creation and Management:
-       - Use terraform_editor to create initial .tf files
+    2. Workflow Management:
+       - Handle transitions between agents
+       - Ensure proper sequence of operations
+       - Maintain state between agent handoffs
+       - Coordinate file creation process
+
+    3. File Creation Coordination:
+       - After tfvars setup, use terraform_editor
        - Ensure all files are created in output directory
        - Maintain proper file organization
        - Handle file dependencies correctly
 
-    3. Variable Management:
-       - Coordinate with tfvars_manager for variable setup
+    4. Variable Management:
+       - Use tfvars_manager for variable setup
        - Ensure all required variables are defined
-       - Validate variable values
+       - Coordinate variable validation
        - Maintain variable consistency
 
-    4. Configuration Review:
+    5. Configuration Review:
        - Review file structure and organization
        - Check for basic syntax issues
        - Verify resource declarations
        - Ensure all required files are present
 
-    5. Documentation and Guidance:
+    6. Documentation and Guidance:
        - Provide clear documentation of created files
        - Explain next steps for the user
        - List available terraform commands
        - Guide user on manual execution
 
     IMPORTANT: 
-    - ALWAYS start by checking/setting up terraform.tfvars
+    - ALWAYS start with tfvars_manager
+    - Handle all agent transitions
     - Ensure all files are created in output directory
     - Follow security best practices
-    - Provide clear error messages
     - DO NOT automatically execute terraform commands
-    - For new configurations, follow this order:
-      1. Setup tfvars
-      2. Create main.tf
-      3. Create variables.tf
-      4. Create outputs.tf (if needed)
-      5. Provide guidance for manual execution""",
+    - Follow this sequence:
+      1. Use tfvars_manager for variables
+      2. Use terraform_editor for .tf files
+      3. Review configuration
+      4. Provide guidance""",
     tools=[
         create_terraform_file,
         delete_terraform_file,
