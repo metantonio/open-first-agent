@@ -41,7 +41,6 @@ variable "ec2user" {
 
 provider "aws" {
   region = var.region
-  #shared_credentials_file = "~/.aws/credentials"
   profile = var.profile
 }
 
@@ -92,32 +91,6 @@ data "aws_security_group" "default" {
   }
 }
 
-# Create a security group for EC2 instance with SSH access from your IP
-/* resource "aws_security_group" "ec2_sg" {
-  name        = "ec2-sg"
-  description = "Security group for EC2 instance by ${var.name}"
-  vpc_id      = data.aws_vpc.default.id
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["${var.ip}/32"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "security_group_${var.name}"
-    tm   = var.name
-  }
-} */
-
 resource "aws_security_group_rule" "ssh_rule" {
   type              = "ingress"
   from_port         = "22"
@@ -127,58 +100,16 @@ resource "aws_security_group_rule" "ssh_rule" {
   security_group_id = data.aws_security_group.default.id
 }
 
-# Creaate VPC endpoints for S3 y ECR
-/* resource "aws_vpc_endpoint" "s3" {
-  vpc_id       = data.aws_vpc.default.id
-  service_name = "com.amazonaws.${var.region}.s3"
-
-  tags = {
-    Name = "S3 VPC Endpoint"
-    tm   = var.name
-  }
-}
-
-resource "aws_vpc_endpoint" "ecr" {
-  vpc_id       = data.aws_vpc.default.id
-  service_name = "com.amazonaws.${var.region}.ecr.dkr"
-
-  tags = {
-    Name = "ECR VPC Endpoint"
-    tm   = var.name
-  }
-} */
-
-# Obtain el S3 bucket is exist
-/* data "aws_s3_bucket" "existing_bucket" {
-  bucket = "tm-terraform-bucket"
-} */
-
 # Create S3 bucket
 resource "aws_s3_bucket" "my_bucket" {
   bucket = "tm-terraform-bucket-${var.nameonly}"
   acl    = "private"
-
-  /*  lifecycle_rule {
-    id      = "keep_versions_forever"
-    enabled = true
-    expiration {
-      days = 0
-    }
-  }
-  lifecycle {
-    prevent_destroy = true
-  } */
 
   tags = {
     Name = "S3Bucket${var.name}"
     tm   = var.name
   }
 }
-
-# Obtain ECR if exists
-/* data "aws_ecr_repository" "existing_repository" {
-  name = "tm-terraform-repo"
-} */
 
 # Create ECR repository
 resource "aws_ecr_repository" "my_repository" {
@@ -189,81 +120,6 @@ resource "aws_ecr_repository" "my_repository" {
   }
 }
 
-# Obtain IAM role if exists
-/* data "aws_iam_role" "existing_role" {
-  name = "ec2-instance-role"
-} */
-
-# Create IAM role for EC2 instance with policies to access S3 and ECR
-/* resource "aws_iam_role" "ec2_instance_role" {
-  name = "ec2-instance-role"
-
-  assume_role_policy = jsonencode({
-    Statement = [
-      {
-        Effect = "Allow",
-        Action = ["sts:AssumeRole"],
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-      }
-    ],
-    Version = "2012-10-17"
-  })
-
-  tags = {
-    Name = "EC2 Instance Role"
-    tm   = var.name
-  }
-} */
-
-# IAM policies for restricted access to S3 and ECR
-/* resource "aws_iam_policy" "s3_ecr_access" {
-  name = "s3-ecr-access"
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect   = "Allow",
-        Action   = ["s3:Get*", "s3:List*", "s3:PutObject", "s3:DeleteObject"],
-        Resource = ["${aws_s3_bucket.my_bucket.arn}", "${aws_s3_bucket.my_bucket.arn}/*"]
-      },
-      {
-        Effect   = "Allow",
-        Action   = ["ecr:GetAuthorizationToken", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"],
-        Resource = "*"
-      },
-      {
-        Effect   = "Allow",
-        Action   = ["ecr:GetRepositoryPolicy", "ecr:ListImages", "ecr:DescribeRepositories"],
-        Resource = ["${aws_ecr_repository.my_repository.arn}"]
-      }
-    ]
-  })
-
-  tags = {
-    Name = "S3 and ERC, AIM  Policies"
-    tm   = var.name
-  }
-} */
-
-# Attach policies
-/* resource "aws_iam_role_policy_attachment" "attach_s3_ecr_policy" {
-  role       = aws_iam_role.ec2_instance_role.name
-  policy_arn = aws_iam_policy.s3_ecr_access.arn
-} */
-
-# Create instance's profile with IAM Role
-/* resource "aws_iam_instance_profile" "ec2_profile" {
-  name = "ec2-instance-profile"
-  role = aws_iam_role.ec2_instance_role.name
-
-  tags = {
-    Name = "EC2 Instance Profile"
-    tm   = var.name
-  }
-} */
-
 output "instance_public_ip" {
   value = aws_instance.ec2_resource.public_ip
 
@@ -271,23 +127,17 @@ output "instance_public_ip" {
 
 # Create EC2 instance with custom security group and IAM role
 resource "aws_instance" "ec2_resource" {
-  ami                    = data.aws_ami.specific_ami.id # Updated AMI for newer instances
+  ami                    = data.aws_ami.specific_ami.id 
   instance_type          = "t3.micro"
   key_name               = aws_key_pair.generated_key.key_name
   subnet_id              = data.aws_subnet.default.id
-  vpc_security_group_ids = [data.aws_security_group.default.id /* , aws_security_group.ec2_sg.id */] # default was related to default security group: data.aws_security_group.default.id
+  vpc_security_group_ids = [data.aws_security_group.default.id]
 
   root_block_device {
     volume_size           = 10
     volume_type           = "gp3"
     delete_on_termination = true
   }
-
-  /* iam_instance_profile {
-    name = aws_iam_role.ec2_instance_role.name
-  } */
-
-  #iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
 
   tags = {
     Name = "ec2_terraform_full_test_${var.nameonly}"
@@ -313,7 +163,7 @@ resource "aws_instance" "ec2_resource" {
 
   provisioner "file" {
     source      = "./cleanup.sh"
-    destination = "/tmp/cleanup.sh" # Copiar a /tmp primero
+    destination = "/tmp/cleanup.sh"
 
     connection {
       type        = "ssh"
@@ -339,9 +189,6 @@ resource "aws_instance" "ec2_resource" {
 
   depends_on = [
     data.aws_vpc.default,
-    data.aws_subnet.default /* ,
-    aws_iam_instance_profile.ec2_profile */
+    data.aws_subnet.default
   ]
 }
-
-# Bootstrap script contents (cleanup.sh)
