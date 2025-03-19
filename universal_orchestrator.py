@@ -3,6 +3,7 @@ from duck_browser_agent.dds_agent import run_workflow as run_browser_workflow
 from terraform_agent.terraform_agent import run_workflow as run_terraform_workflow
 from dev_env_agent.dev_env_agent import run_workflow as run_dev_env_workflow
 from aws_cli_agent.aws_cli_agent import run_workflow as run_aws_cli_workflow
+from file_system_agent.file_system_agent import run_workflow as run_file_env_workflow
 import logging
 from config import get_model_config
 
@@ -57,8 +58,9 @@ class UniversalOrchestrator:
             2. Terraform Agent - For infrastructure as code, terraform file management, terraform operations
             3. Development Environment Agent - For setting up development environments, IDE configuration, Python/Conda setup
             4. AWS CLI Agent - For AWS CLI installation, configuration, credentials management, and AWS connectivity testing
+            5. File Management Agent - For file management, file search, file creation, file deletion, file editing, file copying, file moving.
             
-            Respond with either 'browser', 'terraform', 'dev_env', or 'aws_cli' based on the request content.
+            Respond with either 'browser', 'terraform', 'dev_env', 'file_env' or 'aws_cli' based on the request content.
             """
         )
         return agent_response.final_output.strip().lower()
@@ -76,6 +78,8 @@ class UniversalOrchestrator:
                 return run_dev_env_workflow(request)
             elif agent_type == "aws_cli":
                 return run_aws_cli_workflow(request)
+            elif agent_type == "file_env":
+                return run_file_env_workflow(request)
             else:
                 return f"Error: Unknown agent type '{agent_type}'"
                 
