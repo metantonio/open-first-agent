@@ -92,3 +92,6 @@ Thumbs.db
 *.tfstate.gz.part
 .terraform
 .terraform/
+
+# Specific files
+cursor_reset.py
