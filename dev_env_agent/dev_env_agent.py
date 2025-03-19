@@ -173,13 +173,27 @@ ide_setup_agent = Agent(
        - Remote development extensions
        - Git integration
     
-    3. Set up user preferences:
+    3. Command Execution Format:
+       For each command:
+       1. Show the command to be executed:
+          ```bash {{run}}
+          command here
+          ```
+          
+       2. Show the terminal output:
+          ```terminal
+          <actual terminal output>
+          ```
+          
+       3. Provide analysis of the result
+    
+    4. Set up user preferences:
        - Editor settings
        - Theme and appearance
        - Keyboard shortcuts
        - Debugging configurations
     
-    Focus on creating a smooth development experience.""",
+    Focus on creating a smooth development experience and always show command outputs.""",
     model=model,
     tools=[setup_vscode_remote, configure_vscode_extensions]
 )
@@ -193,17 +207,31 @@ env_setup_agent = Agent(
        - Install required packages
        - Configure environment variables
     
-    2. Configure Jupyter integration:
+    2. Command Execution Format:
+       For each command:
+       1. Show the command to be executed:
+          ```bash {{run}}
+          conda create -n env_name python=version
+          ```
+          
+       2. Show the terminal output:
+          ```terminal
+          <actual terminal output>
+          ```
+          
+       3. Provide analysis of the result
+    
+    3. Configure Jupyter integration:
        - Install Jupyter kernels
        - Set up notebook configurations
        - Configure extensions
     
-    3. Manage dependencies:
+    4. Manage dependencies:
        - Handle package conflicts
        - Update requirements files
        - Manage virtual environments
     
-    Focus on creating stable and reproducible environments.""",
+    Focus on creating stable and reproducible environments and always show command outputs.""",
     model=model,
     tools=[setup_conda_env, setup_jupyter_kernel]
 )
@@ -421,25 +449,33 @@ jupyter_runner_agent = Agent(
        - Manage notebook directories
        - Tell the user that the server is running and provide the URL http://localhost:8888
     
-    2. Create and organize notebooks:
+    2. Command Execution Format:
+       For each command:
+       1. Show the command to be executed:
+          ```bash {{run}}
+          jupyter notebook command
+          ```
+          
+       2. Show the terminal output:
+          ```terminal
+          <actual terminal output>
+          ```
+          
+       3. Provide analysis of the result
+    
+    3. Create and organize notebooks:
        - Create new notebooks
        - Set up basic templates
        - Configure kernels
        - Organize notebook structure
     
-    3. Handle notebook execution:
+    4. Handle notebook execution:
        - Start notebooks in correct environments
        - Monitor notebook status
        - Manage running instances
        - Provide access URLs
     
-    4. Manage notebook workflow:
-       - Create proper directory structure
-       - Set up working directories
-       - Handle notebook dependencies
-       - Ensure proper kernel selection
-    
-    Focus on providing a smooth notebook execution experience.""",
+    Focus on providing a smooth notebook execution experience and always show command outputs.""",
     model=model,
     tools=[start_jupyter_server, create_notebook, list_running_notebooks]
 )
@@ -593,11 +629,19 @@ help_agent = Agent(
        - Provide specific examples
        - Suggest common use cases
     
-    2. Provide usage examples:
-       - Show example commands
-       - Demonstrate typical workflows
-       - Explain expected outcomes
-       - Include real-world scenarios
+    2. Command Examples Format:
+       When showing example commands:
+       1. Show the command format:
+          ```bash {{run}}
+          example command
+          ```
+          
+       2. Explain expected terminal output:
+          ```terminal
+          expected output format
+          ```
+          
+       3. Explain what the command does
     
     3. Share best practices:
        - Use get_best_practices to provide recommendations
@@ -605,13 +649,7 @@ help_agent = Agent(
        - Guide on tool selection
        - Advise on common pitfalls
     
-    4. Answer capability questions:
-       - Clarify agent limitations
-       - Explain tool interactions
-       - Guide users to appropriate agents
-       - Provide context-specific advice
-    
-    Focus on making the system easy to understand and use. Always provide specific, actionable information based on the tools' output.""",
+    Focus on making the system easy to understand and use.""",
     model=model,
     tools=[get_agent_capabilities, get_best_practices]
 )
@@ -667,11 +705,19 @@ notebook_monitor_agent = Agent(
        - Show notebook directories
        - Indicate server status
     
-    2. Provide monitoring information:
-       - Check if servers are responsive
-       - Show which environments are being used
-       - Display notebook locations
-       - Monitor server health
+    2. Command Execution Format:
+       For each command:
+       1. Show the command to be executed:
+          ```bash {{run}}
+          jupyter notebook list
+          ```
+          
+       2. Show the terminal output:
+          ```terminal
+          <actual terminal output>
+          ```
+          
+       3. Provide analysis of the result
     
     3. Help with notebook management:
        - Guide users to running notebooks
@@ -679,7 +725,7 @@ notebook_monitor_agent = Agent(
        - Assist with server cleanup
        - Provide access information
     
-    Focus on providing clear, accurate information about running notebook instances. Use the get_notebook_details tool to get the details of the running notebooks.""",
+    Focus on providing clear, accurate information about running notebook instances.""",
     model=model,
     tools=[get_notebook_details]
 )
@@ -691,32 +737,47 @@ orchestrator_agent = Agent(
     instructions="""You are the main orchestrator for setting up development environments. Your responsibilities include:
     
     1. Coordinate environment setup:
+       - Determine if a development environment is needed
        - Determine required components
        - Sequence setup steps
        - Validate configurations
     
-    2. Manage tool integration:
+    2. Command Execution Format:
+       For each command:
+       1. Show the command to be executed:
+          ```bash {{run}}
+          command here
+          ```
+          
+       2. Show the terminal output:
+          ```terminal
+          <actual terminal output>
+          ```
+          
+       3. Provide analysis of the result
+    
+    3. Manage tool integration:
        - IDE setup
        - Environment management
        - Jupyter configuration
        - Notebook execution
     
-    3. Handle user preferences:
+    4. Handle user preferences:
        - Custom configurations
        - Tool preferences
        - Workflow optimization
     
-    4. Provide help and guidance:
+    5. Provide help and guidance:
        - Explain available capabilities
        - Show relevant examples
        - Guide users to appropriate tools
     
-    5. Monitor notebook instances:
+    6. Monitor notebook instances:
        - Track running notebooks
        - Provide server status
        - Help manage notebook sessions
     
-    Ensure a smooth and consistent setup process.""",
+    Ensure a smooth and consistent setup process and always show command outputs.""",
     model=model,
     model_settings=ModelSettings(temperature=0.1),
     handoffs=[ide_setup_agent, env_setup_agent, jupyter_runner_agent, help_agent, notebook_monitor_agent]
