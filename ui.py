@@ -100,28 +100,33 @@ def process_code_blocks(content: str) -> tuple[str, list[dict]]:
     """Process content to find code blocks with run tags and create Chainlit elements."""
     command_blocks = []
     
-    # Pattern to match code blocks with {run} or {run:background}
-    pattern = r"```bash\s*{(run(?::background)?)}(.*?)```"
+    # Pattern to match code blocks with {run}, {run:background}, or {run_N} tags
+    pattern = r"```bash\s*{(run(?::\w+)?(?:_\d+)?)}(.*?)```"
     
-    def create_command_block(code: str, is_background: bool) -> dict:
+    def create_command_block(code: str, tag: str) -> dict:
         """Create a command block with its associated elements."""
         code = code.strip()
-        action_id = f"run_{len(command_blocks)}"
+        
+        # Clean up the command - remove any transfer_to_*_agent wrapper
+        code = re.sub(r'transfer_to_\w+_agent\((.*?)\)', r'\1', code)
+        # Remove any JSON-like wrapper and extract the actual command
+        code = re.sub(r'^\s*{\s*"[^"]+"\s*:\s*"([^"]+)"\s*}\s*$', r'\1', code)
+        
+        is_background = ":background" in tag
         working_dir = get_working_directory(code)
         
         return {
             'code': code,
             'is_background': is_background,
             'working_dir': working_dir,
-            'action_id': action_id
+            'action_id': "run"  # Always use "run" as the action_id
         }
     
     def replacement(match):
         tag, code = match.groups()
-        is_background = tag == "run:background"
         
         # Create command block
-        command_block = create_command_block(code, is_background)
+        command_block = create_command_block(code, tag)
         command_blocks.append(command_block)
         
         # Return empty string as we'll handle the display separately
@@ -226,10 +231,18 @@ async def main(message: cl.Message):
 async def on_action(action: cl.Action):
     """Handle execution of code blocks when action buttons are clicked."""
     try:
-        command = action.value
-        payload = action.payload
+        # Get command from either value or payload
+        command = action.value if hasattr(action, 'value') else action.payload.get("command")
+        if not command:
+            raise ValueError("No command found in action")
+            
+        payload = action.payload or {}
         is_background = payload.get("is_background", False)
         working_dir = payload.get("working_dir")
+        
+        # Clean up the command if needed
+        command = re.sub(r'transfer_to_\w+_agent\((.*?)\)', r'\1', command)
+        command = re.sub(r'^\s*{\s*"[^"]+"\s*:\s*"([^"]+)"\s*}\s*$', r'\1', command)
         
         # Send execution message
         await cl.Message(
