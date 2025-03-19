@@ -3,7 +3,7 @@ from agents import AsyncOpenAI, OpenAIChatCompletionsModel
 
 # External LLM provider by default with ollama (if you are going to use Ollama, LLMStudio)
 external_provider = {
-    "model": "qwen2.5-coder:14b",
+    "model": "qwen2.5-coder:7b",
     "client": AsyncOpenAI(base_url="http://localhost:11434/v1")
 }
 
