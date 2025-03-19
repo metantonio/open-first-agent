@@ -254,6 +254,17 @@ The agents work together to:
 - Research and apply best practices
 - Ensure security, compliance, and cost optimization
 
+## Pre-requisits
+
+If you are going to use Ollama, i recommend to download:
+`qwen2.5-coder:7b` and `qwen2.5-coder:14b`
+
+```bash
+ollama pull qwen2.5-coder:7b
+ollama pull qwen2.5-coder:14b
+```
+
+
 ## Installation
 
 1. Clone the repository and create an environment:
