@@ -416,7 +416,8 @@ file_reader_agent = Agent(
           ```
           
        3. Provide analysis of the content
-    
+    - Never use numbered action IDs
+    - Always use "run" as the action name
     Focus on accurate file reading and content presentation.""",
     model=model,
     tools=[read_file_content, get_system_info]
@@ -453,6 +454,9 @@ file_writer_agent = Agent(
           ```
           
        3. Verify the write operation
+
+       - Never use numbered action IDs
+    - Always use "run" as the action name
     
     Focus on safe and accurate file writing.""",
     model=model,
@@ -491,6 +495,9 @@ file_manager_agent = Agent(
           ```
           
        3. Provide operation status
+
+    - Never use numbered action IDs
+    - Always use "run" as the action name
     
     Focus on safe and efficient file management.""",
     model=model,
@@ -543,6 +550,9 @@ file_system_agent = Agent(
        - Display relevant file info
        - Suggest next steps
        - Include OS-specific details
+
+    - Never use numbered action IDs
+    - Always use "run" as the action name
     
     Focus on providing a reliable and safe file system interface.""",
     model=model,
