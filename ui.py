@@ -388,31 +388,33 @@ async def main(message: cl.Message):
         if request.startswith('ssh'):
             parts = request.split()
             if len(parts) < 2:
-                await cl.Message(content="Invalid SSH command. Use 'ssh connect' or 'ssh disconnect'").send()
+                await cl.Message(content="Invalid SSH command. Usage:\n- ssh connect hostname username [--key /path/to/key.pem]\n- ssh disconnect").send()
                 return
                 
             if parts[1] == 'connect':
-                # Create SSH connection form
-                form = cl.Form(
-                    dict(
-                        hostname=cl.TextField(label="Hostname", placeholder="e.g., example.com"),
-                        username=cl.TextField(label="Username", placeholder="e.g., ubuntu"),
-                        auth_type=cl.Select(
-                            label="Authentication Method",
-                            values=["password", "key_file"],
-                            value="password"
-                        ),
-                        password=cl.TextField(label="Password (if using password auth)", password=True),
-                        key_path=cl.TextField(label="Key file path (if using key-based auth)", placeholder="/path/to/key.pem")
-                    )
-                )
-                data = await form.send()
-                
+                if len(parts) < 4:
+                    await cl.Message(content="Invalid SSH connect command. Usage: ssh connect hostname username [--key /path/to/key.pem]").send()
+                    return
+
+                hostname = parts[2]
+                username = parts[3]
+                key_path = None
+                password = None
+
+                # Check for key file
+                if len(parts) > 4 and parts[4] == '--key' and len(parts) > 5:
+                    key_path = parts[5]
+                else:
+                    # If no key specified, prompt for password
+                    await cl.Message(content="Please enter your password in the next message:").send()
+                    password_msg = await cl.Message.get_next()
+                    password = password_msg.content
+
                 success = await terminal.connect_ssh(
-                    hostname=data['hostname'],
-                    username=data['username'],
-                    password=data['password'] if data['auth_type'] == 'password' else None,
-                    key_path=data['key_path'] if data['auth_type'] == 'key_file' else None
+                    hostname=hostname,
+                    username=username,
+                    password=password,
+                    key_path=key_path
                 )
                 
                 if success:
