@@ -311,6 +311,7 @@ I can help you with various tasks:
 Menu Options:
 - Click the Terminal button or type 'terminal' to open Terminal Interface
 - Type your request for AI assistance
+- Execute commands in the chat mode using the ! prefix
 
 What would you like to do?""",
         actions=menu_actions,
