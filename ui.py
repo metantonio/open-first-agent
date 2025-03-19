@@ -4,11 +4,8 @@ import logging
 import sys
 import re
 import asyncio
-import subprocess
-import platform
 import os
-from typing import Optional
-import paramiko
+from terminal_manager import terminal_manager
 import json
 from datetime import datetime
 from chainlit.types import ThreadDict
@@ -36,148 +33,6 @@ ch.setFormatter(formatter)
 # Add the handlers to the logger
 logger.addHandler(ch)
 
-# Global variables for terminal state
-class TerminalState:
-    def __init__(self):
-        self.current_directory: str = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'output')
-        self.history: list = []
-        self.ssh_client: Optional[paramiko.SSHClient] = None
-        self.ssh_info: Optional[dict] = None
-        self.prompt: str = "$ "
-        os.makedirs(self.current_directory, exist_ok=True)
-
-    def is_ssh_connected(self) -> bool:
-        return self.ssh_client is not None and self.ssh_client.get_transport() is not None and self.ssh_client.get_transport().is_active()
-
-    def update_prompt(self):
-        if self.is_ssh_connected():
-            self.prompt = f"{self.ssh_info['username']}@{self.ssh_info['hostname']}:{self.current_directory}$ "
-        else:
-            self.prompt = f"local:{self.current_directory}$ "
-
-    async def connect_ssh(self, hostname: str, username: str, password: str = None, key_path: str = None) -> bool:
-        try:
-            self.ssh_client = paramiko.SSHClient()
-            self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            
-            if key_path:
-                self.ssh_client.connect(hostname, username=username, key_filename=key_path)
-            else:
-                self.ssh_client.connect(hostname, username=username, password=password)
-            
-            self.ssh_info = {
-                'hostname': hostname,
-                'username': username,
-                'connected_at': datetime.now().isoformat(),
-                'using_key': key_path is not None
-            }
-            self.update_prompt()
-            return True
-        except Exception as e:
-            logger.error(f"SSH connection failed: {str(e)}")
-            self.ssh_client = None
-            self.ssh_info = None
-            return False
-
-    def disconnect_ssh(self):
-        if self.ssh_client:
-            self.ssh_client.close()
-            self.ssh_client = None
-            self.ssh_info = None
-            self.update_prompt()
-
-# Initialize terminal state
-terminal = TerminalState()
-
-def get_background_command(command: str) -> str:
-    """Get the appropriate background command format for the current OS."""
-    os_name = platform.system().lower()
-    
-    if os_name == "windows":
-        # Windows: use 'start /B' for background processes
-        return f"start /B {command} > NUL 2>&1"
-    else:
-        # Unix-like systems (Linux, macOS): use nohup
-        return f"nohup {command} > /dev/null 2>&1 &"
-
-def get_shell_info() -> tuple[bool, str]:
-    """Get shell information based on the OS."""
-    os_name = platform.system().lower()
-    
-    if os_name == "windows":
-        return True, "cmd.exe"  # shell=True and use cmd.exe
-    else:
-        return True, "/bin/sh"  # shell=True and use sh
-
-def get_working_directory(command: str) -> str:
-    """Determine the appropriate working directory for a command."""
-    if terminal.current_directory is None:
-        # Initialize with output directory if not set
-        terminal.current_directory = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'output')
-        os.makedirs(terminal.current_directory, exist_ok=True)
-    
-    return terminal.current_directory
-
-async def execute_command(command: str, is_background: bool = False, working_dir: str = None) -> str:
-    """Execute a shell command and return the output."""
-    try:
-        use_shell, shell_exe = get_shell_info()
-        
-        # Handle cd command specially
-        if command.strip().startswith('cd '):
-            new_dir = command.strip()[3:].strip()
-            if new_dir:
-                if os.path.isabs(new_dir):
-                    target_dir = new_dir
-                else:
-                    target_dir = os.path.abspath(os.path.join(terminal.current_directory, new_dir))
-                
-                if os.path.exists(target_dir) and os.path.isdir(target_dir):
-                    terminal.current_directory = target_dir
-                    return f"Changed directory to: {terminal.current_directory}"
-                else:
-                    return f"Directory not found: {new_dir}"
-        
-        # Use terminal.current_directory if working_dir not specified
-        cwd = working_dir if working_dir else terminal.current_directory
-        
-        if is_background:
-            # Format command for background execution based on OS
-            bg_command = get_background_command(command)
-            process = await asyncio.create_subprocess_shell(
-                bg_command,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                shell=use_shell,
-                executable=shell_exe,
-                cwd=cwd
-            )
-            return f"Command started in background in directory: {cwd}"
-        else:
-            process = await asyncio.create_subprocess_shell(
-                command,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                shell=use_shell,
-                executable=shell_exe,
-                cwd=cwd
-            )
-            stdout, stderr = await process.communicate()
-            
-            # Add command to terminal history
-            terminal.history.append({
-                'command': command,
-                'output': stdout.decode() if process.returncode == 0 else stderr.decode(),
-                'success': process.returncode == 0
-            })
-            
-            if process.returncode == 0:
-                return f"Working directory: {cwd}\nOutput:\n{stdout.decode()}"
-            else:
-                return f"Error in directory {cwd}:\n{stderr.decode()}"
-    except Exception as e:
-        return f"Failed to execute command: {str(e)}"
-
 def process_code_blocks(content: str) -> tuple[str, list[dict]]:
     """Process content to find code blocks with run tags and create Chainlit elements."""
     command_blocks = []
@@ -195,7 +50,7 @@ def process_code_blocks(content: str) -> tuple[str, list[dict]]:
         code = re.sub(r'^\s*{\s*"[^"]+"\s*:\s*"([^"]+)"\s*}\s*$', r'\1', code)
         
         is_background = ":background" in tag
-        working_dir = get_working_directory(code)
+        working_dir = terminal_manager.get_working_directory(code)
         
         return {
             'code': code,
@@ -221,25 +76,17 @@ def process_code_blocks(content: str) -> tuple[str, list[dict]]:
 
 async def update_terminal_display():
     """Update the terminal display with current state and history."""
-    # Create terminal content
-    terminal_content = [
-        "```terminal",
-        f"Current Directory: {terminal.current_directory}",
-        "Recent Commands:",
-        "-------------------"
-    ]
-    
-    # Add command history
-    for entry in terminal.history[-10:]:  # Show last 10 commands
-        terminal_content.append(f"$ {entry['command']}")
-        if entry['output']:
-            terminal_content.append(entry['output'])
-    
-    terminal_content.append("```")
+    # Get terminal content from manager
+    terminal_content = terminal_manager.create_terminal_content()
     
     # Create terminal message
-    terminal_msg = cl.Message(content="\n".join(terminal_content))
+    terminal_msg = cl.Message(content=terminal_content)
     await terminal_msg.send()
+    
+    # Show command history if any
+    history_content = terminal_manager.get_history_content()
+    if history_content:
+        await cl.Message(content=history_content).send()
 
 @cl.action_callback("run")
 async def on_action(action: cl.Action):
@@ -263,8 +110,8 @@ async def on_action(action: cl.Action):
             content=f"💻 Executing: `{command}` in {os.path.basename(working_dir)}"
         ).send()
         
-        # Execute the command
-        result = await execute_command(command, is_background, working_dir)
+        # Execute the command using terminal manager
+        result = await terminal_manager.execute_command(command, is_background, working_dir)
         
         # Update terminal display
         await update_terminal_display()
@@ -329,37 +176,17 @@ async def on_terminal_open(action: cl.Action):
 
 async def create_terminal_interface(settings: dict = None):
     """Create and display the terminal interface."""
-    terminal_content = f"""```terminal
-╔══════════════════════════════════════════════════════════════════════════════
-║ 🖥️  Terminal Interface
-║══════════════════════════════════════════════════════════════════════════════
-║ Current Directory: {terminal.current_directory}
-║
-║ Available Commands:
-║ - Type 'clear' to clear the terminal
-║ - Type 'cd <directory>' to change directory
-║ - Type 'ssh connect' to establish SSH connection
-║ - Type 'ssh disconnect' to close SSH connection
-║ - Type 'exit' to return to chat mode
-║══════════════════════════════════════════════════════════════════════════════
-"""
-
-    # Send terminal interface
+    # Get terminal content from manager
+    terminal_content = terminal_manager.create_terminal_content()
     await cl.Message(content=terminal_content).send()
     
     # Show command history if any
-    if terminal.history:
-        history = "\n".join([
-            "Recent Commands:",
-            "══════════════",
-            *[f"$ {entry['command']}\n{entry['output'] if entry['output'] else '(no output)'}" 
-              for entry in terminal.history[-5:]],
-            "══════════════"
-        ])
-        await cl.Message(content=f"```terminal\n{history}\n```").send()
+    history_content = terminal_manager.get_history_content()
+    if history_content:
+        await cl.Message(content=history_content).send()
     
     # Show current prompt
-    await cl.Message(content=f"```terminal\n{terminal.prompt}```").send()
+    await cl.Message(content=f"```terminal\n{terminal_manager.terminal.prompt}```").send()
 
 @cl.on_message
 async def main(message: cl.Message):
@@ -411,7 +238,7 @@ async def main(message: cl.Message):
                     password_msg = await cl.Message.get_next()
                     password = password_msg.content
 
-                success = await terminal.connect_ssh(
+                success = await terminal_manager.terminal.connect_ssh(
                     hostname=hostname,
                     username=username,
                     password=password,
@@ -427,28 +254,28 @@ async def main(message: cl.Message):
                 return
                 
             elif parts[1] == 'disconnect':
-                terminal.disconnect_ssh()
+                terminal_manager.terminal.disconnect_ssh()
                 await cl.Message(content="✅ SSH connection closed.").send()
                 await create_terminal_interface()
                 return
         
         # Execute command and update terminal
-        result = await execute_command(request)
-        terminal.update_prompt()
+        result = await terminal_manager.execute_command(request)
+        terminal_manager.terminal.update_prompt()
         
         # Show command output with proper formatting
         if result.strip():
             await cl.Message(content=f"```terminal\n{result}\n```").send()
         
         # Show new prompt
-        await cl.Message(content=f"```terminal\n{terminal.prompt}```").send()
+        await cl.Message(content=f"```terminal\n{terminal_manager.terminal.prompt}```").send()
         return
     
     # Handle normal chat mode
     # Check if it's a direct terminal command (starts with !)
     if request.startswith('!'):
         command = request[1:].strip()
-        result = await execute_command(command)
+        result = await terminal_manager.execute_command(command)
         await update_terminal_display()
         await cl.Message(content=f"📝 Output:\n```\n{result}\n```").send()
         return
@@ -478,7 +305,7 @@ async def main(message: cl.Message):
                 description=f"Execute in {cmd['dir']} directory",
                 payload={
                     "command": cmd['command'],
-                    "working_dir": get_working_directory(cmd['command']),
+                    "working_dir": terminal_manager.get_working_directory(cmd['command']),
                     "is_background": False
                 }
             )
