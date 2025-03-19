@@ -264,6 +264,7 @@ I can help you with various tasks:
 2. 🏗️ Terraform Infrastructure.
 3. 💻 Development Environment Setup.
 4. ☁️ AWS CLI Configuration.
+5. 📂 File System Operations.
 
 Simply type your request, and I'll automatically determine the best way to help you!
 

@@ -54,6 +54,23 @@ I can help you with various tasks:
    • "Test my AWS connection"
    • "Set up AWS CLI with my credentials"
 
+## 5. 📂 File System Operations:
+   - Read and write files
+   - List directory contents
+   - Move, copy, and delete files
+   - Search for files and content
+   - Handle file permissions
+   - Manage file system operations safely
+   
+   Examples:
+   • "List the contents of the current directory"
+   • "Read the contents of config.json"
+   • "Create a new file called example.txt with 'Hello World' content"
+   • "Search for all Python files containing the word 'import'"
+   • "Move file.txt from downloads to documents folder"
+   • "Copy the entire project directory to a backup location"
+   • "Delete all temporary files ending with .tmp"
+
 💡 Need help? Try these:
 • "What can you help me with?"
 • "Show me examples for [specific task]"
