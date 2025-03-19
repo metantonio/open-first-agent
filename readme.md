@@ -254,7 +254,7 @@ The agents work together to:
 - Research and apply best practices
 - Ensure security, compliance, and cost optimization
 
-## Pre-requisits
+## Pre-requirements
 
 If you are going to use Ollama, i recommend to download:
 `qwen2.5-coder:7b` and `qwen2.5-coder:14b`
