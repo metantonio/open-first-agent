@@ -309,7 +309,7 @@ I can help you with various tasks:
 6. 🖥️ Terminal Interface
 
 Menu Options:
-- Click the Terminal button or type 'terminal' to open Terminal Interface
+- Click the Terminal button or type 'terminal' to open Terminal Interface (terminal mode)
 - Type your request for AI assistance
 - Execute commands in the chat mode using the ! prefix
 
