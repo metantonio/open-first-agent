@@ -8,3 +8,4 @@ duckduckgo-search
 ipykernel
 jupyter
 conda-env
+paramiko

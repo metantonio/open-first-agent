@@ -7,6 +7,11 @@ import asyncio
 import subprocess
 import platform
 import os
+from typing import Optional
+import paramiko
+import json
+from datetime import datetime
+from chainlit.types import ThreadDict
 
 # Configure logging
 logging.basicConfig(
@@ -31,6 +36,59 @@ ch.setFormatter(formatter)
 # Add the handlers to the logger
 logger.addHandler(ch)
 
+# Global variables for terminal state
+class TerminalState:
+    def __init__(self):
+        self.current_directory: str = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'output')
+        self.history: list = []
+        self.ssh_client: Optional[paramiko.SSHClient] = None
+        self.ssh_info: Optional[dict] = None
+        self.prompt: str = "$ "
+        os.makedirs(self.current_directory, exist_ok=True)
+
+    def is_ssh_connected(self) -> bool:
+        return self.ssh_client is not None and self.ssh_client.get_transport() is not None and self.ssh_client.get_transport().is_active()
+
+    def update_prompt(self):
+        if self.is_ssh_connected():
+            self.prompt = f"{self.ssh_info['username']}@{self.ssh_info['hostname']}:{self.current_directory}$ "
+        else:
+            self.prompt = f"local:{self.current_directory}$ "
+
+    async def connect_ssh(self, hostname: str, username: str, password: str = None, key_path: str = None) -> bool:
+        try:
+            self.ssh_client = paramiko.SSHClient()
+            self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            
+            if key_path:
+                self.ssh_client.connect(hostname, username=username, key_filename=key_path)
+            else:
+                self.ssh_client.connect(hostname, username=username, password=password)
+            
+            self.ssh_info = {
+                'hostname': hostname,
+                'username': username,
+                'connected_at': datetime.now().isoformat(),
+                'using_key': key_path is not None
+            }
+            self.update_prompt()
+            return True
+        except Exception as e:
+            logger.error(f"SSH connection failed: {str(e)}")
+            self.ssh_client = None
+            self.ssh_info = None
+            return False
+
+    def disconnect_ssh(self):
+        if self.ssh_client:
+            self.ssh_client.close()
+            self.ssh_client = None
+            self.ssh_info = None
+            self.update_prompt()
+
+# Initialize terminal state
+terminal = TerminalState()
+
 def get_background_command(command: str) -> str:
     """Get the appropriate background command format for the current OS."""
     os_name = platform.system().lower()
@@ -53,18 +111,35 @@ def get_shell_info() -> tuple[bool, str]:
 
 def get_working_directory(command: str) -> str:
     """Determine the appropriate working directory for a command."""
-    # Always use the output directory for all commands
-    output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'output')
-    os.makedirs(output_dir, exist_ok=True)
-    return output_dir
+    if terminal.current_directory is None:
+        # Initialize with output directory if not set
+        terminal.current_directory = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'output')
+        os.makedirs(terminal.current_directory, exist_ok=True)
+    
+    return terminal.current_directory
 
 async def execute_command(command: str, is_background: bool = False, working_dir: str = None) -> str:
     """Execute a shell command and return the output."""
     try:
         use_shell, shell_exe = get_shell_info()
         
-        # Determine working directory
-        cwd = working_dir if working_dir else get_working_directory(command)
+        # Handle cd command specially
+        if command.strip().startswith('cd '):
+            new_dir = command.strip()[3:].strip()
+            if new_dir:
+                if os.path.isabs(new_dir):
+                    target_dir = new_dir
+                else:
+                    target_dir = os.path.abspath(os.path.join(terminal.current_directory, new_dir))
+                
+                if os.path.exists(target_dir) and os.path.isdir(target_dir):
+                    terminal.current_directory = target_dir
+                    return f"Changed directory to: {terminal.current_directory}"
+                else:
+                    return f"Directory not found: {new_dir}"
+        
+        # Use terminal.current_directory if working_dir not specified
+        cwd = working_dir if working_dir else terminal.current_directory
         
         if is_background:
             # Format command for background execution based on OS
@@ -88,6 +163,13 @@ async def execute_command(command: str, is_background: bool = False, working_dir
                 cwd=cwd
             )
             stdout, stderr = await process.communicate()
+            
+            # Add command to terminal history
+            terminal.history.append({
+                'command': command,
+                'output': stdout.decode() if process.returncode == 0 else stderr.decode(),
+                'success': process.returncode == 0
+            })
             
             if process.returncode == 0:
                 return f"Working directory: {cwd}\nOutput:\n{stdout.decode()}"
@@ -137,10 +219,236 @@ def process_code_blocks(content: str) -> tuple[str, list[dict]]:
     
     return content_without_commands, command_blocks
 
+async def update_terminal_display():
+    """Update the terminal display with current state and history."""
+    # Create terminal content
+    terminal_content = [
+        "```terminal",
+        f"Current Directory: {terminal.current_directory}",
+        "Recent Commands:",
+        "-------------------"
+    ]
+    
+    # Add command history
+    for entry in terminal.history[-10:]:  # Show last 10 commands
+        terminal_content.append(f"$ {entry['command']}")
+        if entry['output']:
+            terminal_content.append(entry['output'])
+    
+    terminal_content.append("```")
+    
+    # Create terminal message
+    terminal_msg = cl.Message(content="\n".join(terminal_content))
+    await terminal_msg.send()
+
+@cl.action_callback("run")
+async def on_action(action: cl.Action):
+    """Handle execution of code blocks when action buttons are clicked."""
+    try:
+        # Get command from either value or payload
+        command = action.value if hasattr(action, 'value') else action.payload.get("command")
+        if not command:
+            raise ValueError("No command found in action")
+            
+        payload = action.payload or {}
+        is_background = payload.get("is_background", False)
+        working_dir = payload.get("working_dir")
+        
+        # Clean up the command if needed
+        command = re.sub(r'transfer_to_\w+_agent\((.*?)\)', r'\1', command)
+        command = re.sub(r'^\s*{\s*"[^"]+"\s*:\s*"([^"]+)"\s*}\s*$', r'\1', command)
+        
+        # Send execution message
+        await cl.Message(
+            content=f"💻 Executing: `{command}` in {os.path.basename(working_dir)}"
+        ).send()
+        
+        # Execute the command
+        result = await execute_command(command, is_background, working_dir)
+        
+        # Update terminal display
+        await update_terminal_display()
+        
+        # Send the result
+        if result.strip():
+            await cl.Message(
+                content=f"📝 Output:\n```\n{result}\n```"
+            ).send()
+        else:
+            await cl.Message(content="✅ Command executed successfully (no output)").send()
+    except Exception as e:
+        await cl.Message(content=f"❌ Error executing command: {str(e)}").send()
+
+@cl.on_chat_start
+async def start():
+    """Function that runs when a new chat session starts."""
+    # Initialize session state
+    cl.user_session.set('mode', 'chat')
+    
+    # Create menu options
+    menu_actions = [
+        cl.Action(
+            name="open_terminal",
+            value="terminal",
+            description="Open Terminal Interface",
+            payload={"action": "open_terminal"}
+        )
+    ]
+    
+    # Send welcome message with menu options
+    await cl.Message(
+        content="""👋 Welcome to the AI Assistant!
+
+I can help you with various tasks:
+
+1. 🌐 Web Search and News
+2. 🏗️ Terraform Infrastructure
+3. 💻 Development Environment Setup
+4. ☁️ AWS CLI Configuration
+5. 📂 File System Operations
+6. 🖥️ Terminal Interface
+
+Menu Options:
+- Click the Terminal button or type 'terminal' to open Terminal Interface
+- Type your request for AI assistance
+
+What would you like to do?""",
+        actions=menu_actions,
+        author="AI Assistant"
+    ).send()
+
+@cl.action_callback("open_terminal")
+async def on_terminal_open(action: cl.Action):
+    """Handle terminal open request."""
+    try:
+        cl.user_session.set('mode', 'terminal')
+        await create_terminal_interface()
+    except Exception as e:
+        await cl.Message(content=f"❌ Error opening terminal: {str(e)}").send()
+
+async def create_terminal_interface(settings: dict = None):
+    """Create and display the terminal interface."""
+    terminal_content = f"""```terminal
+╔══════════════════════════════════════════════════════════════════════════════
+║ 🖥️  Terminal Interface
+║══════════════════════════════════════════════════════════════════════════════
+║ Current Directory: {terminal.current_directory}
+║
+║ Available Commands:
+║ - Type 'clear' to clear the terminal
+║ - Type 'cd <directory>' to change directory
+║ - Type 'ssh connect' to establish SSH connection
+║ - Type 'ssh disconnect' to close SSH connection
+║ - Type 'exit' to return to chat mode
+║══════════════════════════════════════════════════════════════════════════════
+"""
+
+    # Send terminal interface
+    await cl.Message(content=terminal_content).send()
+    
+    # Show command history if any
+    if terminal.history:
+        history = "\n".join([
+            "Recent Commands:",
+            "══════════════",
+            *[f"$ {entry['command']}\n{entry['output'] if entry['output'] else '(no output)'}" 
+              for entry in terminal.history[-5:]],
+            "══════════════"
+        ])
+        await cl.Message(content=f"```terminal\n{history}\n```").send()
+    
+    # Show current prompt
+    await cl.Message(content=f"```terminal\n{terminal.prompt}```").send()
+
 @cl.on_message
 async def main(message: cl.Message):
     """Main function to handle user messages and route them to appropriate agents."""
-    request = message.content
+    request = message.content.strip()
+    
+    # Get current session state
+    mode = cl.user_session.get('mode', 'chat')
+    
+    # Handle menu navigation
+    if request.lower() == "terminal":
+        cl.user_session.set('mode', 'terminal')
+        await create_terminal_interface()
+        return
+    
+    # Handle terminal commands when in terminal mode
+    if mode == 'terminal':
+        if request.lower() == 'exit':
+            cl.user_session.set('mode', 'chat')
+            await cl.Message(content="Exited terminal mode. Back to chat mode.").send()
+            return
+            
+        if request.lower() == 'clear':
+            await create_terminal_interface()
+            return
+            
+        if request.startswith('ssh'):
+            parts = request.split()
+            if len(parts) < 2:
+                await cl.Message(content="Invalid SSH command. Use 'ssh connect' or 'ssh disconnect'").send()
+                return
+                
+            if parts[1] == 'connect':
+                # Create SSH connection form
+                form = cl.Form(
+                    dict(
+                        hostname=cl.TextField(label="Hostname", placeholder="e.g., example.com"),
+                        username=cl.TextField(label="Username", placeholder="e.g., ubuntu"),
+                        auth_type=cl.Select(
+                            label="Authentication Method",
+                            values=["password", "key_file"],
+                            value="password"
+                        ),
+                        password=cl.TextField(label="Password (if using password auth)", password=True),
+                        key_path=cl.TextField(label="Key file path (if using key-based auth)", placeholder="/path/to/key.pem")
+                    )
+                )
+                data = await form.send()
+                
+                success = await terminal.connect_ssh(
+                    hostname=data['hostname'],
+                    username=data['username'],
+                    password=data['password'] if data['auth_type'] == 'password' else None,
+                    key_path=data['key_path'] if data['auth_type'] == 'key_file' else None
+                )
+                
+                if success:
+                    await cl.Message(content="✅ SSH connection established!").send()
+                else:
+                    await cl.Message(content="❌ Failed to establish SSH connection.").send()
+                
+                await create_terminal_interface()
+                return
+                
+            elif parts[1] == 'disconnect':
+                terminal.disconnect_ssh()
+                await cl.Message(content="✅ SSH connection closed.").send()
+                await create_terminal_interface()
+                return
+        
+        # Execute command and update terminal
+        result = await execute_command(request)
+        terminal.update_prompt()
+        
+        # Show command output with proper formatting
+        if result.strip():
+            await cl.Message(content=f"```terminal\n{result}\n```").send()
+        
+        # Show new prompt
+        await cl.Message(content=f"```terminal\n{terminal.prompt}```").send()
+        return
+    
+    # Handle normal chat mode
+    # Check if it's a direct terminal command (starts with !)
+    if request.startswith('!'):
+        command = request[1:].strip()
+        result = await execute_command(command)
+        await update_terminal_display()
+        await cl.Message(content=f"📝 Output:\n```\n{result}\n```").send()
+        return
     
     # Special handling for command examples
     if request.lower().strip() in ['show command ls examples']:
@@ -204,7 +512,7 @@ async def main(message: cl.Message):
                 action = cl.Action(
                     name=cmd_block['action_id'],
                     value=cmd_block['code'],
-                    description=f"Execute command in {os.path.basename(cmd_block['working_dir'])}",
+                    description=f"Execute in {os.path.basename(cmd_block['working_dir'])}",
                     payload={
                         "command": cmd_block['code'],
                         "is_background": cmd_block['is_background'],
@@ -217,6 +525,9 @@ async def main(message: cl.Message):
                     actions=[action]
                 )
                 await msg.send()
+            
+            # Update terminal display after processing commands
+            await update_terminal_display()
         else:
             # If no commands, just send the content
             await cl.Message(content=response).send()
@@ -225,62 +536,4 @@ async def main(message: cl.Message):
         error_message = f"❌ Sorry, I encountered an error: {str(e)}"
         if "429" in str(e):
             error_message += "\nIt seems we've hit an API rate limit. Please try again in a few minutes."
-        await cl.Message(content=error_message).send()
-
-@cl.action_callback("run")
-async def on_action(action: cl.Action):
-    """Handle execution of code blocks when action buttons are clicked."""
-    try:
-        # Get command from either value or payload
-        command = action.value if hasattr(action, 'value') else action.payload.get("command")
-        if not command:
-            raise ValueError("No command found in action")
-            
-        payload = action.payload or {}
-        is_background = payload.get("is_background", False)
-        working_dir = payload.get("working_dir")
-        
-        # Clean up the command if needed
-        command = re.sub(r'transfer_to_\w+_agent\((.*?)\)', r'\1', command)
-        command = re.sub(r'^\s*{\s*"[^"]+"\s*:\s*"([^"]+)"\s*}\s*$', r'\1', command)
-        
-        # Send execution message
-        await cl.Message(
-            content=f"💻 Executing: `{command}` in {os.path.basename(working_dir)}"
-        ).send()
-        
-        # Execute the command
-        result = await execute_command(command, is_background, working_dir)
-        
-        # Send the result
-        if result.strip():
-            await cl.Message(
-                content=f"📝 Output:\n```\n{result}\n```"
-            ).send()
-        else:
-            await cl.Message(content="✅ Command executed successfully (no output)").send()
-    except Exception as e:
-        await cl.Message(content=f"❌ Error executing command: {str(e)}").send()
-
-@cl.on_chat_start
-async def start():
-    """
-    Function that runs when a new chat session starts.
-    """
-    # Send a welcome message
-    await cl.Message(
-        content="""👋 Welcome to the AI Assistant!
-
-I can help you with various tasks:
-
-1. 🌐 Web Search and News.
-2. 🏗️ Terraform Infrastructure.
-3. 💻 Development Environment Setup.
-4. ☁️ AWS CLI Configuration.
-5. 📂 File System Operations.
-
-Simply type your request, and I'll automatically determine the best way to help you!
-
-What would you like to do?""",
-        author="AI Assistant"
-    ).send() 
+        await cl.Message(content=error_message).send() 
