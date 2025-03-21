@@ -60,10 +60,9 @@ class UniversalOrchestrator:
             2. Terraform Agent - For infrastructure as code, terraform file management, terraform operations
             3. Development Environment Agent - For setting up development environments, IDE configuration, Python/Conda setup
             4. AWS CLI Agent - For AWS CLI installation, configuration, credentials management, and AWS connectivity testing
-            5. File Management Agent - For file management, file search, file creation, file deletion, file editing, file copying, file moving
-            6. Terminal Agent - For executing terminal commands, managing SSH connections, and performing file system operations
+            5. Terminal Agent - For executing terminal commands, managing SSH connections, and performing file system operations
             
-            Respond with either 'browser', 'terraform', 'dev_env', 'file_env', 'aws_cli', or 'terminal' based on the request content.
+            Respond with either 'browser', 'terraform', 'dev_env', 'aws_cli', or 'terminal' based on the request content.
             """
         )
         return agent_response.final_output.strip().lower()
@@ -81,8 +80,8 @@ class UniversalOrchestrator:
                 return run_dev_env_workflow(request)
             elif agent_type == "aws_cli":
                 return run_aws_cli_workflow(request)
-            elif agent_type == "file_env":
-                return run_file_env_workflow(request)
+            #elif agent_type == "file_env":
+            #    return run_file_env_workflow(request)
             elif agent_type == "terminal":
                 return run_terminal_workflow(request)
             else:
