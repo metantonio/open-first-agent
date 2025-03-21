@@ -22,13 +22,35 @@ class UniversalOrchestrator:
                - Route requests to the appropriate agent
                - Handle multi-agent scenarios when needed
 
-            2. Agent Management:
-               - Browser Agent: For web searches and content analysis
-               - Terraform Agent: For infrastructure as code management
-               - Development Environment Agent: For setting up development environments
-               - AWS CLI Agent: For AWS CLI installation, configuration, and management
-               - Terminal Agent: For executing terminal commands, file operations, and SSH connections
-               - File Management Agent: For file system operations
+            2. Agent Selection Rules:
+               Terminal Agent (Select for any of these tasks):
+               - File operations (create, copy, move, delete files/directories)
+               - Directory operations (list contents, create, delete directories)
+               - File searching or pattern matching
+               - Terminal commands execution
+               - SSH connections and operations
+               - Any local system operations
+               
+               Browser Agent:
+               - Web searches and research
+               - Content analysis from websites
+               - News gathering
+               - Documentation lookup
+               
+               Terraform Agent:
+               - Infrastructure as code management
+               - Terraform file operations
+               - Terraform commands and workflows
+               
+               Development Environment Agent:
+               - Development environment setup
+               - IDE configuration
+               - Python/Conda environment management
+               
+               AWS CLI Agent:
+               - AWS CLI installation and setup
+               - AWS credentials management
+               - AWS connectivity testing
 
             3. Response Coordination:
                - Collect and format responses from agents
@@ -53,25 +75,52 @@ class UniversalOrchestrator:
         """Determine which agent should handle the request."""
         agent_response = await Runner.run(
             self.orchestrator_agent,
-            f"""Analyze this request and determine which agent should handle it: {request}
-            
-            Available agents:
-            1. Browser Agent - For web searches, news gathering, content analysis
-            2. Terraform Agent - For infrastructure as code, terraform file management, terraform operations
-            3. Development Environment Agent - For setting up development environments, IDE configuration, Python/Conda setup
-            4. AWS CLI Agent - For AWS CLI installation, configuration, credentials management, and AWS connectivity testing
-            5. Terminal Agent - For executing terminal commands, managing SSH connections, and performing file system operations
-            
-            Respond with either 'browser', 'terraform', 'dev_env', 'aws_cli', or 'terminal' based on the request content.
-            """
+            f"""Analyze the following request and respond ONLY with the appropriate agent type in lowercase.
+
+            Request: {request}
+
+            Valid responses:
+            - 'terminal': For file operations (create/copy/delete/list files), directory operations, terminal commands, SSH
+            - 'browser': For web searches, content analysis, documentation
+            - 'terraform': For infrastructure as code, terraform operations
+            - 'dev_env': For development environment setup, IDE config
+            - 'aws_cli': For AWS CLI setup and configuration
+
+            Terminal Agent Keywords:
+            - file, directory, folder, path, copy, move, delete, create, list, contents, find, search
+            - ssh, terminal, command, execute, run
+            - local, system, operation
+
+            Response format: Just the agent type in lowercase, nothing else.
+            """,
+            context={"request": request}
         )
-        return agent_response.final_output.strip().lower()
+        
+        # Extract just the agent type from the response
+        agent_type = agent_response.final_output.strip().lower()
+        
+        # Validate the agent type
+        valid_agents = {'browser', 'terraform', 'dev_env', 'aws_cli', 'terminal'}
+        if agent_type not in valid_agents:
+            logger.warning(f"Invalid agent type returned: {agent_type}, defaulting to terminal")
+            # Default to terminal agent for unrecognized operations
+            return 'terminal'
+            
+        logger.info(f"Selected agent type: {agent_type} for request: {request}")
+        return agent_type
 
     async def process_request(self, request: str):
         """Process the user request using the appropriate agent."""
         try:
+            # Handle Chainlit Message objects
+            if hasattr(request, 'content'):
+                request = request.content
+            elif not isinstance(request, str):
+                request = str(request)
+
             agent_type = await self.determine_agent(request)
             logger.info(f"Determined agent type: {agent_type}")
+            
             if agent_type == "browser":
                 return run_browser_workflow(request)
             elif agent_type == "terraform":
