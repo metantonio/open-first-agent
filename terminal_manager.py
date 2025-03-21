@@ -63,62 +63,134 @@ class TerminalState:
             dict: Connection result with status and details
         """
         try:
-            self.ssh_client = paramiko.SSHClient()
-            self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            
+            # Initialize connection info
             connection_info = {
                 'status': 'failed',
                 'message': '',
                 'details': {}
             }
+
+            # Create new client and ensure old one is cleaned up
+            if self.ssh_client:
+                self.ssh_client.close()
+            self.ssh_client = paramiko.SSHClient()
+            self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             
             if key_path:
                 try:
                     # Try to load the private key
                     if key_password:
-                        private_key = paramiko.RSAKey.from_private_key_file(key_path, password=key_password)
+                        try:
+                            private_key = paramiko.RSAKey.from_private_key_file(key_path, password=key_password)
+                        except paramiko.ssh_exception.SSHException as key_error:
+                            logger.error(f"Failed to decrypt private key: {str(key_error)}")
+                            self._cleanup_ssh()
+                            return {
+                                'status': 'error',
+                                'message': 'Failed to decrypt private key. Please check your key password.',
+                                'details': {
+                                    'error_type': 'key_decrypt_failed',
+                                    'error': str(key_error)
+                                }
+                            }
                     else:
                         try:
                             private_key = paramiko.RSAKey.from_private_key_file(key_path)
                         except paramiko.ssh_exception.PasswordRequiredException:
-                            connection_info['status'] = 'error'
-                            connection_info['message'] = 'Private key is encrypted. Please provide the key password.'
-                            connection_info['details'] = {
-                                'error_type': 'encrypted_key',
-                                'requires': 'key_password'
+                            logger.error("Private key is encrypted but no password provided")
+                            self._cleanup_ssh()
+                            return {
+                                'status': 'error',
+                                'message': 'Private key is encrypted. Please provide the key password.',
+                                'details': {
+                                    'error_type': 'encrypted_key',
+                                    'requires': 'key_password'
+                                }
                             }
-                            return connection_info
+                        except Exception as key_error:
+                            logger.error(f"Failed to load private key: {str(key_error)}")
+                            self._cleanup_ssh()
+                            return {
+                                'status': 'error',
+                                'message': f'Failed to load private key: {str(key_error)}',
+                                'details': {
+                                    'error_type': 'key_load_failed',
+                                    'error': str(key_error)
+                                }
+                            }
                             
-                    # Connect using the private key
+                    # Try to connect with the private key
+                    try:
+                        self.ssh_client.connect(
+                            hostname,
+                            username=username,
+                            pkey=private_key,
+                            timeout=10  # Add timeout to prevent hanging
+                        )
+                    except Exception as connect_error:
+                        logger.error(f"Failed to connect with private key: {str(connect_error)}")
+                        self._cleanup_ssh()
+                        return {
+                            'status': 'error',
+                            'message': f'Failed to connect with private key: {str(connect_error)}',
+                            'details': {
+                                'error_type': 'connection_failed',
+                                'error': str(connect_error)
+                            }
+                        }
+                except Exception as key_error:
+                    logger.error(f"Error handling private key: {str(key_error)}")
+                    self._cleanup_ssh()
+                    return {
+                        'status': 'error',
+                        'message': f'Error handling private key: {str(key_error)}',
+                        'details': {
+                            'error_type': 'key_error',
+                            'error': str(key_error)
+                        }
+                    }
+            else:
+                if not password:
+                    self._cleanup_ssh()
+                    return {
+                        'status': 'error',
+                        'message': 'Either password or key file is required',
+                        'details': {
+                            'error_type': 'no_credentials'
+                        }
+                    }
+                    
+                try:
                     self.ssh_client.connect(
                         hostname,
                         username=username,
-                        pkey=private_key
+                        password=password,
+                        timeout=10  # Add timeout to prevent hanging
                     )
-                except Exception as key_error:
-                    logger.error(f"Error loading private key: {str(key_error)}")
-                    connection_info['status'] = 'error'
-                    connection_info['message'] = f'Failed to load private key: {str(key_error)}'
-                    connection_info['details'] = {
-                        'error_type': 'key_load_failed',
-                        'error': str(key_error)
+                except Exception as connect_error:
+                    logger.error(f"Failed to connect with password: {str(connect_error)}")
+                    self._cleanup_ssh()
+                    return {
+                        'status': 'error',
+                        'message': f'Failed to connect with password: {str(connect_error)}',
+                        'details': {
+                            'error_type': 'connection_failed',
+                            'error': str(connect_error)
+                        }
                     }
-                    return connection_info
-            else:
-                if not password:
-                    connection_info['status'] = 'error'
-                    connection_info['message'] = 'Either password or key file is required'
-                    connection_info['details'] = {
-                        'error_type': 'no_credentials'
-                    }
-                    return connection_info
-                    
-                self.ssh_client.connect(
-                    hostname,
-                    username=username,
-                    password=password
-                )
             
+            # Verify connection is actually established
+            if not self.is_ssh_connected():
+                self._cleanup_ssh()
+                return {
+                    'status': 'error',
+                    'message': 'SSH connection failed to establish',
+                    'details': {
+                        'error_type': 'connection_verification_failed'
+                    }
+                }
+
+            # Connection successful, update info
             self.ssh_info = {
                 'hostname': hostname,
                 'username': username,
@@ -127,24 +199,28 @@ class TerminalState:
             }
             self.update_prompt()
             
-            connection_info['status'] = 'success'
-            connection_info['message'] = 'Successfully connected to SSH'
-            connection_info['details'] = self.ssh_info
-            return connection_info
+            return {
+                'status': 'success',
+                'message': 'Successfully connected to SSH',
+                'details': self.ssh_info
+            }
             
-        except paramiko.AuthenticationException:
-            connection_info = {
+        except paramiko.AuthenticationException as auth_error:
+            logger.error(f"SSH authentication failed: {str(auth_error)}")
+            self._cleanup_ssh()
+            return {
                 'status': 'error',
                 'message': 'Authentication failed. Please check your credentials.',
                 'details': {
-                    'error_type': 'authentication_failed'
+                    'error_type': 'authentication_failed',
+                    'error': str(auth_error)
                 }
             }
-            logger.error("SSH authentication failed")
-            return connection_info
             
         except paramiko.SSHException as ssh_error:
-            connection_info = {
+            logger.error(f"SSH error: {str(ssh_error)}")
+            self._cleanup_ssh()
+            return {
                 'status': 'error',
                 'message': f'SSH error occurred: {str(ssh_error)}',
                 'details': {
@@ -152,11 +228,11 @@ class TerminalState:
                     'error': str(ssh_error)
                 }
             }
-            logger.error(f"SSH error: {str(ssh_error)}")
-            return connection_info
             
         except Exception as e:
-            connection_info = {
+            logger.error(f"Unexpected error during SSH connection: {str(e)}")
+            self._cleanup_ssh()
+            return {
                 'status': 'error',
                 'message': f'Unexpected error: {str(e)}',
                 'details': {
@@ -164,8 +240,17 @@ class TerminalState:
                     'error': str(e)
                 }
             }
-            logger.error(f"Unexpected error during SSH connection: {str(e)}")
-            return connection_info
+
+    def _cleanup_ssh(self):
+        """Helper method to cleanup SSH resources"""
+        if self.ssh_client:
+            try:
+                self.ssh_client.close()
+            except:
+                pass
+        self.ssh_client = None
+        self.ssh_info = None
+        self.update_prompt()
 
     def disconnect_ssh(self) -> dict:
         """
@@ -233,9 +318,105 @@ class TerminalManager:
         
         return self.terminal.current_directory
 
+    def get_ssh_help(self) -> str:
+        """Get help information for SSH connection parameters."""
+        return """```
+SSH Connection Help
+==================
+
+Command Format:
+ssh connect [options]
+
+Required Parameters:
+------------------
+--hostname, -h      The remote host to connect to (e.g., example.com or 192.168.1.100)
+--username, -u      The username for authentication
+
+Authentication Options (one is required):
+---------------------------------------
+--password, -p      Password for password-based authentication
+--key-path, -k      Path to the private key file (PEM format) for key-based authentication
+
+Optional Parameters:
+------------------
+--key-password     Password for encrypted private key file (only needed if key is encrypted)
+
+Examples:
+--------
+1. Connect with password:
+   ssh connect -h example.com -u myuser -p mypassword
+
+2. Connect with unencrypted key file:
+   ssh connect -h example.com -u myuser -k /path/to/key.pem
+
+3. Connect with encrypted key file:
+   ssh connect -h example.com -u myuser -k /path/to/key.pem --key-password mypassword
+
+Notes:
+-----
+- For key-based authentication, the key file must be in PEM format
+- If using an encrypted key file, you must provide the key password
+- The connection will timeout after 10 seconds if unable to connect
+- Use 'ssh disconnect' to close the connection
+
+Common Issues:
+------------
+1. "Private key is encrypted":
+   - The key file is password-protected
+   - Add --key-password parameter with the correct password
+
+2. "Authentication failed":
+   - Check if username is correct
+   - Check if password or key file is correct
+   - Verify you have permission to access the server
+
+3. "Connection timed out":
+   - Check if hostname is correct
+   - Verify the server is running and accessible
+   - Check your network connection
+```"""
+
+    def create_terminal_content(self) -> str:
+        """Create the terminal interface content."""
+        return f"""```terminal
+╔══════════════════════════════════════════════════════════════════════════════
+║ 🖥️  Terminal Interface
+║══════════════════════════════════════════════════════════════════════════════
+║ Current Directory: {self.terminal.current_directory}
+║
+║ Available Commands:
+║ - Type 'clear' to clear the terminal
+║ - Type 'cd <directory>' to change directory
+║ - Type 'ssh help' to show SSH connection help
+║ - Type 'ssh connect [options]' to establish SSH connection
+║ - Type 'ssh disconnect' to close SSH connection
+║ - Type 'exit' to return to chat mode
+║
+║ SSH Connection Status: {'Connected to ' + self.terminal.ssh_info['hostname'] if self.terminal.is_ssh_connected() else 'Not connected'}
+║══════════════════════════════════════════════════════════════════════════════
+"""
+
+    def get_history_content(self, limit: int = 5) -> str:
+        """Get formatted history content."""
+        if not self.terminal.history:
+            return ""
+            
+        history = "\n".join([
+            "Recent Commands:",
+            "══════════════",
+            *[f"$ {entry['command']}\n{entry['output'] if entry['output'] else '(no output)'}" 
+              for entry in self.terminal.history[-limit:]],
+            "══════════════"
+        ])
+        return f"```terminal\n{history}\n```"
+
     async def execute_command(self, command: str, is_background: bool = False, working_dir: str = None) -> str:
         """Execute a shell command and return the output."""
         try:
+            # Handle SSH help command
+            if command.strip().lower() == 'ssh help':
+                return self.get_ssh_help()
+
             use_shell, shell_exe = self.get_shell_info()
             
             # Handle cd command specially
@@ -292,37 +473,6 @@ class TerminalManager:
                     return f"Error in directory {cwd}:\n{stderr.decode()}"
         except Exception as e:
             return f"Failed to execute command: {str(e)}"
-
-    def create_terminal_content(self) -> str:
-        """Create the terminal interface content."""
-        return f"""```terminal
-╔══════════════════════════════════════════════════════════════════════════════
-║ 🖥️  Terminal Interface
-║══════════════════════════════════════════════════════════════════════════════
-║ Current Directory: {self.terminal.current_directory}
-║
-║ Available Commands:
-║ - Type 'clear' to clear the terminal
-║ - Type 'cd <directory>' to change directory
-║ - Type 'ssh connect' to establish SSH connection
-║ - Type 'ssh disconnect' to close SSH connection
-║ - Type 'exit' to return to chat mode
-║══════════════════════════════════════════════════════════════════════════════
-"""
-
-    def get_history_content(self, limit: int = 5) -> str:
-        """Get formatted history content."""
-        if not self.terminal.history:
-            return ""
-            
-        history = "\n".join([
-            "Recent Commands:",
-            "══════════════",
-            *[f"$ {entry['command']}\n{entry['output'] if entry['output'] else '(no output)'}" 
-              for entry in self.terminal.history[-limit:]],
-            "══════════════"
-        ])
-        return f"```terminal\n{history}\n```"
 
 # Create a global instance of TerminalManager
 terminal_manager = TerminalManager() 
