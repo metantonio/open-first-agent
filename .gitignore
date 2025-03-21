@@ -52,6 +52,7 @@ conda-env/
 *.xls
 *.sqlite
 *.db
+current_directory.txt
 
 # Logs
 *.log
