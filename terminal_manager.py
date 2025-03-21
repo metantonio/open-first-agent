@@ -48,15 +48,76 @@ class TerminalState:
         else:
             self.prompt = f"local:{self.current_directory}$ "
 
-    async def connect_ssh(self, hostname: str, username: str, password: str = None, key_path: str = None) -> bool:
+    async def connect_ssh(self, hostname: str, username: str, password: str = None, key_path: str = None, key_password: str = None) -> dict:
+        """
+        Connect to SSH with enhanced error handling and support for encrypted keys.
+        
+        Args:
+            hostname (str): The remote host to connect to
+            username (str): The username for authentication
+            password (str, optional): Password for password authentication
+            key_path (str, optional): Path to the private key file
+            key_password (str, optional): Password for encrypted private key
+            
+        Returns:
+            dict: Connection result with status and details
+        """
         try:
             self.ssh_client = paramiko.SSHClient()
             self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             
+            connection_info = {
+                'status': 'failed',
+                'message': '',
+                'details': {}
+            }
+            
             if key_path:
-                self.ssh_client.connect(hostname, username=username, key_filename=key_path)
+                try:
+                    # Try to load the private key
+                    if key_password:
+                        private_key = paramiko.RSAKey.from_private_key_file(key_path, password=key_password)
+                    else:
+                        try:
+                            private_key = paramiko.RSAKey.from_private_key_file(key_path)
+                        except paramiko.ssh_exception.PasswordRequiredException:
+                            connection_info['status'] = 'error'
+                            connection_info['message'] = 'Private key is encrypted. Please provide the key password.'
+                            connection_info['details'] = {
+                                'error_type': 'encrypted_key',
+                                'requires': 'key_password'
+                            }
+                            return connection_info
+                            
+                    # Connect using the private key
+                    self.ssh_client.connect(
+                        hostname,
+                        username=username,
+                        pkey=private_key
+                    )
+                except Exception as key_error:
+                    logger.error(f"Error loading private key: {str(key_error)}")
+                    connection_info['status'] = 'error'
+                    connection_info['message'] = f'Failed to load private key: {str(key_error)}'
+                    connection_info['details'] = {
+                        'error_type': 'key_load_failed',
+                        'error': str(key_error)
+                    }
+                    return connection_info
             else:
-                self.ssh_client.connect(hostname, username=username, password=password)
+                if not password:
+                    connection_info['status'] = 'error'
+                    connection_info['message'] = 'Either password or key file is required'
+                    connection_info['details'] = {
+                        'error_type': 'no_credentials'
+                    }
+                    return connection_info
+                    
+                self.ssh_client.connect(
+                    hostname,
+                    username=username,
+                    password=password
+                )
             
             self.ssh_info = {
                 'hostname': hostname,
@@ -65,19 +126,79 @@ class TerminalState:
                 'using_key': key_path is not None
             }
             self.update_prompt()
-            return True
+            
+            connection_info['status'] = 'success'
+            connection_info['message'] = 'Successfully connected to SSH'
+            connection_info['details'] = self.ssh_info
+            return connection_info
+            
+        except paramiko.AuthenticationException:
+            connection_info = {
+                'status': 'error',
+                'message': 'Authentication failed. Please check your credentials.',
+                'details': {
+                    'error_type': 'authentication_failed'
+                }
+            }
+            logger.error("SSH authentication failed")
+            return connection_info
+            
+        except paramiko.SSHException as ssh_error:
+            connection_info = {
+                'status': 'error',
+                'message': f'SSH error occurred: {str(ssh_error)}',
+                'details': {
+                    'error_type': 'ssh_error',
+                    'error': str(ssh_error)
+                }
+            }
+            logger.error(f"SSH error: {str(ssh_error)}")
+            return connection_info
+            
         except Exception as e:
-            logger.error(f"SSH connection failed: {str(e)}")
-            self.ssh_client = None
-            self.ssh_info = None
-            return False
+            connection_info = {
+                'status': 'error',
+                'message': f'Unexpected error: {str(e)}',
+                'details': {
+                    'error_type': 'unexpected_error',
+                    'error': str(e)
+                }
+            }
+            logger.error(f"Unexpected error during SSH connection: {str(e)}")
+            return connection_info
 
-    def disconnect_ssh(self):
-        if self.ssh_client:
-            self.ssh_client.close()
-            self.ssh_client = None
-            self.ssh_info = None
-            self.update_prompt()
+    def disconnect_ssh(self) -> dict:
+        """
+        Disconnect from SSH with status reporting.
+        
+        Returns:
+            dict: Disconnection result with status and details
+        """
+        try:
+            if self.ssh_client:
+                self.ssh_client.close()
+                self.ssh_client = None
+                self.ssh_info = None
+                self.update_prompt()
+                return {
+                    'status': 'success',
+                    'message': 'Successfully disconnected from SSH',
+                    'details': {}
+                }
+            return {
+                'status': 'info',
+                'message': 'No active SSH connection to disconnect',
+                'details': {}
+            }
+        except Exception as e:
+            return {
+                'status': 'error',
+                'message': f'Error during SSH disconnection: {str(e)}',
+                'details': {
+                    'error_type': 'disconnect_error',
+                    'error': str(e)
+                }
+            }
 
 class TerminalManager:
     def __init__(self):
