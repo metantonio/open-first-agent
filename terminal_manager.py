@@ -404,9 +404,51 @@ Notes:
             if command.strip().lower() == 'ssh help':
                 return self.get_ssh_help()
 
+            # If we have an active SSH connection, execute command remotely
+            if self.terminal.is_ssh_connected():
+                try:
+                    # Special handling for cd command in SSH
+                    if command.strip().startswith('cd '):
+                        new_dir = command.strip()[3:].strip()
+                        if new_dir:
+                            # Execute cd command and then pwd to verify the change
+                            stdin, stdout, stderr = self.terminal.ssh_client.exec_command(f"{command} && pwd")
+                            error = stderr.read().decode()
+                            if error:
+                                return f"Error changing directory:\n{error}"
+                            
+                            # Update current directory from pwd output
+                            new_pwd = stdout.read().decode().strip()
+                            if new_pwd:
+                                self.terminal.current_directory = new_pwd
+                                self.terminal.update_prompt()
+                                return f"Changed directory to: {new_pwd}"
+                            return "Failed to change directory"
+                    
+                    # For non-cd commands, execute normally
+                    stdin, stdout, stderr = self.terminal.ssh_client.exec_command(command)
+                    
+                    # Get output
+                    output = stdout.read().decode()
+                    error = stderr.read().decode()
+                    
+                    # Add command to terminal history
+                    self.terminal.history.append({
+                        'command': command,
+                        'output': output if not error else error,
+                        'success': not error
+                    })
+                    
+                    if error:
+                        return f"Error:\n{error}"
+                    return output if output else "Command executed successfully (no output)"
+                except Exception as ssh_error:
+                    return f"Failed to execute command via SSH: {str(ssh_error)}"
+
+            # If no SSH connection, execute locally
             use_shell, shell_exe = self.get_shell_info()
             
-            # Handle cd command specially
+            # Handle cd command specially for local execution
             if command.strip().startswith('cd '):
                 new_dir = command.strip()[3:].strip()
                 if new_dir:
@@ -417,6 +459,7 @@ Notes:
                     
                     if os.path.exists(target_dir) and os.path.isdir(target_dir):
                         self.terminal.current_directory = target_dir
+                        self.terminal.update_prompt()
                         return f"Changed directory to: {self.terminal.current_directory}"
                     else:
                         return f"Directory not found: {new_dir}"
