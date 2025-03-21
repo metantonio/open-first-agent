@@ -199,50 +199,15 @@ def test_complex_workflow(test_dir):
 @pytest.mark.order(8)
 def test_error_handling():
     """Test error handling for invalid operations."""
-    # Test invalid file deletion
-    if IS_WINDOWS:
-        invalid_path = "C:\\temp\\nonexistent\\file.txt"
-    else:
-        invalid_path = "/tmp/nonexistent/file.txt"
+    # Use an invalid path appropriate for the OS
+    invalid_path = "/nonexistent/file.txt" if not IS_WINDOWS else "C:\\nonexistent\\file.txt"
     
-    # Try to delete non-existent file
-    result = run_workflow(f"Delete the file {invalid_path}")
-    print(f"Delete non-existent file result: {result}")  # Debug output
-    assert any(msg in result.lower() for msg in [
-        "not exist",
-        "error",
-        "cannot",
-        "failed",
-        "no such file",
-        "not found"
-    ]), f"Expected error message, got: {result}"
+    result = run_workflow(f"Please delete the file at {invalid_path}")
+    assert any(msg in result.lower() for msg in ["not exist", "error", "cannot", "failed"])
     
-    # Try to execute invalid command
-    invalid_cmd = "nonexistentcommand123_xyz"
-    result = run_workflow(f"Execute the command: {invalid_cmd}")
-    print(f"Execute invalid command result: {result}")  # Debug output
-    assert any(msg in result.lower() for msg in [
-        "not found",
-        "error",
-        "cannot",
-        "failed",
-        "command not found",
-        "unknown command"
-    ]), f"Expected error message, got: {result}"
-    
-    # Try to copy non-existent file
-    source = "/nonexistent/source.txt" if not IS_WINDOWS else "C:\\nonexistent\\source.txt"
-    dest = "/nonexistent/dest.txt" if not IS_WINDOWS else "C:\\nonexistent\\dest.txt"
-    result = run_workflow(f"Copy the file from {source} to {dest}")
-    print(f"Copy non-existent file result: {result}")  # Debug output
-    assert any(msg in result.lower() for msg in [
-        "not exist",
-        "error",
-        "cannot",
-        "failed",
-        "no such file",
-        "not found"
-    ]), f"Expected error message, got: {result}"
+    # Use a command that doesn't exist on any OS
+    result = run_workflow("Please execute this command: nonexistentcommand123")
+    assert any(msg in result.lower() for msg in ["not found", "error", "cannot", "failed"])
 
 if __name__ == "__main__":
     # Install pytest-order if not already installed

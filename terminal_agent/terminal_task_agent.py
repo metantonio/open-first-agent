@@ -338,25 +338,60 @@ def run_workflow(request: str) -> str:
     """Run the terminal workflow with the orchestrator as the main controller."""
     logger.info(f"Starting terminal workflow for request: {request}")
     
-    # Run the request through the orchestrator
-    response = Runner.run_sync(
-        terminal_orchestrator,
-        f"""Process this terminal operation request: {request}
+    try:
+        # Run the request through the orchestrator
+        response = Runner.run_sync(
+            terminal_orchestrator,
+            f"""Process this terminal operation request: {request}
+            
+            Follow these steps:
+            1. Analyze the request and determine the required operations
+            2. Execute each operation carefully and in sequence
+            3. For each operation:
+               - Validate inputs
+               - Execute the operation
+               - Check the result
+               - Handle any errors
+            4. Provide clear feedback about what was done
+            
+            IMPORTANT:
+            - Use absolute paths when working with files
+            - Verify file/directory existence before operations
+            - Handle errors gracefully with clear messages
+            - Return specific success/error information
+            
+            If you encounter an error:
+            - Explain what went wrong
+            - Provide the specific error message
+            - Suggest possible solutions if applicable"""
+        )
         
-        Follow these steps:
-        1. Analyze the request
-        2. Determine required operations
-        3. Execute operations in sequence
-        4. Provide clear feedback
+        # Check if we got a response
+        if not response or not response.final_output:
+            return "Error: No response received from the orchestrator"
         
-        IMPORTANT:
-        - Validate all operations
-        - Handle errors appropriately
-        - Maintain operation history
-        - Ensure secure execution"""
-    )
-    
-    return response.final_output
+        # Extract tool results if available
+        tool_results = []
+        if hasattr(response, 'tool_results'):
+            for result in response.tool_results:
+                if isinstance(result, dict):
+                    if not result.get('success', True):
+                        error_msg = result.get('error', 'Unknown error')
+                        tool_results.append(f"Operation failed: {error_msg}")
+                    else:
+                        msg = result.get('message', result.get('output', ''))
+                        if msg:
+                            tool_results.append(msg)
+        
+        # Combine tool results with final output
+        if tool_results:
+            return f"{response.final_output}\n\nOperation details:\n" + "\n".join(f"- {r}" for r in tool_results)
+        
+        return response.final_output
+        
+    except Exception as e:
+        logger.error(f"Error in workflow execution: {str(e)}")
+        return f"Error executing workflow: {str(e)}"
 
 # Only run the test if this file is run directly
 if __name__ == "__main__":
