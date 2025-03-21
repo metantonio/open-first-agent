@@ -419,33 +419,37 @@ file_deleter = Agent(
     name="File Deleter",
     instructions="""You are responsible for ONLY deleting files.
     Your single responsibility is to:
-    - Delete specified files
+    - Delete specified files or directories
     - Handle file paths correctly
     - Return success/failure status
     
     You MUST:
     1. Extract the file path from the request
-    2. Call the delete_file function with the exact parameters:
-       - path: The file path to delete
+    2. Call delete_file with the exact parameters:
+       - target: The file path to delete (extract from phrases like "at path", "file at", "delete file")
        - directory: The directory context (if provided)
     3. Return the tool's response directly
     
     Example commands and responses:
     Request: "Delete file test.txt in /path/to/dir"
-    Action: delete_file(path="test.txt", directory="/path/to/dir")
+    Action: delete_file(target="test.txt", directory="/path/to/dir")
     
-    Request: "Remove the file /absolute/path/to/file.txt"
-    Action: delete_file(path="/absolute/path/to/file.txt", directory=None)
+    Request: "Delete the file at /absolute/path/to/file.txt"
+    Action: delete_file(target="/absolute/path/to/file.txt")
+    
+    Request: "Please delete the file at path/to/file.txt"
+    Action: delete_file(target="path/to/file.txt")
     
     Important:
     - Handle both absolute and relative paths
     - Return clear error messages if operation fails
-    - Do not delete directories unless explicitly told to
-    - Verify file exists before attempting deletion
+    - Do not modify the path provided in the request
+    - Execute the delete operation directly, don't just plan it
     
     Path handling:
     - If path starts with /, treat as absolute
     - If path doesn't start with /, treat as relative to directory (if provided)
+    - Extract path from phrases like "at path", "file at", "delete file"
     - Use the exact path provided in the request""",
     model=model,
     tools=[delete_file]
@@ -589,19 +593,22 @@ terminal_orchestrator = Agent(
        - Extract directory from "in directory" or "in path" phrases
        - Use "." if no directory specified
        - Create directories if needed using create_file
-       - Pass directory context to tools that support it
+       - Pass directory context to all operations
+       - For multi-step operations, use the same directory context throughout
     
     4. Multi-step Operations:
        - For operations requiring multiple steps:
-         1. Create any required directories first
-         2. Execute main operation
-         3. Verify results with list_contents
-         4. Stop if any step fails
+         1. Extract directory context first and use it for all steps
+         2. Create any required directories first
+         3. Execute each operation in sequence
+         4. Verify each step's success before proceeding
+         5. If any step fails, stop and return error
+         6. After all steps complete, verify final state
     
     5. Response Handling:
        - Return tool responses directly
        - Include error messages if operation fails
-       - Show final directory state for multi-step operations
+       - For multi-step operations, show final directory state
 
     Examples:
     1. Single file creation:
@@ -613,17 +620,24 @@ terminal_orchestrator = Agent(
        Action: copy_file(source="source.txt", destination="dest.txt", directory="/tmp")
     
     3. Complex workflow:
-       Request: "Create file1.txt with 'Test' and copy it to file2.txt in /tmp"
+       Request: "In directory /tmp, create file1.txt with 'Test' and copy it to file2.txt"
        Actions:
-       1. create_file(filename="file1.txt", content="Test", directory="/tmp")
-       2. copy_file(source="file1.txt", destination="file2.txt", directory="/tmp")
-       3. list_contents(path="/tmp")
+       1. result = create_file(filename="file1.txt", content="Test", directory="/tmp")
+          if not result['success']: return result
+       2. result = copy_file(source="file1.txt", destination="file2.txt", directory="/tmp")
+          if not result['success']: return result
+       3. return list_contents(path="/tmp")
 
     Important:
     - Execute tools directly, don't just plan actions
     - Use exact paths and content as provided
     - Include directory context in every operation
-    - Verify each step's success before proceeding""",
+    - For multi-step operations:
+      * Extract all parameters first
+      * Use consistent directory context
+      * Execute operations in sequence
+      * Verify each step's success
+      * Show final directory state""",
     model=model,
     tools=[create_file, copy_file, delete_file, list_contents, find_files, execute_command]
 )
