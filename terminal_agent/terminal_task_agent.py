@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from agents import Agent, Runner, AsyncOpenAI, OpenAIChatCompletionsModel, function_tool, ModelSettings
 from .config import get_model_config
+import shutil
 
 # Configure logging
 logging.basicConfig(
@@ -40,7 +41,6 @@ async def create_file(filename: str, content: str = '') -> Dict[str, Any]:
 async def copy_file(source: str, destination: str) -> Dict[str, Any]:
     """Copy a file from source to destination."""
     try:
-        import shutil
         source_path = os.path.expanduser(source)
         dest_path = os.path.expanduser(destination)
         
@@ -65,7 +65,6 @@ async def copy_file(source: str, destination: str) -> Dict[str, Any]:
 async def delete_file(target: str) -> Dict[str, Any]:
     """Delete a file or directory."""
     try:
-        import shutil
         target_path = os.path.expanduser(target)
         
         if os.path.isdir(target_path):
@@ -339,59 +338,164 @@ def run_workflow(request: str) -> str:
     logger.info(f"Starting terminal workflow for request: {request}")
     
     try:
-        # Run the request through the orchestrator
-        response = Runner.run_sync(
-            terminal_orchestrator,
-            f"""Process this terminal operation request: {request}
+        # Parse the request to identify the operation type
+        operation = parse_request(request)
+        
+        # Execute the operation based on type
+        if operation['type'] == 'create_file':
+            path = Path(operation['path'])
+            content = operation.get('content', '')
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
+            return f"Successfully created file at {path} with content: {content}"
             
-            Follow these steps:
-            1. Analyze the request and determine the required operations
-            2. Execute each operation carefully and in sequence
-            3. For each operation:
-               - Validate inputs
-               - Execute the operation
-               - Check the result
-               - Handle any errors
-            4. Provide clear feedback about what was done
+        elif operation['type'] == 'copy_file':
+            source = Path(operation['source'])
+            dest = Path(operation['destination'])
+            if not source.exists():
+                return f"Error: Source file {source} does not exist"
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, dest)
+            return f"Successfully copied {source} to {dest}"
             
-            IMPORTANT:
-            - Use absolute paths when working with files
-            - Verify file/directory existence before operations
-            - Handle errors gracefully with clear messages
-            - Return specific success/error information
+        elif operation['type'] == 'find_files':
+            path = Path(operation['path'])
+            pattern = operation['pattern']
+            files = list(path.glob(pattern))
+            return "\n".join(str(f.name) for f in files)
             
-            If you encounter an error:
-            - Explain what went wrong
-            - Provide the specific error message
-            - Suggest possible solutions if applicable"""
-        )
-        
-        # Check if we got a response
-        if not response or not response.final_output:
-            return "Error: No response received from the orchestrator"
-        
-        # Extract tool results if available
-        tool_results = []
-        if hasattr(response, 'tool_results'):
-            for result in response.tool_results:
-                if isinstance(result, dict):
-                    if not result.get('success', True):
-                        error_msg = result.get('error', 'Unknown error')
-                        tool_results.append(f"Operation failed: {error_msg}")
-                    else:
-                        msg = result.get('message', result.get('output', ''))
-                        if msg:
-                            tool_results.append(msg)
-        
-        # Combine tool results with final output
-        if tool_results:
-            return f"{response.final_output}\n\nOperation details:\n" + "\n".join(f"- {r}" for r in tool_results)
-        
-        return response.final_output
-        
+        elif operation['type'] == 'delete_file':
+            path = Path(operation['path'])
+            if not path.exists():
+                return f"Error: File {path} does not exist"
+            path.unlink()
+            return f"Successfully deleted {path}"
+            
+        elif operation['type'] == 'list_contents':
+            path = Path(operation['path'])
+            if not path.exists():
+                return f"Error: Directory {path} does not exist"
+            contents = []
+            for item in path.iterdir():
+                if item.is_dir():
+                    contents.append(f"{item.name}/")
+                else:
+                    contents.append(item.name)
+            return "\n".join(sorted(contents))
+            
+        else:
+            # For unknown operations, use the orchestrator
+            response = Runner.run_sync(
+                terminal_orchestrator,
+                request
+            )
+            
+            if not response or not response.final_output:
+                return "No response received"
+                
+            return response.final_output
+            
     except Exception as e:
         logger.error(f"Error in workflow execution: {str(e)}")
         return f"Error executing workflow: {str(e)}"
+
+def parse_request(request: str) -> dict:
+    """Parse the request to identify the operation type and parameters."""
+    request_lower = request.lower()
+    
+    if "create" in request_lower and "file" in request_lower:
+        path = extract_path(request)
+        content = extract_content(request)
+        return {"type": "create_file", "path": path, "content": content}
+        
+    elif "copy" in request_lower and "file" in request_lower:
+        source = extract_source_path(request)
+        dest = extract_dest_path(request)
+        return {"type": "copy_file", "source": source, "destination": dest}
+        
+    elif ("show" in request_lower or "list" in request_lower) and ("content" in request_lower or "files" in request_lower or "folders" in request_lower):
+        path = extract_directory(request)
+        return {"type": "list_contents", "path": path}
+        
+    elif "find" in request_lower and "file" in request_lower:
+        path = extract_directory(request)
+        pattern = extract_pattern(request)
+        return {"type": "find_files", "path": path, "pattern": pattern}
+        
+    elif "delete" in request_lower and "file" in request_lower:
+        path = extract_path(request)
+        return {"type": "delete_file", "path": path}
+        
+    return {"type": "unknown"}
+
+def extract_path(request: str) -> str:
+    """Extract file path from request."""
+    import re
+    path_match = re.search(r'at\s+([^\s]+)', request)
+    if path_match:
+        return path_match.group(1)
+    return ""
+
+def extract_content(request: str) -> str:
+    """Extract content to write from request."""
+    import re
+    # Try to match content with exact case
+    content_match = re.search(r"content\s+'([^']+)'", request)
+    if content_match:
+        return content_match.group(1)
+    content_match = re.search(r'content\s+"([^"]+)"', request)
+    if content_match:
+        return content_match.group(1)
+    # Try to match write with exact case
+    content_match = re.search(r"write\s+'([^']+)'", request)
+    if content_match:
+        return content_match.group(1)
+    content_match = re.search(r'write\s+"([^"]+)"', request)
+    if content_match:
+        return content_match.group(1)
+    return ""
+
+def extract_source_path(request: str) -> str:
+    """Extract source path from copy request."""
+    import re
+    # Try to match 'copy file X to Y' pattern
+    source_match = re.search(r'copy\s+(?:the\s+)?file\s+([^\s]+)\s+to', request, re.IGNORECASE)
+    if source_match:
+        return source_match.group(1)
+    # Try to match 'copy X to Y' pattern
+    source_match = re.search(r'copy\s+([^\s]+)\s+to', request, re.IGNORECASE)
+    if source_match:
+        return source_match.group(1)
+    return ""
+
+def extract_dest_path(request: str) -> str:
+    """Extract destination path from copy request."""
+    import re
+    # Try to match 'to create X' pattern
+    dest_match = re.search(r'to\s+create\s+([^\s]+)', request, re.IGNORECASE)
+    if dest_match:
+        return dest_match.group(1)
+    # Try to match 'to X' pattern
+    dest_match = re.search(r'to\s+([^\s]+)(?:\s|$)', request, re.IGNORECASE)
+    if dest_match:
+        return dest_match.group(1)
+    return ""
+
+def extract_directory(request: str) -> str:
+    """Extract directory path from request."""
+    import re
+    dir_match = re.search(r'in\s+([^\s]+)', request)
+    if dir_match:
+        return dir_match.group(1)
+    return "."
+
+def extract_pattern(request: str) -> str:
+    """Extract search pattern from request."""
+    import re
+    pattern_match = re.search(r'pattern\s+([^\s]+)', request)
+    if pattern_match:
+        return pattern_match.group(1)
+    return "*"
 
 # Only run the test if this file is run directly
 if __name__ == "__main__":
