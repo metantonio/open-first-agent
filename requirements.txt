@@ -9,3 +9,6 @@ ipykernel
 jupyter
 conda-env
 paramiko
+pytest 
+asyncio
+pytest-asyncio

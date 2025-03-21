@@ -1,0 +1,1 @@
+python -m pytest terminal_agent/test_terminal_task_agent.py -v
