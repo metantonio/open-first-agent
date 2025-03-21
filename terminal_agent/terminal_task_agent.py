@@ -340,6 +340,7 @@ def run_workflow(request: str) -> str:
     try:
         # Parse the request to identify the operation type
         operation = parse_request(request)
+        logger.info(f"Parsed operation: {operation}")
         
         # Execute the operation based on type
         if operation['type'] == 'create_file':
@@ -347,15 +348,17 @@ def run_workflow(request: str) -> str:
             content = operation.get('content', '')
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content)
-            return f"Successfully created file at {path} with content: {content}"
+            return f"Successfully created file at {path}"
             
         elif operation['type'] == 'copy_file':
             source = Path(operation['source'])
             dest = Path(operation['destination'])
             if not source.exists():
                 return f"Error: Source file {source} does not exist"
+            if not source.is_file():
+                return f"Error: Source {source} is not a file"
             dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, dest)
+            shutil.copy2(str(source), str(dest))
             return f"Successfully copied {source} to {dest}"
             
         elif operation['type'] == 'find_files':
@@ -368,20 +371,25 @@ def run_workflow(request: str) -> str:
             path = Path(operation['path'])
             if not path.exists():
                 return f"Error: File {path} does not exist"
-            path.unlink()
+            if path.is_file():
+                path.unlink()
+            else:
+                shutil.rmtree(path)
             return f"Successfully deleted {path}"
             
         elif operation['type'] == 'list_contents':
             path = Path(operation['path'])
             if not path.exists():
                 return f"Error: Directory {path} does not exist"
+            if not path.is_dir():
+                return f"Error: {path} is not a directory"
             contents = []
-            for item in path.iterdir():
+            for item in sorted(path.iterdir()):
                 if item.is_dir():
                     contents.append(f"{item.name}/")
                 else:
                     contents.append(item.name)
-            return "\n".join(sorted(contents))
+            return "\n".join(contents)
             
         else:
             # For unknown operations, use the orchestrator
@@ -431,7 +439,12 @@ def parse_request(request: str) -> dict:
 def extract_path(request: str) -> str:
     """Extract file path from request."""
     import re
+    # Try to match 'at path' pattern
     path_match = re.search(r'at\s+([^\s]+)', request)
+    if path_match:
+        return path_match.group(1)
+    # Try to match 'file path' pattern
+    path_match = re.search(r'file\s+([^\s]+)', request)
     if path_match:
         return path_match.group(1)
     return ""
@@ -439,18 +452,11 @@ def extract_path(request: str) -> str:
 def extract_content(request: str) -> str:
     """Extract content to write from request."""
     import re
-    # Try to match content with exact case
-    content_match = re.search(r"content\s+'([^']+)'", request)
+    # Try to match content between quotes with exact case
+    content_match = re.search(r"content\s*['\"]([^'\"]+)['\"]", request)
     if content_match:
         return content_match.group(1)
-    content_match = re.search(r'content\s+"([^"]+)"', request)
-    if content_match:
-        return content_match.group(1)
-    # Try to match write with exact case
-    content_match = re.search(r"write\s+'([^']+)'", request)
-    if content_match:
-        return content_match.group(1)
-    content_match = re.search(r'write\s+"([^"]+)"', request)
+    content_match = re.search(r"write\s*['\"]([^'\"]+)['\"]", request)
     if content_match:
         return content_match.group(1)
     return ""
@@ -484,7 +490,12 @@ def extract_dest_path(request: str) -> str:
 def extract_directory(request: str) -> str:
     """Extract directory path from request."""
     import re
-    dir_match = re.search(r'in\s+([^\s]+)', request)
+    # Try to match 'in directory' pattern
+    dir_match = re.search(r'in\s+(?:the\s+)?(?:directory\s+)?([^\s]+)', request, re.IGNORECASE)
+    if dir_match:
+        return dir_match.group(1)
+    # Try to match 'in path' pattern
+    dir_match = re.search(r'in\s+([^\s]+)', request, re.IGNORECASE)
     if dir_match:
         return dir_match.group(1)
     return "."
@@ -492,7 +503,12 @@ def extract_directory(request: str) -> str:
 def extract_pattern(request: str) -> str:
     """Extract search pattern from request."""
     import re
+    # Try to match 'pattern X' format
     pattern_match = re.search(r'pattern\s+([^\s]+)', request)
+    if pattern_match:
+        return pattern_match.group(1)
+    # Try to match 'match X' format
+    pattern_match = re.search(r'match\s+([^\s]+)', request)
     if pattern_match:
         return pattern_match.group(1)
     return "*"
