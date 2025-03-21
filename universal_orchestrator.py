@@ -4,7 +4,7 @@ from terraform_agent.terraform_agent import run_workflow as run_terraform_workfl
 from dev_env_agent.dev_env_agent import run_workflow as run_dev_env_workflow
 from aws_cli_agent.aws_cli_agent import run_workflow as run_aws_cli_workflow
 from file_system_agent.file_system_agent import run_workflow as run_file_env_workflow
-from terminal_agent import run_workflow as run_terminal_workflow
+from terminal_agent.terminal_task_agent import run_workflow as run_terminal_workflow
 import logging
 from config import get_model_config
 
