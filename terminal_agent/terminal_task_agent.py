@@ -391,6 +391,28 @@ def run_workflow(request: str) -> str:
                     contents.append(item.name)
             return "\n".join(contents)
             
+        elif operation['type'] == 'execute_command':
+            command = operation.get('command', '')
+            if not command:
+                return "Error: No command provided"
+            
+            result = Runner.run_sync(
+                command_executor,
+                f"Execute this command: {command}"
+            )
+            
+            if not result or not result.final_output:
+                # Try direct execution
+                process = asyncio.get_event_loop().run_until_complete(
+                    execute_command(command)
+                )
+                if process['success']:
+                    return process['output'].strip()
+                else:
+                    return f"Error executing command: {process['error']}"
+            
+            return result.final_output
+            
         else:
             # For unknown operations, use the orchestrator
             response = Runner.run_sync(
@@ -416,7 +438,7 @@ def parse_request(request: str) -> dict:
         content = extract_content(request)
         return {"type": "create_file", "path": path, "content": content}
         
-    elif "copy" in request_lower and "file" in request_lower:
+    elif "copy" in request_lower:
         source = extract_source_path(request)
         dest = extract_dest_path(request)
         return {"type": "copy_file", "source": source, "destination": dest}
@@ -433,6 +455,10 @@ def parse_request(request: str) -> dict:
     elif "delete" in request_lower and "file" in request_lower:
         path = extract_path(request)
         return {"type": "delete_file", "path": path}
+        
+    elif "execute" in request_lower and "command" in request_lower:
+        command = extract_command(request)
+        return {"type": "execute_command", "command": command}
         
     return {"type": "unknown"}
 
@@ -465,11 +491,7 @@ def extract_source_path(request: str) -> str:
     """Extract source path from copy request."""
     import re
     # Try to match 'copy file X to Y' pattern
-    source_match = re.search(r'copy\s+(?:the\s+)?file\s+([^\s]+)\s+to', request, re.IGNORECASE)
-    if source_match:
-        return source_match.group(1)
-    # Try to match 'copy X to Y' pattern
-    source_match = re.search(r'copy\s+([^\s]+)\s+to', request, re.IGNORECASE)
+    source_match = re.search(r'copy\s+(?:the\s+)?(?:file\s+)?([^\s]+)\s+to', request, re.IGNORECASE)
     if source_match:
         return source_match.group(1)
     return ""
@@ -478,11 +500,7 @@ def extract_dest_path(request: str) -> str:
     """Extract destination path from copy request."""
     import re
     # Try to match 'to create X' pattern
-    dest_match = re.search(r'to\s+create\s+([^\s]+)', request, re.IGNORECASE)
-    if dest_match:
-        return dest_match.group(1)
-    # Try to match 'to X' pattern
-    dest_match = re.search(r'to\s+([^\s]+)(?:\s|$)', request, re.IGNORECASE)
+    dest_match = re.search(r'to\s+(?:create\s+)?([^\s]+)(?:\s|$)', request, re.IGNORECASE)
     if dest_match:
         return dest_match.group(1)
     return ""
@@ -512,6 +530,14 @@ def extract_pattern(request: str) -> str:
     if pattern_match:
         return pattern_match.group(1)
     return "*"
+
+def extract_command(request: str) -> str:
+    """Extract command to execute from request."""
+    import re
+    command_match = re.search(r'command:\s*(.+?)(?:\s*$|\s+with\s+|$)', request)
+    if command_match:
+        return command_match.group(1).strip()
+    return ""
 
 # Only run the test if this file is run directly
 if __name__ == "__main__":
