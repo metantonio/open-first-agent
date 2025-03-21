@@ -82,21 +82,19 @@ def test_create_file(test_dir):
 def test_copy_file(test_dir):
     """Test file copying."""
     # Create source file
-    source = normalize_path(test_dir / "source.txt")
-    ensure_dir(Path(source))
-    Path(source).write_text("test content")
-    assert os.path.exists(source), f"Source file {source} was not created"
+    source = test_dir / "source.txt"
+    source.write_text("test content")
+    assert source.exists(), f"Source file {source} was not created"
     
-    # Create destination path
-    dest = normalize_path(test_dir / "dest2.txt")
-    ensure_dir(Path(dest))
+    # Define destination path
+    dest = test_dir / "dest2.txt"
     
-    # Try to copy the file
-    result = run_workflow(f"Copy the file {source} to create {dest}")
+    # Try to copy the file using the actual directory context
+    result = run_workflow(f"Copy the file source.txt to dest2.txt in directory {test_dir}")
     print(f"Copy file result: {result}")  # Debug output
     
-    assert wait_for_file(dest), f"Destination file {dest} was not created"
-    assert Path(dest).read_text() == "test content", f"Content mismatch in {dest}"
+    assert dest.exists(), f"Destination file {dest} was not created"
+    assert dest.read_text() == "test content", f"Content mismatch in {dest}"
 
 @pytest.mark.order(3)
 def test_list_contents(test_dir):

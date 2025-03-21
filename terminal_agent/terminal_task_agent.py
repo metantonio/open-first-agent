@@ -344,22 +344,32 @@ def run_workflow(request: str) -> str:
         
         # Execute the operation based on type
         if operation['type'] == 'create_file':
-            path = Path(operation['path'])
+            directory = Path(operation.get('directory', '.'))
+            path = directory / operation['path']
             content = operation.get('content', '')
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content)
             return f"Successfully created file at {path}"
             
         elif operation['type'] == 'copy_file':
-            source = Path(operation['source'])
-            dest = Path(operation['destination'])
-            if not source.exists():
-                return f"Error: Source file {source} does not exist"
-            if not source.is_file():
-                return f"Error: Source {source} is not a file"
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(str(source), str(dest))
-            return f"Successfully copied {source} to {dest}"
+            directory = Path(operation.get('directory', '.'))
+            source = directory / operation['source']
+            dest = directory / operation['destination']
+            
+            logger.info(f"Copying from {source} to {dest}")
+            
+            try:
+                if not source.exists():
+                    return f"Error: Source file {source} does not exist"
+                if not source.is_file():
+                    return f"Error: Source {source} is not a file"
+                
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(source), str(dest))
+                return f"Successfully copied {source} to {dest}"
+            except Exception as e:
+                logger.error(f"Copy failed: {str(e)}")
+                return f"Error copying file: {str(e)}"
             
         elif operation['type'] == 'find_files':
             path = Path(operation['path'])
@@ -368,7 +378,8 @@ def run_workflow(request: str) -> str:
             return "\n".join(str(f.name) for f in files)
             
         elif operation['type'] == 'delete_file':
-            path = Path(operation['path'])
+            directory = Path(operation.get('directory', '.'))
+            path = directory / operation['path']
             if not path.exists():
                 return f"Error: File {path} does not exist"
             if path.is_file():
@@ -396,13 +407,7 @@ def run_workflow(request: str) -> str:
             if not command:
                 return "Error: No command provided"
             
-            result = Runner.run_sync(
-                command_executor,
-                f"Execute this command: {command}"
-            )
-            
-            if not result or not result.final_output:
-                # Try direct execution
+            try:
                 process = asyncio.get_event_loop().run_until_complete(
                     execute_command(command)
                 )
@@ -410,20 +415,24 @@ def run_workflow(request: str) -> str:
                     return process['output'].strip()
                 else:
                     return f"Error executing command: {process['error']}"
-            
-            return result.final_output
+            except Exception as e:
+                return f"Error: Command not found or failed to execute - {str(e)}"
             
         else:
             # For unknown operations, use the orchestrator
-            response = Runner.run_sync(
-                terminal_orchestrator,
-                request
-            )
-            
-            if not response or not response.final_output:
-                return "No response received"
+            try:
+                response = Runner.run_sync(
+                    terminal_orchestrator,
+                    request
+                )
                 
-            return response.final_output
+                if not response or not response.final_output:
+                    return "No response received"
+                    
+                return response.final_output
+            except Exception as e:
+                logger.error(f"Orchestrator error: {str(e)}")
+                return f"Error: {str(e)}"
             
     except Exception as e:
         logger.error(f"Error in workflow execution: {str(e)}")
@@ -436,12 +445,24 @@ def parse_request(request: str) -> dict:
     if "create" in request_lower and "file" in request_lower:
         path = extract_path(request)
         content = extract_content(request)
-        return {"type": "create_file", "path": path, "content": content}
+        directory = extract_directory(request)
+        return {
+            "type": "create_file",
+            "path": path,
+            "content": content,
+            "directory": directory
+        }
         
     elif "copy" in request_lower:
         source = extract_source_path(request)
         dest = extract_dest_path(request)
-        return {"type": "copy_file", "source": source, "destination": dest}
+        directory = extract_directory(request)
+        return {
+            "type": "copy_file",
+            "source": source,
+            "destination": dest,
+            "directory": directory
+        }
         
     elif ("show" in request_lower or "list" in request_lower) and ("content" in request_lower or "files" in request_lower or "folders" in request_lower):
         path = extract_directory(request)
@@ -454,7 +475,12 @@ def parse_request(request: str) -> dict:
         
     elif "delete" in request_lower and "file" in request_lower:
         path = extract_path(request)
-        return {"type": "delete_file", "path": path}
+        directory = extract_directory(request)
+        return {
+            "type": "delete_file",
+            "path": path,
+            "directory": directory
+        }
         
     elif "execute" in request_lower and "command" in request_lower:
         command = extract_command(request)
@@ -509,11 +535,11 @@ def extract_directory(request: str) -> str:
     """Extract directory path from request."""
     import re
     # Try to match 'in directory' pattern
-    dir_match = re.search(r'in\s+(?:the\s+)?(?:directory\s+)?([^\s]+)', request, re.IGNORECASE)
+    dir_match = re.search(r'in\s+(?:the\s+)?(?:directory\s+)?([^\s]+)', request)
     if dir_match:
         return dir_match.group(1)
     # Try to match 'in path' pattern
-    dir_match = re.search(r'in\s+([^\s]+)', request, re.IGNORECASE)
+    dir_match = re.search(r'in\s+([^\s]+)', request)
     if dir_match:
         return dir_match.group(1)
     return "."
