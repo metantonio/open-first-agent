@@ -288,28 +288,43 @@ terminal_orchestrator = Agent(
     instructions="""You are the main orchestrator for terminal operations. Your responsibilities include:
     1. Task Analysis:
        - Understand user requests
-       - Determine required operations
-       - Select appropriate agents
+       - Break down complex requests into individual steps
+       - Determine required operations for each step
+       - Select appropriate tools for each operation
     
     2. Workflow Management:
-       - Coordinate between agents
-       - Ensure proper operation sequence
-       - Handle dependencies
+       - Execute operations in the correct sequence
+       - Ensure each step completes before moving to the next
+       - Handle dependencies between steps
+       - Provide clear feedback after each operation
     
     3. Error Handling:
        - Monitor operation results
-       - Handle and report errors
-       - Provide clear feedback
+       - Stop execution if a critical step fails
+       - Provide detailed error messages
+       - Suggest possible solutions
     
-    4. Security:
-       - Validate operations
-       - Handle sensitive data
-       - Ensure secure execution
+    4. Path Handling:
+       - Use absolute paths when needed
+       - Handle relative paths correctly
+       - Maintain directory context
+       - Validate paths before operations
     
-    5. History Management:
-       - Track operations
-       - Maintain execution history
-       - Provide operation status""",
+    5. Response Formatting:
+       - Return clear, readable output
+       - Include success/failure status
+       - List completed operations
+       - Show final state of affected files
+
+    When handling multi-step operations:
+    1. First break down the request into individual steps
+    2. For each step:
+       - Determine the exact operation needed
+       - Validate inputs and paths
+       - Execute the operation
+       - Verify the result
+    3. Maintain context between steps
+    4. Return a summary of all operations""",
     model=model,
     tools=[
         create_file,
@@ -319,15 +334,6 @@ terminal_orchestrator = Agent(
         find_files,
         execute_command,
         ssh_connect
-    ],
-    handoffs=[
-        file_creator,
-        file_copier,
-        file_deleter,
-        directory_lister,
-        file_finder,
-        command_executor,
-        ssh_manager
     ]
 )
 
@@ -338,7 +344,34 @@ def run_workflow(request: str) -> str:
     logger.info(f"Starting terminal workflow for request: {request}")
     
     try:
-        # Parse the request to identify the operation type
+        # For complex workflows, use the orchestrator directly
+        if '\n' in request or ',' in request or ';' in request or any(str(i) in request for i in range(10)):
+            try:
+                response = Runner.run_sync(
+                    terminal_orchestrator,
+                    request
+                )
+                
+                if not response:
+                    return "No response received from orchestrator"
+                
+                if isinstance(response.final_output, str):
+                    return response.final_output.strip()
+                elif isinstance(response.final_output, dict):
+                    if response.final_output.get('error'):
+                        return f"Error: {response.final_output['error']}"
+                    elif response.final_output.get('output'):
+                        return response.final_output['output']
+                    else:
+                        return str(response.final_output)
+                else:
+                    return str(response.final_output)
+                    
+            except Exception as e:
+                logger.error(f"Orchestrator error: {str(e)}")
+                return f"Error in workflow: {str(e)}"
+        
+        # For simple operations, parse and execute directly
         operation = parse_request(request)
         logger.info(f"Parsed operation: {operation}")
         
@@ -352,9 +385,17 @@ def run_workflow(request: str) -> str:
             return f"Successfully created file at {path}"
             
         elif operation['type'] == 'copy_file':
-            directory = Path(operation.get('directory', '.'))
-            source = directory / operation['source']
-            dest = directory / operation['destination']
+            source = Path(operation['source'])
+            dest = Path(operation['destination'])
+            
+            # If paths are not absolute and directory is provided, make them relative to directory
+            directory = operation.get('directory')
+            if directory:
+                directory = Path(directory)
+                if not source.is_absolute():
+                    source = directory / source
+                if not dest.is_absolute():
+                    dest = directory / dest
             
             logger.info(f"Copying from {source} to {dest}")
             
@@ -372,10 +413,16 @@ def run_workflow(request: str) -> str:
                 return f"Error copying file: {str(e)}"
             
         elif operation['type'] == 'find_files':
-            path = Path(operation['path'])
-            pattern = operation['pattern']
-            files = list(path.glob(pattern))
-            return "\n".join(str(f.name) for f in files)
+            try:
+                path = Path(operation['path'])
+                pattern = operation['pattern']
+                files = list(path.glob(pattern))
+                if not files:
+                    return "No matching files found"
+                return "\n".join(f.name for f in files)
+            except Exception as e:
+                logger.error(f"Find failed: {str(e)}")
+                return f"Error finding files: {str(e)}"
             
         elif operation['type'] == 'delete_file':
             directory = Path(operation.get('directory', '.'))
@@ -408,15 +455,17 @@ def run_workflow(request: str) -> str:
                 return "Error: No command provided"
             
             try:
-                process = asyncio.get_event_loop().run_until_complete(
+                result = asyncio.get_event_loop().run_until_complete(
                     execute_command(command)
                 )
-                if process['success']:
-                    return process['output'].strip()
+                if isinstance(result, dict) and result.get('success'):
+                    return result['output'].strip()
                 else:
-                    return f"Error executing command: {process['error']}"
+                    error = result.get('error') if isinstance(result, dict) else str(result)
+                    return f"Error executing command: {error}"
             except Exception as e:
-                return f"Error: Command not found or failed to execute - {str(e)}"
+                logger.error(f"Command execution failed: {str(e)}")
+                return f"Error executing command: {str(e)}"
             
         else:
             # For unknown operations, use the orchestrator

@@ -165,34 +165,25 @@ def test_execute_command():
 @pytest.mark.order(7)
 def test_complex_workflow(test_dir):
     """Test a complex workflow with multiple operations."""
-    # Create test directory
-    complex_dir = normalize_path(test_dir / "complex_test")
-    Path(complex_dir).mkdir(parents=True, exist_ok=True)
-    assert os.path.exists(complex_dir), f"Failed to create directory {complex_dir}"
+    # Create a single comprehensive request that includes all operations
+    complex_request = f"""In the directory {test_dir}, please:
+    1. Create a new file called file1.txt with the content 'Test Content'
+    2. Make a copy of file1.txt and name it file2.txt
+    3. Show me a list of all files in the directory"""
     
-    # Create first file
-    file1_path = normalize_path(Path(complex_dir) / "file1.txt")
-    result1 = run_workflow(f"Create a new text file at {file1_path} with the content 'Test Content'")
-    print(f"Create file result: {result1}")  # Debug output
+    result = run_workflow(complex_request)
+    print(f"Complex workflow result: {result}")  # Debug output
     
-    assert wait_for_file(file1_path), f"File {file1_path} was not created"
-    assert Path(file1_path).read_text() == "Test Content", f"Content mismatch in {file1_path}"
+    # Verify all operations were successful
+    file1_path = test_dir / "file1.txt"
+    file2_path = test_dir / "file2.txt"
     
-    # Copy the file
-    file2_path = normalize_path(Path(complex_dir) / "file2.txt")
-    result2 = run_workflow(f"Copy {file1_path} to create {file2_path}")
-    print(f"Copy file result: {result2}")  # Debug output
-    
-    assert wait_for_file(file2_path), f"File {file2_path} was not created"
-    assert Path(file2_path).read_text() == "Test Content", f"Content mismatch in {file2_path}"
-    
-    # List contents
-    result3 = run_workflow(f"List all files in the directory {complex_dir}")
-    print(f"List contents result: {result3}")  # Debug output
-    
-    result3_lower = result3.lower()
-    assert "file1.txt" in result3_lower, f"file1.txt not found in result: {result3}"
-    assert "file2.txt" in result3_lower, f"file2.txt not found in result: {result3}"
+    assert file1_path.exists(), f"File {file1_path} was not created"
+    assert file1_path.read_text() == "Test Content", f"Content mismatch in {file1_path}"
+    assert file2_path.exists(), f"File {file2_path} was not created"
+    assert file2_path.read_text() == "Test Content", f"Content mismatch in {file2_path}"
+    assert "file1.txt" in result.lower(), "file1.txt not found in final listing"
+    assert "file2.txt" in result.lower(), "file2.txt not found in final listing"
 
 @pytest.mark.order(8)
 def test_error_handling():
