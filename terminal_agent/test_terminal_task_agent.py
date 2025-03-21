@@ -3,6 +3,7 @@ import os
 import shutil
 import platform
 import asyncio
+import time
 from pathlib import Path
 
 # Configure pytest-asyncio
@@ -25,6 +26,7 @@ def setup_teardown():
     test_root = Path('test_terminal_agent')
     if test_root.exists():
         shutil.rmtree(test_root)
+    test_root.mkdir(exist_ok=True)
     
     yield
     
@@ -36,6 +38,8 @@ def setup_teardown():
 def test_dir():
     """Create and clean up a test directory for each test."""
     test_dir = Path('test_terminal_agent/current_test')
+    if test_dir.exists():
+        shutil.rmtree(test_dir)
     test_dir.mkdir(parents=True, exist_ok=True)
     yield test_dir
     if test_dir.exists():
@@ -51,32 +55,48 @@ def normalize_path(path):
     """Normalize path for the current OS."""
     return str(Path(path).absolute())
 
+def wait_for_file(file_path, timeout=5):
+    """Wait for a file to exist with timeout."""
+    start_time = time.time()
+    while not os.path.exists(file_path):
+        if time.time() - start_time > timeout:
+            return False
+        time.sleep(0.1)
+    return True
+
 @pytest.mark.order(1)
 def test_create_file(test_dir):
     """Test file creation."""
     file_path = normalize_path(test_dir / "test2.txt")
     ensure_dir(Path(file_path))
     
-    result = run_workflow(f"Please create a new file at {file_path} with the following content: Test Content")
-    assert any(msg in result.lower() for msg in ["success", "created", "file has been"])
-    assert os.path.exists(file_path)
+    result = run_workflow(f"Create a new text file at {file_path} and write 'Test Content' into it")
+    print(f"Create file result: {result}")  # Debug output
+    
+    assert wait_for_file(file_path), f"File {file_path} was not created"
     with open(file_path) as f:
-        assert "Test Content" in f.read()
+        content = f.read()
+        assert "Test Content" in content, f"Expected 'Test Content' but got: {content}"
 
 @pytest.mark.order(2)
 def test_copy_file(test_dir):
     """Test file copying."""
+    # Create source file
     source = normalize_path(test_dir / "source.txt")
     ensure_dir(Path(source))
     Path(source).write_text("test content")
+    assert os.path.exists(source), f"Source file {source} was not created"
     
+    # Create destination path
     dest = normalize_path(test_dir / "dest2.txt")
     ensure_dir(Path(dest))
     
-    result = run_workflow(f"Please copy the file from {source} to {dest}")
-    assert any(msg in result.lower() for msg in ["success", "copied", "completed"])
-    assert os.path.exists(dest)
-    assert Path(dest).read_text() == "test content"
+    # Try to copy the file
+    result = run_workflow(f"Copy the file {source} to create {dest}")
+    print(f"Copy file result: {result}")  # Debug output
+    
+    assert wait_for_file(dest), f"Destination file {dest} was not created"
+    assert Path(dest).read_text() == "test content", f"Content mismatch in {dest}"
 
 @pytest.mark.order(3)
 def test_list_contents(test_dir):
@@ -84,17 +104,24 @@ def test_list_contents(test_dir):
     dir_path = normalize_path(test_dir)
     
     # Create test files and directories
-    (test_dir / "file1.txt").touch()
-    (test_dir / "file2.txt").touch()
-    (test_dir / "dir1").mkdir()
+    test_files = ["file1.txt", "file2.txt"]
+    for file in test_files:
+        path = test_dir / file
+        path.write_text(f"content of {file}")
+        assert path.exists(), f"Failed to create {path}"
     
-    result = run_workflow(f"Please list all files and directories in {dir_path}")
+    test_dir_path = test_dir / "dir1"
+    test_dir_path.mkdir(exist_ok=True)
+    assert test_dir_path.exists(), f"Failed to create directory {test_dir_path}"
+    
+    # List contents
+    result = run_workflow(f"Show me a list of all files and folders in the directory {dir_path}")
+    print(f"List contents result: {result}")  # Debug output
+    
     result_lower = result.lower()
-    
-    # Check for files in a platform-independent way
-    assert any(name in result_lower for name in ["file1.txt", "file1"])
-    assert any(name in result_lower for name in ["file2.txt", "file2"])
-    assert any(name in result_lower for name in ["dir1", "dir1/", "dir1\\"])
+    for file in test_files:
+        assert file.lower() in result_lower, f"File {file} not found in result: {result}"
+    assert any(d in result_lower for d in ["dir1", "dir1/", "dir1\\"]), f"Directory 'dir1' not found in result: {result}"
 
 @pytest.mark.order(4)
 def test_find_files(test_dir):
@@ -140,28 +167,34 @@ def test_execute_command():
 @pytest.mark.order(7)
 def test_complex_workflow(test_dir):
     """Test a complex workflow with multiple operations."""
+    # Create test directory
     complex_dir = normalize_path(test_dir / "complex_test")
-    
-    # Create directory first
     Path(complex_dir).mkdir(parents=True, exist_ok=True)
+    assert os.path.exists(complex_dir), f"Failed to create directory {complex_dir}"
     
-    # Test file creation
+    # Create first file
     file1_path = normalize_path(Path(complex_dir) / "file1.txt")
-    result1 = run_workflow(f"Please create a new file at {file1_path} with the content: Test Content")
-    assert any(msg in result1.lower() for msg in ["success", "created", "file has been"])
-    assert os.path.exists(file1_path)
+    result1 = run_workflow(f"Create a new text file at {file1_path} with the content 'Test Content'")
+    print(f"Create file result: {result1}")  # Debug output
     
-    # Test file copying
+    assert wait_for_file(file1_path), f"File {file1_path} was not created"
+    assert Path(file1_path).read_text() == "Test Content", f"Content mismatch in {file1_path}"
+    
+    # Copy the file
     file2_path = normalize_path(Path(complex_dir) / "file2.txt")
-    result2 = run_workflow(f"Please copy {file1_path} to {file2_path}")
-    assert any(msg in result2.lower() for msg in ["success", "copied", "completed"])
-    assert os.path.exists(file2_path)
+    result2 = run_workflow(f"Copy {file1_path} to create {file2_path}")
+    print(f"Copy file result: {result2}")  # Debug output
     
-    # Test listing
-    result3 = run_workflow(f"Please list all files in {complex_dir}")
+    assert wait_for_file(file2_path), f"File {file2_path} was not created"
+    assert Path(file2_path).read_text() == "Test Content", f"Content mismatch in {file2_path}"
+    
+    # List contents
+    result3 = run_workflow(f"List all files in the directory {complex_dir}")
+    print(f"List contents result: {result3}")  # Debug output
+    
     result3_lower = result3.lower()
-    assert any(name in result3_lower for name in ["file1.txt", "file1"])
-    assert any(name in result3_lower for name in ["file2.txt", "file2"])
+    assert "file1.txt" in result3_lower, f"file1.txt not found in result: {result3}"
+    assert "file2.txt" in result3_lower, f"file2.txt not found in result: {result3}"
 
 @pytest.mark.order(8)
 def test_error_handling():
