@@ -324,56 +324,43 @@ class TerminalManager:
 SSH Connection Help
 ==================
 
+There are two ways to connect via SSH:
+
+1. Command Line Mode:
+-------------------
 Command Format:
 ssh connect [options]
 
 Required Parameters:
-------------------
 --hostname, -h      The remote host to connect to (e.g., example.com or 192.168.1.100)
 --username, -u      The username for authentication
 
 Authentication Options (one is required):
----------------------------------------
 --password, -p      Password for password-based authentication
 --key-path, -k      Path to the private key file (PEM format) for key-based authentication
 
-Optional Parameters:
-------------------
---key-password     Password for encrypted private key file (only needed if key is encrypted)
-
 Examples:
---------
-1. Connect with password:
-   ssh connect -h example.com -u myuser -p mypassword
+- Connect with password:
+  ssh connect -h example.com -u myuser -p mypassword
+- Connect with key file:
+  ssh connect -h example.com -u myuser -k /path/to/key.pem
 
-2. Connect with unencrypted key file:
-   ssh connect -h example.com -u myuser -k /path/to/key.pem
-
-3. Connect with encrypted key file:
-   ssh connect -h example.com -u myuser -k /path/to/key.pem --key-password mypassword
+2. Interactive Mode:
+------------------
+Simply type 'ssh connect' without parameters to enter interactive mode.
+You will be prompted for:
+1. Hostname
+2. Username
+3. Authentication method (password/key)
+4. Password or key path based on chosen method
+5. Key password (if key is encrypted)
 
 Notes:
 -----
-- For key-based authentication, the key file must be in PEM format
-- If using an encrypted key file, you must provide the key password
-- The connection will timeout after 10 seconds if unable to connect
+- For encrypted key files, you will be prompted for the key password interactively
+- The system will automatically add the host to known_hosts
 - Use 'ssh disconnect' to close the connection
-
-Common Issues:
-------------
-1. "Private key is encrypted":
-   - The key file is password-protected
-   - Add --key-password parameter with the correct password
-
-2. "Authentication failed":
-   - Check if username is correct
-   - Check if password or key file is correct
-   - Verify you have permission to access the server
-
-3. "Connection timed out":
-   - Check if hostname is correct
-   - Verify the server is running and accessible
-   - Check your network connection
+- Use 'ssh help' to show this help message
 ```"""
 
     def create_terminal_content(self) -> str:

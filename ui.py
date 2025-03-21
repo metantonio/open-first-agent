@@ -188,79 +188,284 @@ async def create_terminal_interface(settings: dict = None):
     # Show current prompt
     await cl.Message(content=f"```terminal\n{terminal_manager.terminal.prompt}```").send()
 
+async def handle_ssh_connection(message):
+    """Handle SSH connection with proper user input handling"""
+    try:
+        # Ask for connection details
+        await cl.Message(content="Please provide SSH connection details:").send()
+        
+        # Get hostname
+        hostname = await cl.AskUserMessage(
+            content="Enter hostname (e.g., example.com):",
+            timeout=180
+        ).send()
+        
+        if not hostname:
+            await cl.Message(content="Connection cancelled - no hostname provided").send()
+            return
+            
+        # Get username
+        username = await cl.AskUserMessage(
+            content="Enter username:",
+            timeout=180
+        ).send()
+        
+        if not username:
+            await cl.Message(content="Connection cancelled - no username provided").send()
+            return
+            
+        # Ask for authentication method
+        auth_method = await cl.AskUserMessage(
+            content="Choose authentication method (password/key):",
+            timeout=180
+        ).send()
+        
+        if not auth_method or auth_method.lower() not in ['password', 'key']:
+            await cl.Message(content="Invalid authentication method. Please use 'password' or 'key'").send()
+            return
+            
+        if auth_method.lower() == 'password':
+            # Get password
+            password = await cl.AskUserMessage(
+                content="Enter password:",
+                timeout=180,
+                password=True  # This will mask the password input
+            ).send()
+            
+            if not password:
+                await cl.Message(content="Connection cancelled - no password provided").send()
+                return
+                
+            # Connect with password
+            result = await terminal_manager.terminal.connect_ssh(
+                hostname=hostname,
+                username=username,
+                password=password
+            )
+        else:
+            # Get key path
+            key_path = await cl.AskUserMessage(
+                content="Enter path to private key file:",
+                timeout=180
+            ).send()
+            
+            if not key_path:
+                await cl.Message(content="Connection cancelled - no key path provided").send()
+                return
+                
+            # Try connecting without key password first
+            result = await terminal_manager.terminal.connect_ssh(
+                hostname=hostname,
+                username=username,
+                key_path=key_path
+            )
+            
+            # If key is encrypted, ask for password
+            if result.get('details', {}).get('error_type') == 'encrypted_key':
+                key_password = await cl.AskUserMessage(
+                    content="Key is encrypted. Please enter key password:",
+                    timeout=180,
+                    password=True
+                ).send()
+                
+                if not key_password:
+                    await cl.Message(content="Connection cancelled - no key password provided").send()
+                    return
+                    
+                # Try again with key password
+                result = await terminal_manager.terminal.connect_ssh(
+                    hostname=hostname,
+                    username=username,
+                    key_path=key_path,
+                    key_password=key_password
+                )
+        
+        # Handle connection result
+        if result['status'] == 'success':
+            await cl.Message(content=f"✅ {result['message']}").send()
+            return True
+        else:
+            await cl.Message(content=f"❌ Connection failed: {result['message']}").send()
+            if 'error' in result.get('details', {}):
+                await cl.Message(content=f"Error details: {result['details']['error']}").send()
+            return False
+            
+    except Exception as e:
+        await cl.Message(content=f"❌ Error during SSH connection: {str(e)}").send()
+        return False
+
+def parse_ssh_args(command: str) -> dict:
+    """Parse SSH command line arguments into a dictionary."""
+    args = command.split()
+    params = {}
+    i = 2  # Skip 'ssh connect'
+    
+    while i < len(args):
+        if args[i] in ['-h', '--host']:
+            if i + 1 < len(args):
+                params['hostname'] = args[i + 1]
+                i += 2
+            else:
+                raise ValueError("Missing hostname value after -h/--host")
+        elif args[i] in ['-u', '--user']:
+            if i + 1 < len(args):
+                params['username'] = args[i + 1]
+                i += 2
+            else:
+                raise ValueError("Missing username value after -u/--user")
+        elif args[i] in ['-p', '--password']:
+            if i + 1 < len(args):
+                params['password'] = args[i + 1]
+                i += 2
+            else:
+                raise ValueError("Missing password value after -p/--password")
+        elif args[i] in ['-k', '--key']:
+            if i + 1 < len(args):
+                params['key_path'] = args[i + 1]
+                i += 2
+            else:
+                raise ValueError("Missing key path value after -k/--key")
+        else:
+            i += 1
+    
+    return params
+
 @cl.on_message
 async def main(message: cl.Message):
-    """Main function to handle user messages and route them to appropriate agents."""
-    request = message.content.strip()
+    """Main message handler"""
+    msg = message.content.strip()
+    msg_lower = msg.lower()
+    
+    if msg_lower == "ssh help":
+        help_text = terminal_manager.get_ssh_help()
+        await cl.Message(content=help_text).send()
+        return
+        
+    if msg_lower.startswith("ssh connect"):
+        # Check if command line arguments are provided
+        if len(msg.split()) > 2:
+            try:
+                # Parse command line arguments
+                params = parse_ssh_args(msg)
+                
+                # If we have both hostname and username
+                if 'hostname' in params and 'username' in params:
+                    if 'password' in params:
+                        # Connect with password
+                        result = await terminal_manager.terminal.connect_ssh(
+                            hostname=params['hostname'],
+                            username=params['username'],
+                            password=params['password']
+                        )
+                    elif 'key_path' in params:
+                        # Connect with key
+                        result = await terminal_manager.terminal.connect_ssh(
+                            hostname=params['hostname'],
+                            username=params['username'],
+                            key_path=params['key_path']
+                        )
+                        
+                        # If key is encrypted, fall back to interactive mode for key password
+                        if result.get('details', {}).get('error_type') == 'encrypted_key':
+                            await cl.Message(content="Key is encrypted, please provide the password.").send()
+                            key_password = await cl.AskUserMessage(
+                                content="Enter key password:",
+                                timeout=180,
+                                password=True
+                            ).send()
+                            
+                            if key_password:
+                                result = await terminal_manager.terminal.connect_ssh(
+                                    hostname=params['hostname'],
+                                    username=params['username'],
+                                    key_path=params['key_path'],
+                                    key_password=key_password
+                                )
+                    else:
+                        # No authentication method provided, ask interactively
+                        auth_method = await cl.AskUserMessage(
+                            content="Choose authentication method (password/key):",
+                            timeout=180
+                        ).send()
+                        
+                        if auth_method and auth_method.lower() in ['password', 'key']:
+                            if auth_method.lower() == 'password':
+                                password = await cl.AskUserMessage(
+                                    content="Enter password:",
+                                    timeout=180,
+                                    password=True
+                                ).send()
+                                if password:
+                                    result = await terminal_manager.terminal.connect_ssh(
+                                        hostname=params['hostname'],
+                                        username=params['username'],
+                                        password=password
+                                    )
+                            else:
+                                key_path = await cl.AskUserMessage(
+                                    content="Enter path to private key file:",
+                                    timeout=180
+                                ).send()
+                                if key_path:
+                                    result = await terminal_manager.terminal.connect_ssh(
+                                        hostname=params['hostname'],
+                                        username=params['username'],
+                                        key_path=key_path
+                                    )
+                        else:
+                            await cl.Message(content="Invalid authentication method").send()
+                            return
+                    
+                    # Handle connection result
+                    if result['status'] == 'success':
+                        await cl.Message(content=f"✅ {result['message']}").send()
+                    else:
+                        await cl.Message(content=f"❌ Connection failed: {result['message']}").send()
+                        if 'error' in result.get('details', {}):
+                            await cl.Message(content=f"Error details: {result['details']['error']}").send()
+                    return
+                else:
+                    # Missing required parameters, fall back to interactive mode
+                    await handle_ssh_connection(message)
+                    return
+            except ValueError as e:
+                await cl.Message(content=f"❌ Error parsing arguments: {str(e)}").send()
+                return
+            except Exception as e:
+                await cl.Message(content=f"❌ Error during SSH connection: {str(e)}").send()
+                return
+        
+        # No command line arguments provided, use interactive mode
+        await handle_ssh_connection(message)
+        return
+    
+    if msg == "ssh disconnect":
+        result = terminal_manager.terminal.disconnect_ssh()
+        await cl.Message(content=f"{'✅' if result['status'] == 'success' else '❌'} {result['message']}").send()
+        return
     
     # Get current session state
     mode = cl.user_session.get('mode', 'chat')
     
     # Handle menu navigation
-    if request.lower() == "terminal":
+    if msg == "terminal":
         cl.user_session.set('mode', 'terminal')
         await create_terminal_interface()
         return
     
     # Handle terminal commands when in terminal mode
     if mode == 'terminal':
-        if request.lower() == 'exit':
+        if msg == 'exit':
             cl.user_session.set('mode', 'chat')
             await cl.Message(content="Exited terminal mode. Back to chat mode.").send()
             return
             
-        if request.lower() == 'clear':
+        if msg == 'clear':
             await create_terminal_interface()
             return
             
-        if request.startswith('ssh'):
-            parts = request.split()
-            if len(parts) < 2:
-                await cl.Message(content="Invalid SSH command. Usage:\n- ssh connect hostname username [--key /path/to/key.pem]\n- ssh disconnect").send()
-                return
-                
-            if parts[1] == 'connect':
-                if len(parts) < 4:
-                    await cl.Message(content="Invalid SSH connect command. Usage: ssh connect hostname username [--key /path/to/key.pem]").send()
-                    return
-
-                hostname = parts[2]
-                username = parts[3]
-                key_path = None
-                password = None
-
-                # Check for key file
-                if len(parts) > 4 and parts[4] == '--key' and len(parts) > 5:
-                    key_path = parts[5]
-                else:
-                    # If no key specified, prompt for password
-                    await cl.Message(content="Please enter your password in the next message:").send()
-                    password_msg = await cl.Message.get_next()
-                    password = password_msg.content
-
-                success = await terminal_manager.terminal.connect_ssh(
-                    hostname=hostname,
-                    username=username,
-                    password=password,
-                    key_path=key_path
-                )
-                
-                if success:
-                    await cl.Message(content="✅ SSH connection established!").send()
-                else:
-                    await cl.Message(content="❌ Failed to establish SSH connection.").send()
-                
-                await create_terminal_interface()
-                return
-                
-            elif parts[1] == 'disconnect':
-                terminal_manager.terminal.disconnect_ssh()
-                await cl.Message(content="✅ SSH connection closed.").send()
-                await create_terminal_interface()
-                return
-        
         # Execute command and update terminal
-        result = await terminal_manager.execute_command(request)
+        result = await terminal_manager.execute_command(msg)
         terminal_manager.terminal.update_prompt()
         
         # Show command output with proper formatting
@@ -273,15 +478,15 @@ async def main(message: cl.Message):
     
     # Handle normal chat mode
     # Check if it's a direct terminal command (starts with !)
-    if request.startswith('!'):
-        command = request[1:].strip()
+    if msg.startswith('!'):
+        command = msg[1:].strip()
         result = await terminal_manager.execute_command(command)
         await update_terminal_display()
         await cl.Message(content=f"📝 Output:\n```\n{result}\n```").send()
         return
     
     # Special handling for command examples
-    if request.lower().strip() in ['show command ls examples']:
+    if msg.strip() in ['show command ls examples']:
         # Send example message
         await cl.Message(content="Here are some example commands you can try:").send()
         
@@ -320,13 +525,13 @@ async def main(message: cl.Message):
 
     # Normal request processing
     msg = cl.Message(
-        content=f"🤔 Processing your request: '{request}'...\nThis may take a few moments."
+        content=f"🤔 Processing your request: '{msg}'...\nThis may take a few moments."
     )
     await msg.send()
     
     try:
         # Process the request using the universal orchestrator
-        response = await orchestrator.process_request(request)
+        response = await orchestrator.process_request(msg)
         
         # Process the response for executable code blocks
         content, command_blocks = process_code_blocks(response)
