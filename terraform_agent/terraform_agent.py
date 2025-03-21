@@ -334,397 +334,411 @@ def run_terminal_cmd(command, is_background=False, require_user_approval=True):
             'is_background': is_background
         }
 
-# 2. Create Editor Agent for Terraform
+# 2. Create Single-Responsibility Agents
 
-terraform_editor = Agent(
-    name="Terraform Editor",
-    instructions="""You are a Terraform configuration expert. Your responsibilities include:
-    1. Create and manage Terraform configuration files:
-       - ALWAYS create main.tf for resource definitions
-       - Create variables.tf for variable declarations
-       - Create outputs.tf when needed
-       - Ensure files follow proper naming conventions
-       - Maintain file organization and structure
-    
-    2. Implement Terraform best practices:
-       - Follow HashiCorp style guidelines
-       - Use proper resource naming
-       - Add appropriate tags and descriptions
-       - Include necessary comments
-    
-    3. Handle configuration components:
-       - Configure provider blocks in main.tf
-       - Define resource configurations in main.tf
-       - Set up data sources in main.tf
-       - Create output definitions in outputs.tf
-    
-    4. Manage variable declarations:
-       - Create variables.tf for variable definitions
-       - Define proper variable types and constraints
-       - Add meaningful variable descriptions
-       - Set default values when appropriate
-    
-    When creating or modifying files:
-    1. ALWAYS create files in the output directory
-    2. ALWAYS create main.tf with provider and resource configurations
-    3. Create variables.tf for variable declarations
-    4. Create outputs.tf if needed
-    
-    IMPORTANT:
-    - All files must be created in the output directory
-    - main.tf MUST be created with provider and resource blocks
-    - Coordinate with tfvars_manager for variable values
-    - Ensure all dependencies are properly declared
-    - Follow security best practices
-    - DO NOT execute terraform commands (init/plan/apply)
-    
-    When showing commands:
-    - Format executable commands as ```bash {{run}}
-    command here
-    ```
-    - Format background commands as ```bash {{run:background}}
-    command here
-    ```
-    - Use ```bash for command examples
-    - Provide clear description before each command""",
+# Main File Management Agents
+main_file_creator = Agent(
+    name="Main File Creator",
+    instructions="""You are responsible for ONLY creating and managing main.tf files.
+    Your single responsibility is to:
+    - Create main.tf with proper resource definitions
+    - Ensure resource blocks are properly configured
+    - Maintain resource dependencies in main.tf""",
     model=model,
-    tools=[
-        create_terraform_file,
-        read_terraform_file,
-        delete_terraform_file,
-        run_terminal_cmd
-    ]
+    tools=[create_terraform_file, read_terraform_file, delete_terraform_file]
 )
 
-# 2.1 Create Specialized Analysis Agents
+variables_file_creator = Agent(
+    name="Variables File Creator",
+    instructions="""You are responsible for ONLY creating and managing variables.tf files.
+    Your single responsibility is to:
+    - Create variables.tf with proper variable declarations
+    - Ensure variable types and constraints are correct
+    - Add meaningful variable descriptions""",
+    model=model,
+    tools=[create_terraform_file, read_terraform_file, delete_terraform_file]
+)
 
-security_analyzer = Agent(
-    name="Security Analyzer",
-    instructions="""You are a Terraform security analysis expert. Your responsibilities include:
-    
-    1. Analyze security configurations:
-       - Review security group rules and restrictions
-       - Check for encryption settings
-       - Verify IAM roles and permissions
-       - Validate network access controls
-       - Check for secure protocols and settings
-    
-    2. Compare with security best practices:
-       - Identify missing security measures
-       - Check for overly permissive access
-       - Verify secure defaults
-       - Validate authentication methods
-    
-    3. Provide security recommendations:
-       - Suggest security improvements
-       - Identify potential vulnerabilities
-       - Recommend access restrictions
-       - Propose encryption enhancements
-    
-    Focus on security aspects and provide clear, actionable security recommendations.""",
+outputs_file_creator = Agent(
+    name="Outputs File Creator",
+    instructions="""You are responsible for ONLY creating and managing outputs.tf files.
+    Your single responsibility is to:
+    - Create outputs.tf with proper output definitions
+    - Ensure outputs reference valid resources
+    - Add meaningful output descriptions""",
+    model=model,
+    tools=[create_terraform_file, read_terraform_file, delete_terraform_file]
+)
+
+provider_config_manager = Agent(
+    name="Provider Config Manager",
+    instructions="""You are responsible for ONLY managing provider configurations.
+    Your single responsibility is to:
+    - Configure provider blocks in main.tf
+    - Ensure provider versions are specified
+    - Set proper provider settings""",
+    model=model,
+    tools=[create_terraform_file, read_terraform_file, delete_terraform_file]
+)
+
+# Security Analysis Agents
+security_group_analyzer = Agent(
+    name="Security Group Analyzer",
+    instructions="""You are responsible for ONLY analyzing security group configurations.
+    Your single responsibility is to:
+    - Review security group rules
+    - Check for overly permissive rules
+    - Validate ingress/egress settings""",
     model=model,
     tools=[read_terraform_file, analyze_terraform_file]
 )
 
-cost_optimizer = Agent(
-    name="Cost Optimizer",
-    instructions="""You are a Terraform cost optimization expert. Your responsibilities include:
-    
-    1. Analyze resource configurations for cost:
-       - Instance types and sizes
-       - Storage configurations
-       - Network resources
-       - Service selections
-    
-    2. Identify cost-saving opportunities:
-       - Resource right-sizing
-       - Reserved instances potential
-       - Storage optimizations
-       - Network cost reductions
-    
-    3. Provide cost optimization recommendations:
-       - Specific cost-saving measures
-       - ROI calculations
-       - Implementation priorities
-       - Alternative configurations
-    
-    Focus on cost aspects and provide clear, actionable cost-saving recommendations.""",
+iam_analyzer = Agent(
+    name="IAM Analyzer",
+    instructions="""You are responsible for ONLY analyzing IAM configurations.
+    Your single responsibility is to:
+    - Review IAM roles and policies
+    - Check for principle of least privilege
+    - Validate IAM permissions""",
     model=model,
     tools=[read_terraform_file, analyze_terraform_file]
 )
 
-compliance_checker = Agent(
-    name="Compliance Checker",
-    instructions="""You are a Terraform compliance expert. Your responsibilities include:
-    
-    1. Check compliance with standards:
-       - Tagging requirements
-       - Naming conventions
-       - Resource configurations
-       - Required settings
-    
-    2. Validate against example patterns:
-       - Compare with reference architecture
-       - Check for required components
-       - Verify configuration patterns
-       - Validate structure
-    
-    3. Provide compliance recommendations:
-       - Required changes for compliance
-       - Best practices alignment
-       - Documentation requirements
-       - Standardization suggestions
-    
-    Focus on compliance and standardization aspects.""",
+encryption_analyzer = Agent(
+    name="Encryption Analyzer",
+    instructions="""You are responsible for ONLY analyzing encryption settings.
+    Your single responsibility is to:
+    - Check for encryption at rest
+    - Verify encryption in transit
+    - Validate key management""",
     model=model,
     tools=[read_terraform_file, analyze_terraform_file]
 )
 
-performance_optimizer = Agent(
-    name="Performance Optimizer",
-    instructions="""You are a Terraform performance optimization expert. Your responsibilities include:
-    
-    1. Analyze performance configurations:
-       - Resource sizing
-       - Network settings
-       - Storage performance
-       - Service configurations
-    
-    2. Identify performance improvements:
-       - Resource optimizations
-       - Configuration enhancements
-       - Architecture improvements
-       - Scaling recommendations
-    
-    3. Provide performance recommendations:
-       - Specific performance improvements
-       - Configuration changes
-       - Architecture updates
-       - Scaling strategies
-    
-    Focus on performance aspects and provide clear, actionable recommendations.""",
+network_security_analyzer = Agent(
+    name="Network Security Analyzer",
+    instructions="""You are responsible for ONLY analyzing network security.
+    Your single responsibility is to:
+    - Review network ACLs
+    - Check VPC configurations
+    - Validate network isolation""",
     model=model,
     tools=[read_terraform_file, analyze_terraform_file]
 )
 
-structure_analyzer = Agent(
-    name="Structure Analyzer",
-    instructions="""You are a Terraform code structure expert. Your responsibilities include:
-    
-    1. Analyze code organization:
-       - File structure
-       - Module organization
-       - Variable management
-       - Resource grouping
-    
-    2. Check structural elements:
-       - Provider configurations
-       - Backend settings
-       - Variable declarations
-       - Output definitions
-       - Formatting
-    
-    3. Provide structural recommendations:
-       - Code organization improvements
-       - Module structuring
-       - File organization
-       - Best practices implementation
-    
-    Focus on code structure and organization aspects.""",
+# Cost Analysis Agents
+instance_cost_analyzer = Agent(
+    name="Instance Cost Analyzer",
+    instructions="""You are responsible for ONLY analyzing instance costs.
+    Your single responsibility is to:
+    - Review instance types and sizes
+    - Check for cost-effective alternatives
+    - Calculate instance costs""",
     model=model,
     tools=[read_terraform_file, analyze_terraform_file]
 )
 
-# 2.2 Create Analysis Coordinator Agent
-
-analysis_coordinator = Agent(
-    name="Analysis Coordinator",
-    instructions="""You are the coordinator for Terraform analysis. Your responsibilities include:
-    
-    1. Coordinate analysis process:
-       - Determine which specialized agents to use
-       - Collect and combine analysis results
-       - Prioritize recommendations
-       - Create comprehensive reports
-    
-    2. Manage analysis workflow:
-       - Security analysis
-       - Cost optimization
-       - Compliance checking
-       - Performance optimization
-       - Structure analysis
-    
-    3. Generate final reports:
-       - Combine specialist findings
-       - Prioritize recommendations
-       - Provide implementation guidance
-       - Highlight critical issues
-    
-    Coordinate with specialized agents and provide clear, actionable final recommendations.""",
+storage_cost_analyzer = Agent(
+    name="Storage Cost Analyzer",
+    instructions="""You are responsible for ONLY analyzing storage costs.
+    Your single responsibility is to:
+    - Review storage configurations
+    - Check for cost-effective storage types
+    - Calculate storage costs""",
     model=model,
     tools=[read_terraform_file, analyze_terraform_file]
 )
 
-# 2.3 Create Web Research Agent
-
-terraform_researcher = Agent(
-    name="Terraform Researcher",
-    instructions="""You are a Terraform research expert who finds and analyzes information from the web. Your responsibilities include:
-    
-    1. Research Terraform best practices:
-       - Search for latest Terraform patterns using search_terraform_info
-       - Find official documentation and parse with fetch_and_parse_html
-       - Gather community recommendations
-       - Identify common solutions
-    
-    2. Research specific components:
-       - Provider configurations
-       - Resource specifications
-       - Module patterns
-       - Configuration examples
-    
-    3. Analyze and validate findings:
-       - Verify information sources
-       - Check version compatibility
-       - Validate against official docs
-       - Compare community solutions
-    
-    4. Provide research-based recommendations:
-       - Best practice implementations
-       - Common pitfalls to avoid
-       - Version-specific considerations
-       - Community-tested solutions
-    
-    Use web search tools to find relevant and up-to-date information:
-    - Use search_terraform_info for initial searches
-    - Use fetch_and_parse_html to get detailed content from URLs
-    - Focus on official Terraform documentation and trusted sources
-    - Validate information across multiple sources""",
+network_cost_analyzer = Agent(
+    name="Network Cost Analyzer",
+    instructions="""You are responsible for ONLY analyzing network costs.
+    Your single responsibility is to:
+    - Review network configurations
+    - Check for cost-effective networking
+    - Calculate network costs""",
     model=model,
-    tools=[
-        read_terraform_file,
-        analyze_terraform_file,
-        search_terraform_info,
-        fetch_and_parse_html
-    ]
+    tools=[read_terraform_file, analyze_terraform_file]
 )
 
-# 2.4 Create Terraform Check Agent
-
-terraform_checker = Agent(
-    name="Terraform Checker",
-    instructions="""You are a Terraform configuration validation expert. Your responsibilities include:
-    
-    1. Execute and analyze terraform check:
-       - Run terraform check on specific files or entire configuration
-       - Analyze check results in detail
-       - Identify configuration issues
-       - Validate resource dependencies
-    
-    2. Interpret check results:
-       - Parse error messages and warnings
-       - Identify root causes of issues
-       - Explain problems in clear terms
-       - Suggest specific fixes
-    
-    3. Provide validation reports:
-       - Detailed check results
-       - Configuration status
-       - Identified issues
-       - Required corrections
-    
-    4. Coordinate with other agents:
-       - Share check results
-       - Highlight security concerns
-       - Flag performance issues
-       - Identify compliance problems
-    
-    Always run terraform check before suggesting changes or applying configurations.
-    Provide clear, actionable feedback about configuration validity.
-
-    When showing commands:
-    - Format executable commands as ```bash {{run}}
-    command here
-    ```
-    - Format background commands as ```bash {{run:background}}
-    command here
-    ```
-    - Use ```bash for command examples
-    - Provide clear description before each command""",
+reserved_instance_analyzer = Agent(
+    name="Reserved Instance Analyzer",
+    instructions="""You are responsible for ONLY analyzing RI opportunities.
+    Your single responsibility is to:
+    - Identify RI candidates
+    - Calculate potential savings
+    - Recommend RI purchases""",
     model=model,
-    tools=[
-        read_terraform_file,
-        run_terraform_check,
-        run_terminal_cmd
-    ]
+    tools=[read_terraform_file, analyze_terraform_file]
 )
 
-# Create TFVars Manager Agent
-tfvars_manager = Agent(
-    name="TFVars Manager",
-    instructions="""You are a Terraform variables management expert. Your responsibilities include:
-    
-    1. Check terraform.tfvars status:
-       - First verify if terraform.tfvars exists in output directory
-       - If it exists during initial setup, DO NOT overwrite it
-       - Read and report its current content
-       - Handle updates when explicitly requested
-    
-    2. Handle new terraform.tfvars creation (ONLY if it doesn't exist):
-       - Copy from terraform.tfvars.example
-       - Identify required variables
-       - Guide users through variable configuration
-       - Create the file with user-provided values
-    
-    3. Variable validation and updates:
-       - For existing files: validate current values
-       - When update requested: update with new values
-       - For new files: collect and validate new values
-       - Ensure all required variables are set
-       - Maintain proper variable formatting
-    
-    4. Update Management:
-       - Accept and process update requests
-       - Update specific variables when requested
-       - Preserve existing values not being updated
-       - Validate updated configuration
-    
-    5. Provide clear guidance:
-       - If file exists: report current configuration
-       - If updating: confirm changes made
-       - If new file: explain required variables
-       - Report any issues found
-    
-    6. Return Status:
-       - Always return a clear status message about what was done
-       - Include information about the current state of variables
-       - If file exists: include current configuration
-       - If new file: include what variables need to be set
-       - Format response for the orchestrator to proceed
-    
-    When showing commands:
-    - Format executable commands as ```bash {{run}}
-    command here
-    ```
-    - Format background commands as ```bash {{run:background}}
-    command here
-    ```
-    - Use ```bash for command examples
-    - Provide clear description before each command
-    
-    IMPORTANT:
-    - DO NOT overwrite existing terraform.tfvars during initial creation
-    - DO update variables when explicitly requested to do so
-    - Always validate variable values before and after updates
-    - Return clear status messages about actions taken
-    - DO NOT attempt to transfer control to other agents
-    - Let the orchestrator handle all agent transitions""",
+# Compliance Agents
+tagging_compliance = Agent(
+    name="Tagging Compliance",
+    instructions="""You are responsible for ONLY checking tagging compliance.
+    Your single responsibility is to:
+    - Verify required tags
+    - Check tag values
+    - Ensure tag consistency""",
     model=model,
-    tools=[
-        manage_tfvars_file,
-        update_tfvars_file,
-        run_terminal_cmd
-    ]
+    tools=[read_terraform_file, analyze_terraform_file]
+)
+
+naming_compliance = Agent(
+    name="Naming Compliance",
+    instructions="""You are responsible for ONLY checking naming conventions.
+    Your single responsibility is to:
+    - Verify resource naming
+    - Check variable naming
+    - Ensure consistent naming""",
+    model=model,
+    tools=[read_terraform_file, analyze_terraform_file]
+)
+
+resource_compliance = Agent(
+    name="Resource Compliance",
+    instructions="""You are responsible for ONLY checking resource compliance.
+    Your single responsibility is to:
+    - Verify resource configurations
+    - Check required settings
+    - Validate resource properties""",
+    model=model,
+    tools=[read_terraform_file, analyze_terraform_file]
+)
+
+standards_compliance = Agent(
+    name="Standards Compliance",
+    instructions="""You are responsible for ONLY checking standards compliance.
+    Your single responsibility is to:
+    - Check against specific standards
+    - Verify compliance requirements
+    - Validate standard adherence""",
+    model=model,
+    tools=[read_terraform_file, analyze_terraform_file]
+)
+
+# Performance Agents
+resource_size_optimizer = Agent(
+    name="Resource Size Optimizer",
+    instructions="""You are responsible for ONLY optimizing resource sizes.
+    Your single responsibility is to:
+    - Analyze resource utilization
+    - Recommend optimal sizes
+    - Calculate size impacts""",
+    model=model,
+    tools=[read_terraform_file, analyze_terraform_file]
+)
+
+network_performance = Agent(
+    name="Network Performance",
+    instructions="""You are responsible for ONLY analyzing network performance.
+    Your single responsibility is to:
+    - Review network configurations
+    - Check bandwidth settings
+    - Validate network optimization""",
+    model=model,
+    tools=[read_terraform_file, analyze_terraform_file]
+)
+
+storage_performance = Agent(
+    name="Storage Performance",
+    instructions="""You are responsible for ONLY analyzing storage performance.
+    Your single responsibility is to:
+    - Review storage configurations
+    - Check IOPS settings
+    - Validate storage optimization""",
+    model=model,
+    tools=[read_terraform_file, analyze_terraform_file]
+)
+
+scaling_optimizer = Agent(
+    name="Scaling Optimizer",
+    instructions="""You are responsible for ONLY analyzing scaling configurations.
+    Your single responsibility is to:
+    - Review auto-scaling settings
+    - Check scaling policies
+    - Validate scaling thresholds""",
+    model=model,
+    tools=[read_terraform_file, analyze_terraform_file]
+)
+
+# Structure Analysis Agents
+file_structure_analyzer = Agent(
+    name="File Structure Analyzer",
+    instructions="""You are responsible for ONLY analyzing file organization.
+    Your single responsibility is to:
+    - Check file organization
+    - Verify file naming
+    - Validate file structure""",
+    model=model,
+    tools=[read_terraform_file, analyze_terraform_file]
+)
+
+module_analyzer = Agent(
+    name="Module Analyzer",
+    instructions="""You are responsible for ONLY analyzing module structure.
+    Your single responsibility is to:
+    - Review module organization
+    - Check module interfaces
+    - Validate module dependencies""",
+    model=model,
+    tools=[read_terraform_file, analyze_terraform_file]
+)
+
+dependency_analyzer = Agent(
+    name="Dependency Analyzer",
+    instructions="""You are responsible for ONLY analyzing resource dependencies.
+    Your single responsibility is to:
+    - Check resource dependencies
+    - Verify dependency chains
+    - Validate circular dependencies""",
+    model=model,
+    tools=[read_terraform_file, analyze_terraform_file]
+)
+
+code_style_analyzer = Agent(
+    name="Code Style Analyzer",
+    instructions="""You are responsible for ONLY analyzing code style.
+    Your single responsibility is to:
+    - Check code formatting
+    - Verify style guidelines
+    - Validate code consistency""",
+    model=model,
+    tools=[read_terraform_file, analyze_terraform_file]
+)
+
+# Research Agents
+documentation_searcher = Agent(
+    name="Documentation Searcher",
+    instructions="""You are responsible for ONLY searching official documentation.
+    Your single responsibility is to:
+    - Search Terraform docs
+    - Find relevant documentation
+    - Extract official guidance""",
+    model=model,
+    tools=[search_terraform_info, fetch_and_parse_html]
+)
+
+community_practice_searcher = Agent(
+    name="Community Practice Searcher",
+    instructions="""You are responsible for ONLY searching community practices.
+    Your single responsibility is to:
+    - Search community forums
+    - Find best practices
+    - Extract community solutions""",
+    model=model,
+    tools=[search_terraform_info, fetch_and_parse_html]
+)
+
+version_compatibility_checker = Agent(
+    name="Version Compatibility Checker",
+    instructions="""You are responsible for ONLY checking version compatibility.
+    Your single responsibility is to:
+    - Check version requirements
+    - Verify compatibility
+    - Validate version constraints""",
+    model=model,
+    tools=[search_terraform_info, fetch_and_parse_html]
+)
+
+example_searcher = Agent(
+    name="Example Searcher",
+    instructions="""You are responsible for ONLY searching for examples.
+    Your single responsibility is to:
+    - Find code examples
+    - Search reference implementations
+    - Extract relevant patterns""",
+    model=model,
+    tools=[search_terraform_info, fetch_and_parse_html]
+)
+
+# Validation Agents
+syntax_validator = Agent(
+    name="Syntax Validator",
+    instructions="""You are responsible for ONLY validating syntax.
+    Your single responsibility is to:
+    - Check HCL syntax
+    - Verify block structure
+    - Validate expression syntax""",
+    model=model,
+    tools=[read_terraform_file, run_terraform_check]
+)
+
+dependency_validator = Agent(
+    name="Dependency Validator",
+    instructions="""You are responsible for ONLY validating dependencies.
+    Your single responsibility is to:
+    - Check resource dependencies
+    - Verify module dependencies
+    - Validate provider dependencies""",
+    model=model,
+    tools=[read_terraform_file, run_terraform_check]
+)
+
+configuration_validator = Agent(
+    name="Configuration Validator",
+    instructions="""You are responsible for ONLY validating configurations.
+    Your single responsibility is to:
+    - Check resource configs
+    - Verify provider configs
+    - Validate variable configs""",
+    model=model,
+    tools=[read_terraform_file, run_terraform_check]
+)
+
+state_validator = Agent(
+    name="State Validator",
+    instructions="""You are responsible for ONLY validating state.
+    Your single responsibility is to:
+    - Check state consistency
+    - Verify state locks
+    - Validate state storage""",
+    model=model,
+    tools=[read_terraform_file, run_terraform_check]
+)
+
+# TFVars Agents
+tfvars_reader = Agent(
+    name="TFVars Reader",
+    instructions="""You are responsible for ONLY reading tfvars files.
+    Your single responsibility is to:
+    - Read tfvars files
+    - Parse variable values
+    - Report current settings""",
+    model=model,
+    tools=[manage_tfvars_file]
+)
+
+tfvars_creator = Agent(
+    name="TFVars Creator",
+    instructions="""You are responsible for ONLY creating tfvars files.
+    Your single responsibility is to:
+    - Create new tfvars files
+    - Set initial values
+    - Handle file creation""",
+    model=model,
+    tools=[manage_tfvars_file]
+)
+
+tfvars_updater = Agent(
+    name="TFVars Updater",
+    instructions="""You are responsible for ONLY updating tfvars files.
+    Your single responsibility is to:
+    - Update variable values
+    - Preserve existing values
+    - Handle value changes""",
+    model=model,
+    tools=[update_tfvars_file]
+)
+
+tfvars_validator = Agent(
+    name="TFVars Validator",
+    instructions="""You are responsible for ONLY validating tfvars content.
+    Your single responsibility is to:
+    - Validate variable values
+    - Check value types
+    - Verify required values""",
+    model=model,
+    tools=[manage_tfvars_file]
 )
 
 # 3. Create Main Orchestrator Agent
@@ -816,16 +830,42 @@ orchestrator_agent = Agent(
     model=model,
     model_settings=ModelSettings(temperature=0.1),
     handoffs=[
-        terraform_editor,
-        analysis_coordinator,
-        security_analyzer,
-        cost_optimizer,
-        compliance_checker,
-        performance_optimizer,
-        structure_analyzer,
-        terraform_researcher,
-        terraform_checker,
-        tfvars_manager
+        main_file_creator,
+        variables_file_creator,
+        outputs_file_creator,
+        provider_config_manager,
+        security_group_analyzer,
+        iam_analyzer,
+        encryption_analyzer,
+        network_security_analyzer,
+        instance_cost_analyzer,
+        storage_cost_analyzer,
+        network_cost_analyzer,
+        reserved_instance_analyzer,
+        tagging_compliance,
+        naming_compliance,
+        resource_compliance,
+        standards_compliance,
+        resource_size_optimizer,
+        network_performance,
+        storage_performance,
+        scaling_optimizer,
+        file_structure_analyzer,
+        module_analyzer,
+        dependency_analyzer,
+        code_style_analyzer,
+        documentation_searcher,
+        community_practice_searcher,
+        version_compatibility_checker,
+        example_searcher,
+        syntax_validator,
+        dependency_validator,
+        configuration_validator,
+        state_validator,
+        tfvars_reader,
+        tfvars_creator,
+        tfvars_updater,
+        tfvars_validator
     ]
 )
 
