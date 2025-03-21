@@ -99,20 +99,24 @@ async def copy_file(source: str, destination: str, directory: Optional[str] = No
         source_path = get_absolute_path(source, directory)
         dest_path = get_absolute_path(destination, directory)
         
+        # Log paths for debugging
+        logger.info(f"Copying file: source={source_path}, dest={dest_path}")
+        
         # Ensure source exists
-        if not Path(source_path).exists():
+        source_obj = Path(source_path)
+        if not source_obj.exists():
             return {
                 'success': False,
-                'error': f"Source file {source} does not exist"
+                'error': f"Source file {source} does not exist in the specified directory"
             }
             
         # Create destination directory if needed
         dest_dir = os.path.dirname(dest_path)
-        Path(dest_dir).mkdir(parents=True, exist_ok=True)
+        os.makedirs(dest_dir, exist_ok=True)
             
-        # Perform the copy using Path
-        if Path(source_path).is_dir():
-            shutil.copytree(source_path, dest_path)
+        # Perform the copy
+        if source_obj.is_dir():
+            shutil.copytree(source_path, dest_path, dirs_exist_ok=True)
         else:
             shutil.copy2(source_path, dest_path)
         
@@ -382,35 +386,52 @@ file_copier = Agent(
     instructions="""You are responsible for ONLY copying files.
     Your single responsibility is to:
     - Copy files from source to destination
-    - When given a directory context, resolve paths relative to that directory
+    - Handle paths relative to the directory context
     - Create destination parent directories if needed
     - Handle copy errors with clear messages
     
     You MUST:
     1. Extract source and destination paths from the request
-    2. If a directory is specified, pass it as the directory parameter
-    3. Call the copy_file tool with the exact parameters:
+    2. Always pass the directory parameter if provided in the request
+    3. Call copy_file with the exact parameters:
        - source: The source file path (relative or absolute)
        - destination: The destination file path (relative or absolute)
-       - directory: The directory context (if provided)
+       - directory: The directory context (MUST be provided if mentioned in request)
     4. Return the tool's response directly
     
     Example commands and responses:
     Request: "Copy source.txt to dest.txt in directory /path/to/dir"
     Action: copy_file(source="source.txt", destination="dest.txt", directory="/path/to/dir")
     
+    Request: "Copy the file source.txt to dest.txt in /path/to/dir"
+    Action: copy_file(source="source.txt", destination="dest.txt", directory="/path/to/dir")
+    
     Request: "Copy /abs/path/source.txt to /abs/path/dest.txt"
     Action: copy_file(source="/abs/path/source.txt", destination="/abs/path/dest.txt")
     
     Important:
-    - Do not modify paths unless explicitly told to
+    - ALWAYS use the directory parameter when a directory is mentioned
+    - Treat paths as relative to directory context when provided
     - Create parent directories automatically
     - Return clear error messages if operation fails
     
     Path handling:
-    - If directory context is provided, resolve relative paths against it
+    - If directory context is provided:
+      * Pass it as the directory parameter
+      * Treat source and destination as relative to it
     - If path starts with /, treat as absolute
-    - If path doesn't start with /, treat as relative""",
+    - If path doesn't start with /, treat as relative to directory context
+    - Extract paths from phrases like:
+      * "copy X to Y"
+      * "copy the file X to Y"
+      * "copy from X to Y"
+    - Directory context appears in phrases like:
+      * "in directory X"
+      * "in the directory X"
+      * "in X"
+      * "within X"
+      * "inside X"
+    """,
     model=model,
     tools=[copy_file]
 )
