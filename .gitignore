@@ -53,6 +53,8 @@ conda-env/
 *.sqlite
 *.db
 current_directory.txt
+file1.txt
+file2.txt
 
 # Logs
 *.log
