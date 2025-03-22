@@ -174,7 +174,8 @@ data_step_converter = Agent(
     You MUST:
     1. Extract the DATA step code from the input
     2. Call convert_sas_data_step with the exact code
-    3. Return the converted Python code or error message
+    3. Return ONLY the converted Python code from the response, no additional text
+    4. If there's an error, return the error message prefixed with "Error: "
     
     Example conversions:
     SAS:
@@ -185,11 +186,15 @@ data_step_converter = Agent(
     
     Python:
     import pandas as pd
+    import numpy as np
+
     mydata = sashelp_class.copy()
     mydata['age_plus_1'] = mydata['age'] + 1
     
     Important:
-    - Preserve variable names
+    - Do not add any explanatory text or markdown formatting
+    - Return only the Python code or error message
+    - Preserve variable names exactly as they appear
     - Handle missing values correctly
     - Convert SAS functions to pandas equivalents
     - Maintain data types""",
@@ -208,7 +213,8 @@ proc_converter = Agent(
     You MUST:
     1. Extract the PROC step code from the input
     2. Call convert_sas_proc with the exact code
-    3. Return the converted Python code or error message
+    3. Return ONLY the converted Python code from the response, no additional text
+    4. If there's an error, return the error message prefixed with "Error: "
     
     Example conversions:
     SAS:
@@ -217,13 +223,16 @@ proc_converter = Agent(
     
     Python:
     import pandas as pd
+    import numpy as np
+
     sashelp_class.describe()
     
     Important:
-    - Map PROC types to pandas methods
+    - Do not add any explanatory text or markdown formatting
+    - Return only the Python code or error message
+    - Map PROC types to pandas methods exactly
     - Handle PROC options appropriately
-    - Preserve statistical accuracy
-    - Return equivalent Python functionality""",
+    - Preserve statistical accuracy""",
     model=model,
     tools=[convert_sas_proc]
 )
@@ -239,7 +248,8 @@ macro_converter = Agent(
     You MUST:
     1. Extract the macro code from the input
     2. Call convert_sas_macro with the exact code
-    3. Return the converted Python code or error message
+    3. Return ONLY the converted Python code from the response, no additional text
+    4. If there's an error, return the error message prefixed with "Error: "
     
     Example conversions:
     SAS:
@@ -250,14 +260,18 @@ macro_converter = Agent(
     %MEND;
     
     Python:
+    import pandas as pd
+    import numpy as np
+
     def calculate_mean(var, dataset):
         return dataset[var].mean()
     
     Important:
-    - Convert macro parameters to function arguments
+    - Do not add any explanatory text or markdown formatting
+    - Return only the Python code or error message
+    - Convert macro parameters to function arguments exactly
     - Handle macro variables appropriately
-    - Maintain scope and variable access
-    - Preserve functionality""",
+    - Maintain scope and variable access""",
     model=model,
     tools=[convert_sas_macro]
 )
@@ -281,12 +295,11 @@ code_converter_orchestrator = Agent(
          * Macros → macro_converter
        - Combine converted segments in correct order
        - Ensure all necessary imports are included
-       - Verify converted code integrity
+       - Return ONLY the final converted Python code
     
     3. Error Handling:
-       - Catch and report conversion errors
-       - Provide helpful error messages
-       - Suggest alternatives for unsupported features
+       - If any component fails to convert, return the error message
+       - Prefix all error messages with "Error: "
     
     4. Code Organization:
        - Maintain logical code structure
@@ -299,18 +312,16 @@ code_converter_orchestrator = Agent(
     2. Identify code components
     3. Convert each component using specialized agents
     4. Combine converted code
-    5. Add necessary imports
-    6. Format and return result
+    5. Return only the final Python code
     
     Important:
-    - Preserve code functionality
+    - Do not include any explanatory text or markdown formatting
+    - Return only the Python code or error message
+    - Preserve code functionality exactly
     - Maintain data integrity
-    - Handle dependencies correctly
-    - Provide clear error messages
-    - Add helpful comments in converted code""",
+    - Handle dependencies correctly""",
     model=model,
-    tools=[convert_sas_data_step, convert_sas_proc, convert_sas_macro],
-    handoffs=[data_step_converter, proc_converter, macro_converter]
+    tools=[convert_sas_data_step, convert_sas_proc, convert_sas_macro]
 )
 
 def run_workflow(sas_code: str) -> str:
@@ -336,15 +347,24 @@ def run_workflow(sas_code: str) -> str:
             if code_blocks:
                 output = '\n\n'.join(code_blocks)
         
+        # If the output contains tool call JSON, extract just the code
+        if '"function":' in output:
+            # Extract code from successful tool responses
+            code_blocks = []
+            for tool_response in re.findall(r'"code":\s*"([^"]*)"', output):
+                code_blocks.append(tool_response.replace('\\n', '\n'))
+            if code_blocks:
+                output = '\n\n'.join(code_blocks)
+        
         # Clean up the output
         output = output.strip()
         
         # Handle error messages
-        if 'error' in output.lower():
-            return f"Error: {output}"
+        if 'error:' in output.lower():
+            return output if output.lower().startswith('error:') else f"Error: {output}"
         
         # Ensure consistent formatting
-        if not output.startswith('import'):
+        if output and not output.startswith('import'):
             output = 'import pandas as pd\nimport numpy as np\n\n' + output
             
         return output
