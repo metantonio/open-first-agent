@@ -86,9 +86,10 @@ class UniversalOrchestrator:
                  3. Browser Agent (documentation lookup)
 
                - Code Conversion Tasks:
-                 1. Code Converter Agent (convert SAS to Python)
-                 2. Terminal Agent (save converted files)
-                 3. Dev Env Agent (setup Python environment if needed)
+                 1. Terminal Agent (open sas files with cat command if needed)
+                 2. Code Converter Agent (convert SAS to Python)
+                 3. Terminal Agent (save converted files to python files)
+                 4. Dev Env Agent (setup Python environment if needed)
 
             IMPORTANT:
             - Always validate inputs before passing to agents
