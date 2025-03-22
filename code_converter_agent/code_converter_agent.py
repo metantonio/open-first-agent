@@ -12,62 +12,55 @@ model = get_model_config()
 
 @function_tool
 async def convert_sas_data_step(sas_code: str) -> Dict[str, Any]:
-    """Convert SAS DATA step to Python pandas code.
-    
-    Args:
-        sas_code (str): The SAS DATA step code to convert
-        
-    Returns:
-        Dict containing success status and converted code or error
-    """
+    """Convert SAS DATA step to Python pandas code."""
     try:
-        # Basic DATA step conversion logic
-        python_code = []
-        python_code.append("import pandas as pd")
-        python_code.append("import numpy as np")
-        
         # Extract dataset name and input dataset
         data_match = re.search(r'DATA\s+(\w+);', sas_code, re.IGNORECASE)
         set_match = re.search(r'SET\s+(\w+(?:\.\w+)?);', sas_code, re.IGNORECASE)
         
-        if data_match and set_match:
-            output_dataset = data_match.group(1)
-            input_dataset = set_match.group(1)
-            
-            # Convert to pandas
-            python_code.append(f"{output_dataset} = {input_dataset}.copy()")
-            
-            # Convert variable assignments
-            for line in sas_code.split(';'):
-                if '=' in line and 'DATA' not in line.upper() and 'SET' not in line.upper():
-                    python_code.append(line.strip() + "  # Converted from SAS")
-            
-            return {
-                'success': True,
-                'code': '\n'.join(python_code)
-            }
-        else:
+        if not (data_match and set_match):
             return {
                 'success': False,
                 'error': 'Could not find DATA or SET statement in SAS code'
             }
             
+        output_dataset = data_match.group(1)
+        input_dataset = set_match.group(1).replace('.', '_')
+        
+        # Build Python code
+        python_code = []
+        python_code.append("import pandas as pd")
+        python_code.append("import numpy as np")
+        python_code.append("")
+        python_code.append(f"# Create a copy of the input dataset")
+        python_code.append(f"{output_dataset} = {input_dataset}.copy()")
+        
+        # Convert variable assignments
+        for line in sas_code.split(';'):
+            line = line.strip()
+            if '=' in line and 'DATA' not in line.upper() and 'SET' not in line.upper():
+                # Handle quoted strings carefully
+                if '"' in line or "'" in line:
+                    python_code.append(line)
+                else:
+                    # Add DataFrame reference for variable assignments
+                    var_name = line.split('=')[0].strip()
+                    expression = line.split('=')[1].strip()
+                    python_code.append(f"{output_dataset}['{var_name}'] = {output_dataset}[{expression}]")
+        
+        return {
+            'success': True,
+            'code': '\n'.join(python_code)
+        }
     except Exception as e:
         return {
             'success': False,
-            'error': f"Failed to convert DATA step: {str(e)}"
+            'error': f"Error converting DATA step: {str(e)}"
         }
 
 @function_tool
 async def convert_sas_proc(sas_code: str) -> Dict[str, Any]:
-    """Convert SAS PROC step to Python pandas code.
-    
-    Args:
-        sas_code (str): The SAS PROC code to convert
-        
-    Returns:
-        Dict containing success status and converted code or error
-    """
+    """Convert SAS PROC step to Python pandas code."""
     try:
         # Extract PROC type and dataset
         proc_match = re.search(r'PROC\s+(\w+)\s+DATA=(\w+(?:\.\w+)?);', sas_code, re.IGNORECASE)
@@ -79,7 +72,7 @@ async def convert_sas_proc(sas_code: str) -> Dict[str, Any]:
             }
             
         proc_type = proc_match.group(1).lower()
-        dataset = proc_match.group(2)
+        dataset = proc_match.group(2).replace('.', '_')
         
         # Map common PROC types to pandas operations
         proc_mappings = {
@@ -90,9 +83,16 @@ async def convert_sas_proc(sas_code: str) -> Dict[str, Any]:
         }
         
         if proc_type in proc_mappings:
+            python_code = [
+                "import pandas as pd",
+                "import numpy as np",
+                "",
+                f"# Equivalent to PROC {proc_type.upper()}",
+                proc_mappings[proc_type]
+            ]
             return {
                 'success': True,
-                'code': f"import pandas as pd\n{proc_mappings[proc_type]}"
+                'code': '\n'.join(python_code)
             }
         else:
             return {
@@ -103,19 +103,12 @@ async def convert_sas_proc(sas_code: str) -> Dict[str, Any]:
     except Exception as e:
         return {
             'success': False,
-            'error': f"Failed to convert PROC step: {str(e)}"
+            'error': f"Error converting PROC step: {str(e)}"
         }
 
 @function_tool
 async def convert_sas_macro(sas_code: str) -> Dict[str, Any]:
-    """Convert SAS macro to Python function.
-    
-    Args:
-        sas_code (str): The SAS macro code to convert
-        
-    Returns:
-        Dict containing success status and converted code or error
-    """
+    """Convert SAS macro to Python function."""
     try:
         # Extract macro name and parameters
         macro_match = re.search(r'%MACRO\s+(\w+)(?:\((.*?)\))?;', sas_code, re.IGNORECASE)
@@ -132,11 +125,29 @@ async def convert_sas_macro(sas_code: str) -> Dict[str, Any]:
         # Convert parameters to Python function parameters
         python_params = ', '.join(p.strip() for p in params.split(',') if p.strip())
         
+        # Extract macro body
+        body_match = re.search(r'%MACRO.*?;(.*?)%MEND', sas_code, re.IGNORECASE | re.DOTALL)
+        body = body_match.group(1) if body_match else ''
+        
         python_code = [
+            "import pandas as pd",
+            "import numpy as np",
+            "",
             f"def {macro_name.lower()}({python_params}):",
-            "    # TODO: Convert macro body",
-            "    pass"
+            "    # Converted from SAS macro"
         ]
+        
+        # Convert macro body if present
+        if body.strip():
+            # Add basic implementation
+            python_code.extend([
+                "    # TODO: Implement full macro body conversion",
+                "    # Original SAS code:",
+                *[f"    # {line.strip()}" for line in body.split('\n') if line.strip()],
+                "    pass"
+            ])
+        else:
+            python_code.append("    pass")
         
         return {
             'success': True,
@@ -146,7 +157,7 @@ async def convert_sas_macro(sas_code: str) -> Dict[str, Any]:
     except Exception as e:
         return {
             'success': False,
-            'error': f"Failed to convert macro: {str(e)}"
+            'error': f"Error converting macro: {str(e)}"
         }
 
 # Create Specialized Agents
@@ -314,7 +325,7 @@ def run_workflow(sas_code: str) -> str:
         )
         
         if not response:
-            return "No response received from orchestrator"
+            return "Error: No response received from orchestrator"
         
         # Extract the Python code from the response
         output = response.final_output
@@ -325,8 +336,14 @@ def run_workflow(sas_code: str) -> str:
             if code_blocks:
                 output = '\n\n'.join(code_blocks)
         
-        # Ensure consistent formatting
+        # Clean up the output
         output = output.strip()
+        
+        # Handle error messages
+        if 'error' in output.lower():
+            return f"Error: {output}"
+        
+        # Ensure consistent formatting
         if not output.startswith('import'):
             output = 'import pandas as pd\nimport numpy as np\n\n' + output
             
@@ -334,4 +351,4 @@ def run_workflow(sas_code: str) -> str:
         
     except Exception as e:
         logger.error(f"Error in code conversion workflow: {str(e)}")
-        return f"Error converting code: {str(e)}" 
+        return f"Error: {str(e)}" 
