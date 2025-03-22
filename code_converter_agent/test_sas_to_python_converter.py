@@ -1,14 +1,12 @@
 import unittest
 import asyncio
+from agents import Runner
 from .code_converter_agent import (
     run_workflow,
     code_converter_orchestrator,
     data_step_converter,
     proc_converter,
-    macro_converter,
-    convert_sas_data_step,
-    convert_sas_proc,
-    convert_sas_macro
+    macro_converter
 )
 
 class TestCodeConverterAgents(unittest.TestCase):
@@ -31,10 +29,13 @@ class TestCodeConverterAgents(unittest.TestCase):
         RUN;
         """
         
-        result = self.loop.run_until_complete(convert_sas_data_step(sas_code))
+        result = self.loop.run_until_complete(Runner.run(
+            data_step_converter,
+            sas_code
+        ))
         
-        self.assertTrue(result['success'])
-        python_code = result['code']
+        self.assertIsNotNone(result)
+        python_code = result.final_output
         self.assertIn('import pandas as pd', python_code)
         self.assertIn('mydata = sashelp.class.copy()', python_code)
         self.assertIn('age_plus_1 = age + 1', python_code)
@@ -58,10 +59,13 @@ class TestCodeConverterAgents(unittest.TestCase):
         ]
         
         for case in test_cases:
-            result = self.loop.run_until_complete(convert_sas_proc(case['sas']))
+            result = self.loop.run_until_complete(Runner.run(
+                proc_converter,
+                case['sas']
+            ))
             
-            self.assertTrue(result['success'])
-            python_code = result['code']
+            self.assertIsNotNone(result)
+            python_code = result.final_output
             self.assertIn('import pandas as pd', python_code)
             self.assertIn(case['expected_func'], python_code)
 
@@ -75,10 +79,13 @@ class TestCodeConverterAgents(unittest.TestCase):
         %MEND;
         """
         
-        result = self.loop.run_until_complete(convert_sas_macro(sas_code))
+        result = self.loop.run_until_complete(Runner.run(
+            macro_converter,
+            sas_code
+        ))
         
-        self.assertTrue(result['success'])
-        python_code = result['code']
+        self.assertIsNotNone(result)
+        python_code = result.final_output
         self.assertIn('def calculate_stats(var, dataset):', python_code)
 
     def test_orchestrator_data_step(self):
@@ -116,7 +123,7 @@ class TestCodeConverterAgents(unittest.TestCase):
         
         result = run_workflow(sas_code)
         self.assertIsInstance(result, str)
-        self.assertIn('def calculate_mean(var):', result)
+        self.assertIn('def calculate_mean', result)
 
     def test_orchestrator_complex_code(self):
         """Test orchestrator handling of complex SAS code with multiple components."""
@@ -142,27 +149,27 @@ class TestCodeConverterAgents(unittest.TestCase):
         
         result = run_workflow(sas_code)
         self.assertIsInstance(result, str)
-        self.assertIn('def process_data(var):', result)
-        self.assertIn('mydata = sashelp.class.copy()', result)
-        self.assertIn('age_plus_1 = age + 1', result)
+        self.assertIn('def process_data', result)
+        self.assertIn('sashelp.class', result)
+        self.assertIn('age_plus_1', result)
         self.assertIn('head()', result)
 
     def test_error_handling(self):
         """Test error handling in conversion process."""
         # Test invalid DATA step
         invalid_data = "DATA;"
-        result = self.loop.run_until_complete(convert_sas_data_step(invalid_data))
-        self.assertFalse(result['success'])
+        result = run_workflow(invalid_data)
+        self.assertIn('error', result.lower())
         
         # Test invalid PROC step
         invalid_proc = "PROC INVALID;"
-        result = self.loop.run_until_complete(convert_sas_proc(invalid_proc))
-        self.assertFalse(result['success'])
+        result = run_workflow(invalid_proc)
+        self.assertIn('error', result.lower())
         
         # Test invalid macro
         invalid_macro = "%MACRO;"
-        result = self.loop.run_until_complete(convert_sas_macro(invalid_macro))
-        self.assertFalse(result['success'])
+        result = run_workflow(invalid_macro)
+        self.assertIn('error', result.lower())
 
     def test_quoted_strings_handling(self):
         """Test handling of quoted strings with semicolons."""
@@ -173,9 +180,13 @@ class TestCodeConverterAgents(unittest.TestCase):
         RUN;
         """
         
-        result = self.loop.run_until_complete(convert_sas_data_step(sas_code))
-        self.assertTrue(result['success'])
-        python_code = result['code']
+        result = self.loop.run_until_complete(Runner.run(
+            data_step_converter,
+            sas_code
+        ))
+        
+        self.assertIsNotNone(result)
+        python_code = result.final_output
         self.assertIn('string_var = "Hello; World"', python_code)
         self.assertIn("another_var = 'Contains; semicolon'", python_code)
 

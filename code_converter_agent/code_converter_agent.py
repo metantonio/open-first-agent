@@ -315,8 +315,22 @@ def run_workflow(sas_code: str) -> str:
         
         if not response:
             return "No response received from orchestrator"
+        
+        # Extract the Python code from the response
+        output = response.final_output
+        
+        # If the output contains markdown code blocks, extract just the Python code
+        if "```python" in output:
+            code_blocks = re.findall(r'```python\n(.*?)```', output, re.DOTALL)
+            if code_blocks:
+                output = '\n\n'.join(code_blocks)
+        
+        # Ensure consistent formatting
+        output = output.strip()
+        if not output.startswith('import'):
+            output = 'import pandas as pd\nimport numpy as np\n\n' + output
             
-        return response.final_output.strip()
+        return output
         
     except Exception as e:
         logger.error(f"Error in code conversion workflow: {str(e)}")
