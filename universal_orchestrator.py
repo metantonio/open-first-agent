@@ -5,6 +5,7 @@ from dev_env_agent.dev_env_agent import run_workflow as run_dev_env_workflow
 from aws_cli_agent.aws_cli_agent import run_workflow as run_aws_cli_workflow
 from file_system_agent.file_system_agent import run_workflow as run_file_env_workflow
 from terminal_agent.terminal_task_agent import run_workflow as run_terminal_workflow
+from code_converter_agent.code_converter_agent import run_workflow as run_code_converter_workflow
 import logging
 from config import get_model_config
 
@@ -53,6 +54,14 @@ class UniversalOrchestrator:
                - AWS credentials management
                - AWS connectivity testing
 
+               Code Converter Agent:
+               - Converting SAS code to Python code
+               - Handling DATA steps conversion to pandas
+               - Converting PROC steps to Python equivalents
+               - Converting SAS macros to Python functions
+               - Maintaining code structure and dependencies
+               - Ensuring proper import statements
+
             3. Multi-Agent Workflow Rules:
                - Identify dependencies between sub-tasks
                - Execute agents in correct sequence
@@ -75,6 +84,11 @@ class UniversalOrchestrator:
                  1. Terminal Agent (file operations)
                  2. Dev Env Agent (environment setup)
                  3. Browser Agent (documentation lookup)
+
+               - Code Conversion Tasks:
+                 1. Code Converter Agent (convert SAS to Python)
+                 2. Terminal Agent (save converted files)
+                 3. Dev Env Agent (setup Python environment if needed)
 
             IMPORTANT:
             - Always validate inputs before passing to agents
@@ -101,11 +115,13 @@ class UniversalOrchestrator:
             - terraform: Infrastructure as code
             - dev_env: Development environment setup
             - aws_cli: AWS CLI management
+            - code_converter: SAS to Python code conversion
 
             Example responses:
             - "terminal" (for single agent)
             - "browser,terminal" (for multi-agent sequence)
             - "browser,terraform,aws_cli" (for complex workflow)
+            - "code_converter,terminal" (for code conversion tasks)
 
             Response format: Just the comma-separated agent types, nothing else.
             """,
@@ -116,7 +132,7 @@ class UniversalOrchestrator:
         agent_sequence = [agent.strip() for agent in workflow_response.final_output.strip().lower().split(',')]
         
         # Validate agent types
-        valid_agents = {'browser', 'terraform', 'dev_env', 'aws_cli', 'terminal'}
+        valid_agents = {'browser', 'terraform', 'dev_env', 'aws_cli', 'terminal', 'code_converter'}
         agent_sequence = [agent for agent in agent_sequence if agent in valid_agents]
         
         # Default to terminal if no valid agents
@@ -155,6 +171,8 @@ class UniversalOrchestrator:
                     result = run_aws_cli_workflow(request)
                 elif agent_type == "terminal":
                     result = run_terminal_workflow(request)
+                elif agent_type == "code_converter":
+                    result = run_code_converter_workflow(request)
                 
                 # Update request with result for context if needed
                 if isinstance(result, dict) and result.get('context'):

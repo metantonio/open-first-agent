@@ -56,7 +56,7 @@ print(python_code)
 Run the unit tests:
 
 ```bash
-python -m unittest test_sas_to_python_converter.py
+python -m unittest code_converter_agent/test_sas_to_python_converter.py
 ```
 
 ## Contributing
