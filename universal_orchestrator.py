@@ -111,9 +111,9 @@ class UniversalOrchestrator:
 
             Agent Selection Rules:
             1. For code conversion tasks (keywords: convert, sas, to python, .sas):
-               - Use "terminal" first to read the SAS file
-               - Then "code_converter" to convert the code
-               - Then "terminal" again to save the Python file
+               - Use "terminal" first to find and read the requested file
+               - Then "code_converter" to convert the code to requested language
+               - Then "terminal" again to save the script file in the requested script language
             
             2. For web tasks (keywords: search, lookup, find online):
                - Use "browser" for web searches
@@ -127,7 +127,7 @@ class UniversalOrchestrator:
                - Use "dev_env" for environment setup
                - May be preceded by "browser" for research
             
-            5. For file operations (keywords: file, directory, create, delete):
+            5. For file operations (keywords: file, directory, create, delete, find, list):
                - Use "terminal" for file system operations
             
             Return ONLY a comma-separated list of required agents in execution order.
