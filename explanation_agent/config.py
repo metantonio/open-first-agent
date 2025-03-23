@@ -19,3 +19,5 @@ def get_model_config(provider=external_provider):
         model=provider["model"],
         openai_client=provider["client"],
     ) 
+
+TEMPERATURE = 0.1
