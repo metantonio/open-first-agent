@@ -111,7 +111,7 @@ class UniversalOrchestrator:
 
             Agent Selection Rules:
             1. For code conversion tasks (keywords: convert, sas, to python, .sas):
-               - Use "terminal" first to find and read the requested file
+               - Use "terminal" first to find and read the requested file with cat command, don't use it for other tasks
                - Then "code_converter" to convert the code to requested language
                - Then "terminal" again to save the script file in the requested script language
             
