@@ -726,6 +726,19 @@ def run_workflow(request: str) -> str:
                 if isinstance(final_output, dict):
                     if final_output.get('success'):
                         content = final_output.get('output', '')
+                        # Clean up any JSON or markdown formatting
+                        if content.startswith('```') and content.endswith('```'):
+                            content = content[3:-3].strip()
+                        # If content is JSON, try to extract the actual file content
+                        if content.startswith('{') and '"output"' in content:
+                            try:
+                                import json
+                                json_content = json.loads(content)
+                                if isinstance(json_content, dict) and 'output' in json_content:
+                                    content = json_content['output']
+                            except:
+                                pass  # Keep original content if JSON parsing fails
+                        
                         logger.info("Terminal Agent: File read operation completed")
                         logger.info(f"Terminal Agent: Content length: {len(content)} characters")
                         logger.info("Terminal Agent: First 100 characters of content: " + content[:100] + "...")
@@ -735,6 +748,19 @@ def run_workflow(request: str) -> str:
                         logger.error(f"Terminal Agent: Failed to read file: {error}")
                         return f"Error: {error}"
                 elif isinstance(final_output, str):
+                    # Clean up any JSON or markdown formatting
+                    if final_output.startswith('```') and final_output.endswith('```'):
+                        final_output = final_output[3:-3].strip()
+                    # If content is JSON, try to extract the actual file content
+                    if final_output.startswith('{') and '"output"' in final_output:
+                        try:
+                            import json
+                            json_content = json.loads(final_output)
+                            if isinstance(json_content, dict) and 'output' in json_content:
+                                final_output = json_content['output']
+                        except:
+                            pass  # Keep original content if JSON parsing fails
+                            
                     if final_output.startswith('Error'):
                         logger.error(f"Terminal Agent: Failed to read file: {final_output}")
                         return final_output
