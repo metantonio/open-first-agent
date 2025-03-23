@@ -31,7 +31,7 @@ class UniversalOrchestrator:
                - File searching or pattern matching
                - Terminal commands execution
                - SSH connections and operations
-               - Any local system operations
+               - Any local system operations (open files with cat command, run commands)
                
                Browser Agent:
                - Web searches and research
@@ -175,25 +175,90 @@ class UniversalOrchestrator:
             
             # Execute agents in sequence
             result = None
-            for agent_type in agent_sequence:
-                logger.info(f"Executing agent: {agent_type}")
+            sas_content = None
+            python_code = None
+            
+            # Special handling for code conversion workflow
+            if agent_sequence == ['terminal', 'code_converter', 'terminal']:
+                # Extract file paths from request
+                sas_file = None
+                python_file = None
                 
-                if agent_type == "browser":
-                    result = run_browser_workflow(request)
-                elif agent_type == "terraform":
-                    result = run_terraform_workflow(request)
-                elif agent_type == "dev_env":
-                    result = run_dev_env_workflow(request)
-                elif agent_type == "aws_cli":
-                    result = run_aws_cli_workflow(request)
-                elif agent_type == "terminal":
-                    result = run_terminal_workflow(request)
-                elif agent_type == "code_converter":
-                    result = run_code_converter_workflow(request)
+                # Look for .sas file in request
+                words = request.split()
+                for i, word in enumerate(words):
+                    if word.endswith('.sas'):
+                        sas_file = word
+                    elif word.endswith('.py'):
+                        python_file = word
                 
-                # Update request with result for context if needed
-                if isinstance(result, dict) and result.get('context'):
-                    request = f"{request}\nContext: {result['context']}"
+                if not sas_file:
+                    logger.error("Could not find .sas file in request")
+                    return "Error: Could not find .sas file in request"
+                if not python_file:
+                    # Default to same name with .py extension
+                    python_file = sas_file.replace('.sas', '.py')
+                
+                logger.info(f"Found input file: {sas_file}, output file: {python_file}")
+                
+                # Step 1: Read SAS file
+                logger.info("Step 1: Reading SAS file content")
+                read_request = f"cat {sas_file}"
+                sas_content = run_terminal_workflow(read_request)
+                
+                if isinstance(sas_content, str) and sas_content.startswith('Error'):
+                    logger.error(f"Failed to read SAS file: {sas_content}")
+                    return sas_content
+                
+                logger.info(f"Successfully read SAS file. Content length: {len(str(sas_content))} characters")
+                logger.info("First 100 characters of SAS content: " + str(sas_content)[:100] + "...")
+                
+                # Step 2: Convert code
+                if sas_content:
+                    logger.info("Step 2: Converting SAS to Python")
+                    python_code = run_code_converter_workflow(sas_content)
+                    
+                    if isinstance(python_code, str) and python_code.startswith('Error'):
+                        logger.error(f"Failed to convert code: {python_code}")
+                        return python_code
+                    
+                    logger.info(f"Successfully converted code. Python code length: {len(str(python_code))} characters")
+                    logger.info("First 100 characters of Python code: " + str(python_code)[:100] + "...")
+                
+                # Step 3: Save Python file
+                if python_code:
+                    logger.info(f"Step 3: Saving Python code to {python_file}")
+                    save_request = f"echo '{python_code}' > output/{python_file}"
+                    result = run_terminal_workflow(save_request)
+                    result = run_terminal_workflow(f"save the following python code into the file at output/{python_file}: {python_code}")
+                    if isinstance(result, str) and result.startswith('Error'):
+                        logger.error(f"Failed to save Python file: {result}")
+                    else:
+                        logger.info(f"Successfully saved Python code to {python_file}")
+                    
+                    return result
+                    
+            else:
+                # Normal workflow for non-code-conversion tasks
+                for agent_type in agent_sequence:
+                    logger.info(f"Executing agent: {agent_type}")
+                    
+                    if agent_type == "browser":
+                        result = run_browser_workflow(request)
+                    elif agent_type == "terraform":
+                        result = run_terraform_workflow(request)
+                    elif agent_type == "dev_env":
+                        result = run_dev_env_workflow(request)
+                    elif agent_type == "aws_cli":
+                        result = run_aws_cli_workflow(request)
+                    elif agent_type == "terminal":
+                        result = run_terminal_workflow(request)
+                    elif agent_type == "code_converter":
+                        result = run_code_converter_workflow(request)
+                    
+                    # Update request with result for context if needed
+                    if isinstance(result, dict) and result.get('context'):
+                        request = f"{request}\nContext: {result['context']}"
             
             return result if result is not None else "No agents were able to process the request"
                 

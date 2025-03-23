@@ -388,6 +388,11 @@ def run_workflow(sas_code: str) -> str:
     logger.info("Starting code conversion workflow")
     
     try:
+        # Log received content
+        logger.info("Code Converter Agent: Received SAS code for conversion")
+        logger.info(f"Code Converter Agent: Input content length: {len(str(sas_code))} characters")
+        logger.info("Code Converter Agent: First 100 characters of input: " + str(sas_code)[:100] + "...")
+        
         # Create a new Runner instance
         response = Runner.run_sync(
             code_converter_orchestrator,
@@ -395,6 +400,7 @@ def run_workflow(sas_code: str) -> str:
         )
         
         if not response or not response.final_output:
+            logger.error("Code Converter Agent: No response received from orchestrator")
             return "Error: No response received from orchestrator"
         
         # Extract the Python code from the response
@@ -402,10 +408,12 @@ def run_workflow(sas_code: str) -> str:
         
         # If the output is already an error message, return it
         if output.lower().startswith('error:'):
+            logger.error(f"Code Converter Agent: Conversion error - {output}")
             return output
             
         # Handle empty output
         if not output:
+            logger.error("Code Converter Agent: Empty response from orchestrator")
             return "Error: Empty response from orchestrator"
             
         # Clean up the output
@@ -424,6 +432,7 @@ def run_workflow(sas_code: str) -> str:
             elif '"error":' in output:
                 error_blocks = re.findall(r'"error":\s*"(.*?)"', output)
                 if error_blocks:
+                    logger.error(f"Code Converter Agent: Conversion error in response - {error_blocks[0]}")
                     return f"Error: {error_blocks[0]}"
             
             # Clean up whitespace
@@ -433,10 +442,16 @@ def run_workflow(sas_code: str) -> str:
             if output and not output.startswith('import'):
                 output = 'import pandas as pd\nimport numpy as np\n\n' + output
             
+            # Log the converted output
+            logger.info("Code Converter Agent: Successfully converted SAS code to Python")
+            logger.info(f"Code Converter Agent: Output content length: {len(output)} characters")
+            logger.info("Code Converter Agent: First 100 characters of output: " + output[:100] + "...")
+            
             return output
         else:
+            logger.error("Code Converter Agent: Invalid response format from orchestrator")
             return "Error: Invalid response format from orchestrator"
         
     except Exception as e:
-        logger.error(f"Error in code conversion workflow: {str(e)}")
+        logger.error(f"Code Converter Agent: Error in code conversion workflow - {str(e)}")
         return f"Error: {str(e)}" 

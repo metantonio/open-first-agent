@@ -25,3 +25,4 @@
 .aws/
 *.sas
 *.py
+!example_sas.sas

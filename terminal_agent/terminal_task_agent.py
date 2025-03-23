@@ -675,7 +675,144 @@ def run_workflow(request: str) -> str:
         asyncio.set_event_loop(loop)
         
         try:
-            # Run the orchestrator with the request
+            # Special handling for file reading (cat command)
+            if 'cat' in request:
+                logger.info("Terminal Agent: Executing file read operation")
+                logger.info(f"Terminal Agent: Reading file with command: {request}")
+                
+                # First, verify the file exists and get its full path
+                file_name = request.replace('cat', '').strip()
+                logger.info(f"Terminal Agent: Looking for file: {file_name}")
+                
+                # Check common paths
+                possible_paths = [
+                    file_name,  # Current directory
+                    f"output/{file_name}",  # Output directory
+                    os.path.join('output', file_name),  # OS-specific path
+                    os.path.abspath(file_name),  # Absolute path
+                    os.path.abspath(os.path.join('output', file_name))  # Absolute path in output
+                ]
+                
+                file_path = None
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        file_path = path
+                        break
+                
+                if not file_path:
+                    error_msg = f"Could not find file '{file_name}' in any of these locations: {', '.join(possible_paths)}"
+                    logger.error(f"Terminal Agent: {error_msg}")
+                    return f"Error: {error_msg}"
+                
+                logger.info(f"Terminal Agent: Found file at path: {file_path}")
+                
+                # Execute the cat command with the full path
+                cat_command = f"cat {file_path}"
+                logger.info(f"Terminal Agent: Executing command: {cat_command}")
+                
+                # Execute the cat command through the terminal orchestrator
+                response = Runner.run_sync(
+                    terminal_orchestrator,
+                    f"Execute command: {cat_command}",
+                    context={"command": cat_command}
+                )
+                
+                if not response:
+                    logger.error("Terminal Agent: No response received from orchestrator")
+                    return "Error: No response received from orchestrator"
+                
+                final_output = response.final_output
+                
+                if isinstance(final_output, dict):
+                    if final_output.get('success'):
+                        content = final_output.get('output', '')
+                        logger.info("Terminal Agent: File read operation completed")
+                        logger.info(f"Terminal Agent: Content length: {len(content)} characters")
+                        logger.info("Terminal Agent: First 100 characters of content: " + content[:100] + "...")
+                        return content
+                    else:
+                        error = final_output.get('error', 'Unknown error')
+                        logger.error(f"Terminal Agent: Failed to read file: {error}")
+                        return f"Error: {error}"
+                elif isinstance(final_output, str):
+                    if final_output.startswith('Error'):
+                        logger.error(f"Terminal Agent: Failed to read file: {final_output}")
+                        return final_output
+                    else:
+                        logger.info("Terminal Agent: File read operation completed")
+                        logger.info(f"Terminal Agent: Content length: {len(final_output)} characters")
+                        logger.info("Terminal Agent: First 100 characters of content: " + final_output[:100] + "...")
+                        return final_output
+            
+            # Special handling for file writing (echo command)
+            elif 'echo' in request and '>' in request:
+                logger.info("Terminal Agent: Executing file write operation")
+                logger.info(f"Terminal Agent: Writing file with command: {request}")
+                
+                # Extract the output file path and content
+                parts = request.split('>')
+                content_part = '>'.join(parts[:-1]).replace('echo', '', 1).strip()
+                output_path = parts[-1].strip()
+                
+                # Remove surrounding quotes if they exist
+                if content_part.startswith("'") and content_part.endswith("'"):
+                    content_part = content_part[1:-1]
+                
+                # Process the content to ensure dictionary keys are properly quoted
+                if '[' in content_part or '{' in content_part:
+                    logger.info("Terminal Agent: Detected dictionary/list content, ensuring proper quotes")
+                    
+                    # Replace unquoted dictionary keys with quoted ones
+                    # This regex looks for word characters followed by a colon that aren't already quoted
+                    import re
+                    processed_content = re.sub(r'(\w+)(?=\s*:)', r"'\1'", content_part)
+                    
+                    # Escape any existing single quotes in the content
+                    processed_content = processed_content.replace("'", "\\'")
+                    
+                    # Create the new echo command with properly quoted content
+                    write_command = f"echo '{processed_content}' > {output_path}"
+                else:
+                    write_command = request
+                
+                logger.info(f"Terminal Agent: Processed write command: {write_command}")
+                
+                # Ensure the output directory exists
+                output_dir = os.path.dirname(output_path)
+                if output_dir and not os.path.exists(output_dir):
+                    logger.info(f"Terminal Agent: Creating output directory: {output_dir}")
+                    os.makedirs(output_dir, exist_ok=True)
+                
+                # Execute the echo command through the terminal orchestrator
+                response = Runner.run_sync(
+                    terminal_orchestrator,
+                    f"Execute command: {write_command}",
+                    context={"command": write_command}
+                )
+                
+                if not response:
+                    logger.error("Terminal Agent: No response received from orchestrator")
+                    return "Error: No response received from orchestrator"
+                
+                final_output = response.final_output
+                
+                if isinstance(final_output, dict):
+                    if final_output.get('success'):
+                        logger.info("Terminal Agent: File write operation completed")
+                        return "File saved successfully"
+                    else:
+                        error = final_output.get('error', 'Unknown error')
+                        logger.error(f"Terminal Agent: Failed to write file: {error}")
+                        return f"Error: {error}"
+                elif isinstance(final_output, str):
+                    if final_output.startswith('Error'):
+                        logger.error(f"Terminal Agent: Failed to write file: {final_output}")
+                        return final_output
+                    else:
+                        logger.info("Terminal Agent: File write operation completed")
+                        return "File saved successfully"
+            
+            # For other commands, use the orchestrator
             response = Runner.run_sync(
                 terminal_orchestrator,
                 request,
@@ -698,27 +835,20 @@ def run_workflow(request: str) -> str:
         # Get the final output from the response
         final_output = response.final_output
         
-        # If the response is a string, check if it's a command structure
+        # Handle command structure responses
         if isinstance(final_output, str):
-            # If it looks like a command structure, execute it
             if "<command>" in final_output and "</command>" in final_output:
-                # Parse the command structure and execute it
                 if "<transfer_to_file_creator>" in final_output:
                     import json
                     try:
-                        # Extract the JSON between the tags
                         start = final_output.find("<transfer_to_file_creator>") + len("<transfer_to_file_creator>")
                         end = final_output.find("</transfer_to_file_creator>")
                         json_str = final_output[start:end].strip()
                         params = json.loads(json_str)
-                        
-                        # Execute create_file with the extracted parameters
                         result = asyncio.run(create_file(**params))
                         return str(result)
                     except Exception as e:
                         return f"Error executing file creation: {str(e)}"
-                        
-                # Add similar handlers for other command types
                 return "Unhandled command type"
             else:
                 return final_output.strip()
