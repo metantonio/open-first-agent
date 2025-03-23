@@ -13,7 +13,7 @@ openai_provider = {
     "client": AsyncOpenAI()
 }
 
-TEMPERATURE = 0.0
+TEMPERATURE = 0.1
 
 def get_model_config(provider=external_provider):
     """Get the model configuration for agents."""
