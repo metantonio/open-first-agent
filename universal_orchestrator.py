@@ -6,6 +6,7 @@ from aws_cli_agent.aws_cli_agent import run_workflow as run_aws_cli_workflow
 from file_system_agent.file_system_agent import run_workflow as run_file_env_workflow
 from terminal_agent.terminal_task_agent import run_workflow as run_terminal_workflow
 from code_converter_agent.code_converter_agent import run_workflow as run_code_converter_workflow
+from explanation_agent.explanation_agent import run_workflow as run_explanation_workflow
 import logging
 from config import get_model_config, TEMPERATURE
 import os
@@ -153,7 +154,7 @@ class UniversalOrchestrator:
                 logger.info("Detected code conversion task, enforcing correct agent sequence")
                 agent_sequence = ['terminal', 'code_converter', 'terminal']
         
-        # Default to terminal if no valid agents
+        # Default to browser if no valid agents
         if not agent_sequence:
             logger.warning(f"No valid agents in sequence, defaulting to browser")
             return ['browser']
@@ -238,7 +239,7 @@ class UniversalOrchestrator:
                     save_request = f"echo '{escaped_code}' > output/{python_file}"
                     
                     result = run_terminal_workflow(save_request)
-                    result = result + run_browser_workflow(f"Explain the following python code: {python_code}")
+                    result = result + run_explanation_workflow(f"Print the full code and explain it, suggest improvements: {python_code}")
                     if isinstance(result, str) and result.startswith('Error'):
                         logger.error(f"Failed to save Python file: {result}")
                     else:
