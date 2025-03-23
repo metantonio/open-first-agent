@@ -307,11 +307,22 @@ code_converter_orchestrator = Agent(
        - Maintain code sequence and dependencies
     
     2. Conversion Workflow:
-       - For DATA steps: Use convert_sas_data_step
-       - For PROC steps: Use convert_sas_proc
-       - For Macros: Use convert_sas_macro
-       - Extract and return ONLY the 'code' field from successful responses
-       - Return error messages from failed conversions
+       For each code segment:
+       
+       a) If it's a MACRO (starts with %MACRO):
+          - Use convert_sas_macro
+          - Extract the 'code' field from response
+          - Include the function definition
+       
+       b) If it's a DATA step (starts with DATA):
+          - Use convert_sas_data_step
+          - Extract the 'code' field from response
+          - Include the dataset operations
+       
+       c) If it's a PROC step (starts with PROC):
+          - Use convert_sas_proc
+          - Extract the 'code' field from response
+          - Include the pandas operations
     
     3. Error Handling:
        - Handle each component separately
@@ -333,7 +344,23 @@ code_converter_orchestrator = Agent(
     5. Preserve dataset names exactly as in SAS
     6. Handle quoted strings carefully
     
-    Example input:
+    Example macro conversion:
+    Input:
+    %MACRO calculate_mean(var);
+        PROC MEANS DATA=&dataset;
+            VAR &var;
+        RUN;
+    %MEND;
+    
+    Output:
+    import pandas as pd
+    import numpy as np
+
+    def calculate_mean(var, dataset):
+        return dataset[var].mean()
+    
+    Example complex conversion:
+    Input:
     %MACRO process_data;
         DATA mydata;
             SET sashelp.class;
@@ -344,7 +371,7 @@ code_converter_orchestrator = Agent(
         RUN;
     %MEND;
     
-    Example output:
+    Output:
     import pandas as pd
     import numpy as np
 
@@ -353,8 +380,7 @@ code_converter_orchestrator = Agent(
         mydata['age_plus_1'] = mydata['age'] + 1
         return mydata.describe()""",
     model=model,
-    tools=[convert_sas_data_step, convert_sas_proc, convert_sas_macro],
-    handoffs=[macro_converter, proc_converter, data_step_converter]
+    tools=[convert_sas_data_step, convert_sas_proc, convert_sas_macro]
 )
 
 def run_workflow(sas_code: str) -> str:
@@ -395,6 +421,10 @@ def run_workflow(sas_code: str) -> str:
                 code_blocks = re.findall(r'"code":\s*"(.*?)"', output)
                 if code_blocks:
                     output = '\n\n'.join(block.replace('\\n', '\n').strip() for block in code_blocks)
+            elif '"error":' in output:
+                error_blocks = re.findall(r'"error":\s*"(.*?)"', output)
+                if error_blocks:
+                    return f"Error: {error_blocks[0]}"
             
             # Clean up whitespace
             output = output.strip()
