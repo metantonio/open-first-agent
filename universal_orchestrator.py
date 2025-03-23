@@ -8,6 +8,7 @@ from terminal_agent.terminal_task_agent import run_workflow as run_terminal_work
 from code_converter_agent.code_converter_agent import run_workflow as run_code_converter_workflow
 import logging
 from config import get_model_config, TEMPERATURE
+import os
 
 model = get_model_config()
 logger = logging.getLogger(__name__)
@@ -228,9 +229,16 @@ class UniversalOrchestrator:
                 # Step 3: Save Python file
                 if python_code:
                     logger.info(f"Step 3: Saving Python code to {python_file}")
-                    save_request = f"echo '{python_code}' > output/{python_file}"
+                    
+                    # Ensure output directory exists
+                    os.makedirs('output', exist_ok=True)
+                    
+                    # Properly escape the Python code for the echo command
+                    escaped_code = python_code.replace("'", "'\\''")
+                    save_request = f"echo '{escaped_code}' > output/{python_file}"
+                    
                     result = run_terminal_workflow(save_request)
-                    result = run_terminal_workflow(f"save the following python code into the file at output/{python_file}: {python_code}")
+                    result = result + run_terminal_workflow(f"save the following python code into the file at output/1{python_file}: {python_code}")
                     if isinstance(result, str) and result.startswith('Error'):
                         logger.error(f"Failed to save Python file: {result}")
                     else:
