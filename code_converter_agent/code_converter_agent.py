@@ -14,9 +14,26 @@ model = get_model_config()
 async def convert_sas_data_step(sas_code: str) -> Dict[str, Any]:
     """Convert SAS DATA step to Python pandas code."""
     try:
-        # Extract dataset name and input dataset
-        data_match = re.search(r'DATA\s+(\w+);', sas_code, re.IGNORECASE)
-        set_match = re.search(r'SET\s+(\w+(?:\.\w+)?);', sas_code, re.IGNORECASE)
+        # Ensure sas_code is a string
+        if not isinstance(sas_code, str):
+            sas_code = '\n'.join(sas_code) if isinstance(sas_code, list) else str(sas_code)
+            
+        # Extract dataset name and input dataset, handling case where SET is in a string
+        code_lines = [line.strip() for line in sas_code.split('\n') if line.strip()]
+        
+        # Find DATA and SET statements while ignoring them in quoted strings
+        data_line = ''
+        set_line = ''
+        for line in code_lines:
+            # Skip lines that are entirely within quotes
+            if (line.count('"') % 2 == 0) and (line.count("'") % 2 == 0):
+                if 'DATA' in line.upper() and not data_line:
+                    data_line = line
+                elif 'SET' in line.upper() and not set_line:
+                    set_line = line
+        
+        data_match = re.search(r'DATA\s+(\w+);', data_line, re.IGNORECASE)
+        set_match = re.search(r'SET\s+(\w+(?:\.\w+)?);', set_line, re.IGNORECASE)
         
         if not (data_match and set_match):
             return {
@@ -25,7 +42,7 @@ async def convert_sas_data_step(sas_code: str) -> Dict[str, Any]:
             }
             
         output_dataset = data_match.group(1)
-        input_dataset = set_match.group(1).replace('.', '_')
+        input_dataset = set_match.group(1)
         
         # Build Python code
         python_code = []
@@ -36,16 +53,22 @@ async def convert_sas_data_step(sas_code: str) -> Dict[str, Any]:
         python_code.append(f"{output_dataset} = {input_dataset}.copy()")
         
         # Convert variable assignments
-        for line in sas_code.split(';'):
+        for line in code_lines:
             line = line.strip()
             if '=' in line and 'DATA' not in line.upper() and 'SET' not in line.upper():
-                # Handle quoted strings carefully
+                # Handle quoted strings by preserving the entire line
                 if '"' in line or "'" in line:
-                    python_code.append(line)
+                    # Remove trailing semicolon and add to DataFrame
+                    var_name = line.split('=')[0].strip()
+                    expression = line.split('=', 1)[1].strip()
+                    # Remove trailing semicolon but preserve semicolons in quotes
+                    if expression.endswith(';'):
+                        expression = expression[:-1]
+                    python_code.append(f"{output_dataset}['{var_name}'] = {expression}")
                 else:
                     # Add DataFrame reference for variable assignments
                     var_name = line.split('=')[0].strip()
-                    expression = line.split('=')[1].strip()
+                    expression = line.split('=')[1].strip().rstrip(';')
                     python_code.append(f"{output_dataset}['{var_name}'] = {output_dataset}[{expression}]")
         
         return {
@@ -173,8 +196,8 @@ data_step_converter = Agent(
     
     You MUST:
     1. Extract the DATA step code from the input
-    2. Call convert_sas_data_step with the exact code
-    3. Return ONLY the converted Python code from the response, no additional text
+    2. Call convert_sas_data_step with the ENTIRE code block as a single string
+    3. Return ONLY the Python code from the response, no additional text
     4. If there's an error, return the error message prefixed with "Error: "
     
     Example conversions:
@@ -182,17 +205,20 @@ data_step_converter = Agent(
     DATA mydata;
         SET sashelp.class;
         age_plus_1 = age + 1;
+        string_var = "Hello; World";
     RUN;
     
     Python:
     import pandas as pd
     import numpy as np
 
-    mydata = sashelp_class.copy()
+    mydata = sashelp.class.copy()
     mydata['age_plus_1'] = mydata['age'] + 1
+    mydata['string_var'] = "Hello; World"
     
     Important:
-    - Do not add any explanatory text or markdown formatting
+    - Pass the entire code block as a single string to the tool
+    - Preserve semicolons within quoted strings
     - Return only the Python code or error message
     - Preserve variable names exactly as they appear
     - Handle missing values correctly
@@ -289,37 +315,54 @@ code_converter_orchestrator = Agent(
        - Maintain code sequence and dependencies
     
     2. Conversion Workflow:
-       - Route code segments to appropriate specialized agents:
-         * DATA steps → data_step_converter
-         * PROC steps → proc_converter
-         * Macros → macro_converter
-       - Combine converted segments in correct order
-       - Ensure all necessary imports are included
-       - Return ONLY the final converted Python code
+       - For DATA steps: Use convert_sas_data_step
+       - For PROC steps: Use convert_sas_proc
+       - For Macros: Use convert_sas_macro
+       - Extract and return ONLY the 'code' field from successful responses
+       - Return error messages from failed conversions
     
     3. Error Handling:
-       - If any component fails to convert, return the error message
-       - Prefix all error messages with "Error: "
+       - Handle each component separately
+       - If one component fails, continue with others
+       - Return error messages exactly as received
+       - Prefix any new error messages with "Error: "
     
     4. Code Organization:
-       - Maintain logical code structure
+       - Keep imports at the top
        - Group related conversions
-       - Add appropriate comments
-       - Format output code properly
+       - Maintain proper indentation
+       - Preserve comments
     
-    Example workflow:
-    1. Receive SAS code
-    2. Identify code components
-    3. Convert each component using specialized agents
-    4. Combine converted code
-    5. Return only the final Python code
+    You MUST:
+    1. Use the exact tool functions provided
+    2. Return ONLY the Python code or error messages
+    3. Handle each code segment independently
+    4. Preserve dataset names exactly as in SAS
+    5. Handle quoted strings carefully
+    6. Extract and return ONLY the 'code' field from tool responses
+    7. Do not wrap responses in markdown or JSON
     
-    Important:
-    - Do not include any explanatory text or markdown formatting
-    - Return only the Python code or error message
-    - Preserve code functionality exactly
-    - Maintain data integrity
-    - Handle dependencies correctly""",
+    Example input:
+    ```sas
+    %MACRO process_data;
+        DATA mydata;
+            SET sashelp.class;
+            age_plus_1 = age + 1;
+        RUN;
+        
+        PROC MEANS DATA=mydata;
+        RUN;
+    %MEND;
+    ```
+    
+    Example output:
+    import pandas as pd
+    import numpy as np
+
+    def process_data():
+        mydata = sashelp.class.copy()
+        mydata['age_plus_1'] = mydata['age'] + 1
+        return mydata.describe()""",
     model=model,
     tools=[convert_sas_data_step, convert_sas_proc, convert_sas_macro]
 )
@@ -335,39 +378,44 @@ def run_workflow(sas_code: str) -> str:
             sas_code
         )
         
-        if not response:
+        if not response or not response.final_output:
             return "Error: No response received from orchestrator"
         
         # Extract the Python code from the response
-        output = response.final_output
+        output = response.final_output.strip()
         
-        # If the output contains markdown code blocks, extract just the Python code
-        if "```python" in output:
-            code_blocks = re.findall(r'```python\n(.*?)```', output, re.DOTALL)
-            if code_blocks:
-                output = '\n\n'.join(code_blocks)
-        
-        # If the output contains tool call JSON, extract just the code
-        if '"function":' in output:
-            # Extract code from successful tool responses
-            code_blocks = []
-            for tool_response in re.findall(r'"code":\s*"([^"]*)"', output):
-                code_blocks.append(tool_response.replace('\\n', '\n'))
-            if code_blocks:
-                output = '\n\n'.join(code_blocks)
-        
-        # Clean up the output
-        output = output.strip()
-        
-        # Handle error messages
-        if 'error:' in output.lower():
-            return output if output.lower().startswith('error:') else f"Error: {output}"
-        
-        # Ensure consistent formatting
-        if output and not output.startswith('import'):
-            output = 'import pandas as pd\nimport numpy as np\n\n' + output
+        # If the output is already an error message, return it
+        if output.lower().startswith('error:'):
+            return output
             
-        return output
+        # Handle empty output
+        if not output:
+            return "Error: Empty response from orchestrator"
+            
+        # Clean up the output
+        if isinstance(output, str):
+            # Remove markdown code blocks
+            if "```" in output:
+                code_blocks = re.findall(r'```(?:python)?\n?(.*?)\n?```', output, re.DOTALL)
+                if code_blocks:
+                    output = '\n\n'.join(block.strip() for block in code_blocks)
+            
+            # Remove tool call formatting
+            if '"code":' in output:
+                code_blocks = re.findall(r'"code":\s*"(.*?)"', output)
+                if code_blocks:
+                    output = '\n\n'.join(block.replace('\\n', '\n').strip() for block in code_blocks)
+            
+            # Clean up whitespace
+            output = output.strip()
+            
+            # Ensure consistent imports
+            if output and not output.startswith('import'):
+                output = 'import pandas as pd\nimport numpy as np\n\n' + output
+            
+            return output
+        else:
+            return "Error: Invalid response format from orchestrator"
         
     except Exception as e:
         logger.error(f"Error in code conversion workflow: {str(e)}")
