@@ -7,7 +7,7 @@ from file_system_agent.file_system_agent import run_workflow as run_file_env_wor
 from terminal_agent.terminal_task_agent import run_workflow as run_terminal_workflow
 from code_converter_agent.code_converter_agent import run_workflow as run_code_converter_workflow
 import logging
-from config import get_model_config
+from config import get_model_config, TEMPERATURE
 
 model = get_model_config()
 logger = logging.getLogger(__name__)
@@ -98,7 +98,7 @@ class UniversalOrchestrator:
             - Ensure proper handoff between agents
             """,
             model=model,
-            model_settings=ModelSettings(temperature=0.1)
+            model_settings=ModelSettings(temperature=TEMPERATURE)
         )
 
     async def analyze_workflow(self, request: str) -> list:
@@ -106,25 +106,35 @@ class UniversalOrchestrator:
         workflow_response = await Runner.run(
             self.orchestrator_agent,
             f"""Analyze the following request and determine which agents are needed and in what order.
-            Return the response as a comma-separated list of agent types in execution order.
-
+            
             Request: {request}
 
-            Available agents:
-            - terminal: File operations, commands, SSH
-            - browser: Web searches, documentation
-            - terraform: Infrastructure as code
-            - dev_env: Development environment setup
-            - aws_cli: AWS CLI management
-            - code_converter: SAS to Python code conversion
-
+            Agent Selection Rules:
+            1. For code conversion tasks (keywords: convert, sas, to python, .sas):
+               - Use "terminal" first to read the SAS file
+               - Then "code_converter" to convert the code
+               - Then "terminal" again to save the Python file
+            
+            2. For web tasks (keywords: search, lookup, find online):
+               - Use "browser" for web searches
+               - May be followed by other agents
+            
+            3. For infrastructure tasks (keywords: terraform, aws, infrastructure):
+               - Use "terraform" for IaC tasks
+               - Use "aws_cli" for AWS operations
+            
+            4. For development setup (keywords: setup, install, configure):
+               - Use "dev_env" for environment setup
+               - May be preceded by "browser" for research
+            
+            5. For file operations (keywords: file, directory, create, delete):
+               - Use "terminal" for file system operations
+            
+            Return ONLY a comma-separated list of required agents in execution order.
             Example responses:
             - "terminal" (for single agent)
             - "browser,terminal" (for multi-agent sequence)
-            - "browser,terraform,aws_cli" (for complex workflow)
-            - "code_converter,terminal" (for code conversion tasks)
-
-            Response format: Just the comma-separated agent types, nothing else.
+            - "terminal,code_converter,terminal" (for code conversion tasks)
             """,
             context={"request": request}
         )
@@ -136,12 +146,18 @@ class UniversalOrchestrator:
         valid_agents = {'browser', 'terraform', 'dev_env', 'aws_cli', 'terminal', 'code_converter'}
         agent_sequence = [agent for agent in agent_sequence if agent in valid_agents]
         
+        # Special case: If the request involves SAS to Python conversion
+        if any(keyword in request.lower() for keyword in ['convert', '.sas', 'sas to python']):
+            if agent_sequence != ['terminal', 'code_converter', 'terminal']:
+                logger.info("Detected code conversion task, enforcing correct agent sequence")
+                agent_sequence = ['terminal', 'code_converter', 'terminal']
+        
         # Default to terminal if no valid agents
         if not agent_sequence:
-            logger.warning(f"No valid agents in sequence, defaulting to terminal")
-            return ['terminal']
+            logger.warning(f"No valid agents in sequence, defaulting to browser")
+            return ['browser']
             
-        logger.info(f"Determined agent sequence: {agent_sequence} for request: {request}")
+        logger.info(f"Determined defaultagent sequence: {agent_sequence} for request: {request}")
         return agent_sequence
 
     async def process_request(self, request: str):
