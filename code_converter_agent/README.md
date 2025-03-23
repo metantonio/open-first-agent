@@ -59,6 +59,8 @@ Run the unit tests:
 python -m unittest code_converter_agent/test_sas_to_python_converter.py
 ```
 
-## Contributing
+## Example prompt:
 
-Contributions are welcome! Please feel free to submit a Pull Request. 
+```sh
+in the output folder I have a file named example_sas.sas I want convert it to python using the agents, please convert it to python and put the resulted block of code in a file named example_sas.py
+```
