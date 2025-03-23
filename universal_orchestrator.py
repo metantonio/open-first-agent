@@ -238,7 +238,7 @@ class UniversalOrchestrator:
                     save_request = f"echo '{escaped_code}' > output/{python_file}"
                     
                     result = run_terminal_workflow(save_request)
-                    result = result + run_terminal_workflow(f"save the following python code into the file at output/1{python_file}: {python_code}")
+                    result = result + run_browser_workflow(f"Explain the following python code: {python_code}")
                     if isinstance(result, str) and result.startswith('Error'):
                         logger.error(f"Failed to save Python file: {result}")
                     else:
