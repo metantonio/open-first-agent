@@ -280,12 +280,17 @@ conda activate openai-first-agent
 pip install -r requirements.txt
 ```
 
-3. Set up your OpenAI API key:
+3. Create .env file:
+```bash
+cp .env.example .env
+```
+
+4. Set up your OpenAI API key:
 ```bash
 export OPENAI_API_KEY='your-api-key'
 ```
 
-4. Disable agents tracing to OpenAI (optional)
+5. Disable agents tracing to OpenAI (optional)
 ```bash
 export OPENAI_AGENTS_DISABLE_TRACING=1
 ```
