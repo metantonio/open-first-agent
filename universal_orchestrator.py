@@ -205,38 +205,41 @@ class UniversalOrchestrator:
             
             # Special handling for code conversion workflow
             if agent_sequence == ['terminal', 'code_converter', 'terminal']:
+                logger.info("Executing code conversion workflow")
+                
                 # Extract file paths from request
                 sas_file = None
                 python_file = None
                 
-                # Look for .sas file in request
-                words = request.split()
+                # Look for .sas file in the request
+                words = request.lower().split()
                 for i, word in enumerate(words):
-                    if word.endswith('.sas'):
+                    if '.sas' in word:
                         sas_file = word
-                    elif word.endswith('.py'):
-                        python_file = word
+                        # Look for .py file after the .sas file
+                        for next_word in words[i+1:]:
+                            if '.py' in next_word:
+                                python_file = next_word
+                                break
+                        break
                 
                 if not sas_file:
-                    logger.error("Could not find .sas file in request")
-                    return "Error: Could not find .sas file in request"
+                    return "Error: No .sas file specified in the request"
+                
                 if not python_file:
                     # Default to same name with .py extension
                     python_file = sas_file.replace('.sas', '.py')
                 
-                logger.info(f"Found input file: {sas_file}, output file: {python_file}")
+                logger.info(f"Processing conversion from {sas_file} to {python_file}")
                 
                 # Step 1: Read SAS file
-                logger.info("Step 1: Reading SAS file content")
-                read_request = f"cat {sas_file}"
-                sas_content = run_terminal_workflow(read_request)
-                
-                if isinstance(sas_content, str) and sas_content.startswith('Error'):
-                    logger.error(f"Failed to read SAS file: {sas_content}")
-                    return sas_content
-                
-                logger.info(f"Successfully read SAS file. Content length: {len(str(sas_content))} characters")
-                logger.info("First 100 characters of SAS content: " + str(sas_content)[:100] + "...")
+                logger.info(f"Step 1: Reading SAS file from {sas_file}")
+                try:
+                    # The code converter will handle the path resolution
+                    sas_content = sas_file
+                except Exception as e:
+                    logger.error(f"Failed to read SAS file: {str(e)}")
+                    return f"Error: Failed to read SAS file - {str(e)}"
                 
                 # Step 2: Convert code
                 if sas_content:

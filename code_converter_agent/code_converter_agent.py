@@ -10,6 +10,47 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 model = get_model_config()
 
+def read_sas_file(file_path: str) -> str:
+    """
+    Read SAS code from a file, handling both absolute and relative paths.
+    
+    Args:
+        file_path (str): Path to the SAS file (absolute or relative)
+        
+    Returns:
+        str: Content of the SAS file
+        
+    Raises:
+        FileNotFoundError: If the file doesn't exist
+        IOError: If there's an error reading the file
+    """
+    try:
+        # Convert to Path object to handle both Windows and Unix paths
+        path = Path(file_path)
+        
+        # If path is relative and doesn't exist, try looking in the output directory
+        if not path.is_absolute() and not path.exists():
+            output_path = Path('output') / path.name
+            if output_path.exists():
+                path = output_path
+        
+        # Verify file exists and has .sas extension
+        if not path.exists():
+            raise FileNotFoundError(f"SAS file not found: {file_path}")
+        if path.suffix.lower() != '.sas':
+            raise ValueError(f"File must have .sas extension: {file_path}")
+            
+        # Read the file content
+        with open(path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            
+        logger.info(f"Successfully read SAS file: {path}")
+        return content
+        
+    except Exception as e:
+        logger.error(f"Error reading SAS file {file_path}: {str(e)}")
+        raise
+
 @function_tool
 async def convert_sas_data_step(sas_code: str) -> Dict[str, Any]:
     """Convert SAS DATA step to Python pandas code."""
@@ -387,11 +428,21 @@ code_converter_orchestrator = Agent(
     model_settings=ModelSettings(temperature=TEMPERATURE)
 )
 
-def run_workflow(sas_code: str) -> str:
+def run_workflow(sas_input: str) -> str:
     """Run the code conversion workflow with the orchestrator as the main controller."""
     logger.info("Starting code conversion workflow")
     
     try:
+        # Check if input is a file path or direct code
+        if isinstance(sas_input, str) and ('.sas' in sas_input.lower() or '/' in sas_input or '\\' in sas_input):
+            try:
+                sas_code = read_sas_file(sas_input)
+            except Exception as e:
+                logger.error(f"Failed to read SAS file: {str(e)}")
+                return f"Error: Failed to read SAS file - {str(e)}"
+        else:
+            sas_code = sas_input
+            
         # Log received content
         logger.info("Code Converter Agent: Received SAS code for conversion")
         logger.info(f"Code Converter Agent: Input content length: {len(str(sas_code))} characters")
