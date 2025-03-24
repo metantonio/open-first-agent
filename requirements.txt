@@ -16,4 +16,6 @@ pytest-order
 pandas>=2.0.0
 numpy>=1.24.0
 pathlib>=1.0.1
-python-dotenv==1.0.1 
+python-dotenv==1.0.1
+PyQt6>=6.4.0  # For macOS UI
+nest-asyncio>=1.5.8  # For handling nested event loops
