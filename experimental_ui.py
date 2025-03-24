@@ -17,6 +17,7 @@ import traceback
 import nest_asyncio
 import markdown
 from bs4 import BeautifulSoup
+import webbrowser
 
 # Apply nest_asyncio to allow nested event loops
 nest_asyncio.apply()
@@ -54,8 +55,9 @@ USE_QT = IS_MACOS  # Use Qt on macOS
 if USE_QT:
     from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                 QHBoxLayout, QPushButton, QTextEdit, QLabel,
-                                QProgressBar)
-    from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread
+                                QProgressBar, QTextBrowser)
+    from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread, QUrl
+    from PyQt6.QtGui import QTextCursor, QDesktopServices
     BaseThread = QThread
 else:
     import tkinter as tk
@@ -253,8 +255,13 @@ if USE_QT:
             # Show welcome message
             self.show_welcome_message()
 
+            # Connect text browser signals
+            self.output_text.anchorClicked.connect(self.handle_link_click)
+            self.output_text.setOpenLinks(False)  # Prevent automatic link opening
+
         def create_output_area(self, layout):
-            self.output_text = QTextEdit()
+            self.output_text = QTextBrowser()
+            self.output_text.setOpenExternalLinks(True)
             self.output_text.setReadOnly(True)
             self.output_text.setFont(QApplication.font("Courier"))
             self.output_text.setAcceptRichText(True)
@@ -330,7 +337,14 @@ if USE_QT:
                 styled_html = f"{MARKDOWN_CSS}\n{html_content}"
                 self.output_text.setHtml(styled_html)
             else:
-                self.output_text.append(text)
+                # Convert URLs to clickable links
+                text_with_links = self.convert_urls_to_links(text)
+                self.output_text.append(text_with_links)
+
+        def convert_urls_to_links(self, text):
+            """Convert URLs in text to HTML links"""
+            url_pattern = r'(https?://\S+)'
+            return re.sub(url_pattern, r'<a href="\1">\1</a>', text)
 
         def clear_output(self):
             self.output_text.clear()
@@ -405,6 +419,10 @@ if USE_QT:
             self.show_loading(False)
             self.append_output(error)
 
+        def handle_link_click(self, url):
+            """Handle clicking on links in the output text"""
+            QDesktopServices.openUrl(url)
+
 else:
     class TkUI(tk.Frame):
         """Tkinter UI implementation for non-macOS platforms"""
@@ -445,6 +463,12 @@ else:
             
             # Show welcome message
             self.show_welcome_message()
+
+            # Configure tag for URLs
+            self.output_text.tag_configure("url", foreground="blue", underline=1)
+            self.output_text.tag_bind("url", "<Button-1>", self.handle_url_click)
+            self.output_text.tag_bind("url", "<Enter>", lambda e: self.output_text.config(cursor="hand2"))
+            self.output_text.tag_bind("url", "<Leave>", lambda e: self.output_text.config(cursor=""))
 
         def create_output_area(self):
             self.output_text = scrolledtext.ScrolledText(
@@ -522,7 +546,22 @@ else:
                 styled_text = self.style_markdown_text(soup.get_text())
                 self.output_text.insert(tk.END, styled_text + "\n", tag)
             else:
-                self.output_text.insert(tk.END, text + "\n", tag)
+                # Process text for URLs
+                last_end = 0
+                for match in re.finditer(r'(https?://\S+)', text):
+                    start, end = match.span()
+                    # Insert text before the URL
+                    if start > last_end:
+                        self.output_text.insert(tk.END, text[last_end:start])
+                    # Insert URL with special tag
+                    url = text[start:end]
+                    self.output_text.insert(tk.END, url, ("url", url))
+                    last_end = end
+                # Insert remaining text
+                if last_end < len(text):
+                    self.output_text.insert(tk.END, text[last_end:])
+                self.output_text.insert(tk.END, "\n")
+            
             self.output_text.see(tk.END)
             self.output_text.config(state=tk.DISABLED)
 
@@ -623,6 +662,16 @@ else:
                 else:
                     styled_lines.append(line)
             return '\n'.join(styled_lines)
+
+        def handle_url_click(self, event):
+            """Handle clicking on URLs in the output text"""
+            # Get the URL from the tag
+            tags = self.output_text.tag_names("current")
+            for tag in tags:
+                if isinstance(tag, tuple) and tag[0] == "url":
+                    url = tag[1]
+                    webbrowser.open(url)
+                    break
 
 def cleanup():
     """Cleanup function to be called before exit"""
