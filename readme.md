@@ -99,6 +99,13 @@ Required environment variables in your `.env` file:
 4. **Code Conversion**
    - Conversion of SAS programming code to Python
 
+5. **Terminal Mode**
+   - Execute a Terminal 
+
+6. **Execute commands in the chat mode**
+   - Execute commands in the chat mode. Eg: `!ls -la` 
+
+
 ## 📝 License
 
 MIT
