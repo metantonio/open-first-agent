@@ -3,7 +3,7 @@ import logging
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 from agents import Agent, Runner, AsyncOpenAI, OpenAIChatCompletionsModel, function_tool, ModelSettings
-from .config import get_model_config
+from .config import get_model_config, TEMPERATURE
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -221,7 +221,8 @@ data_step_converter = Agent(
     - Return ONLY the Python code or error message as plain text
     - Preserve variable names and string contents exactly""",
     model=model,
-    tools=[convert_sas_data_step]
+    tools=[convert_sas_data_step],
+    model_settings=ModelSettings(temperature=TEMPERATURE)
 )
 
 proc_converter = Agent(
@@ -254,7 +255,8 @@ proc_converter = Agent(
     - Return ONLY the Python code or error message as plain text
     - Preserve dataset names exactly""",
     model=model,
-    tools=[convert_sas_proc]
+    tools=[convert_sas_proc],
+    model_settings=ModelSettings(temperature=TEMPERATURE)
 )
 
 macro_converter = Agent(
@@ -291,7 +293,8 @@ macro_converter = Agent(
     - Return ONLY the Python code or error message as plain text
     - Convert macro parameters exactly""",
     model=model,
-    tools=[convert_sas_macro]
+    tools=[convert_sas_macro],
+    model_settings=ModelSettings(temperature=TEMPERATURE)
 )
 
 # Create Main Orchestrator Agent
@@ -380,7 +383,8 @@ code_converter_orchestrator = Agent(
         mydata['age_plus_1'] = mydata['age'] + 1
         return mydata.describe()""",
     model=model,
-    tools=[convert_sas_data_step, convert_sas_proc, convert_sas_macro]
+    tools=[convert_sas_data_step, convert_sas_proc, convert_sas_macro],
+    model_settings=ModelSettings(temperature=TEMPERATURE)
 )
 
 def run_workflow(sas_code: str) -> str:
