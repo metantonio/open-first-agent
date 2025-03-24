@@ -96,6 +96,9 @@ Required environment variables in your `.env` file:
    - Environment management
    - Jupyter notebook automation
 
+4. **Code Conversion**
+   - Conversion of SAS programming code to Python
+
 ## 📝 License
 
 MIT
