@@ -15,6 +15,8 @@ from universal_orchestrator import orchestrator
 from terminal_manager import terminal_manager
 import traceback
 import nest_asyncio
+import markdown
+from bs4 import BeautifulSoup
 
 # Apply nest_asyncio to allow nested event loops
 nest_asyncio.apply()
@@ -94,6 +96,27 @@ SSH Commands:
 - ssh-copy-id user@hostname: Copy SSH key to server
 
 Type 'help' for more commands or 'exit' to return to chat mode.
+"""
+
+# Add CSS styles for markdown rendering
+MARKDOWN_CSS = """
+<style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
+    h1 { color: #2c3e50; border-bottom: 2px solid #eee; }
+    h2 { color: #2c3e50; border-bottom: 1px solid #eee; }
+    h3, h4, h5, h6 { color: #2c3e50; }
+    code { background-color: #f8f9fa; padding: 2px 4px; border-radius: 4px; color: #e83e8c; }
+    pre { background-color: #f8f9fa; padding: 1em; border-radius: 4px; overflow-x: auto; }
+    blockquote { border-left: 4px solid #eee; margin-left: 0; padding-left: 1em; color: #666; }
+    table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #f8f9fa; }
+    a { color: #007bff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    img { max-width: 100%; height: auto; }
+    ul, ol { padding-left: 2em; }
+    li { margin: 0.5em 0; }
+</style>
 """
 
 class AsyncProcessor(BaseThread):
@@ -206,6 +229,7 @@ if USE_QT:
             self.mode = "chat"
             self.command_queue = Queue()
             self.output_queue = Queue()
+            self.markdown_mode = False
             
             # Create central widget and layout
             central_widget = QWidget()
@@ -230,6 +254,7 @@ if USE_QT:
             self.output_text = QTextEdit()
             self.output_text.setReadOnly(True)
             self.output_text.setFont(QApplication.font("Courier"))
+            self.output_text.setAcceptRichText(True)
             layout.addWidget(self.output_text)
 
         def create_input_area(self, layout):
@@ -254,6 +279,10 @@ if USE_QT:
             self.clear_button = QPushButton("Clear")
             self.clear_button.clicked.connect(self.clear_output)
             button_layout.addWidget(self.clear_button)
+
+            self.markdown_button = QPushButton("Toggle Markdown")
+            self.markdown_button.clicked.connect(self.toggle_markdown)
+            button_layout.addWidget(self.markdown_button)
             
             layout.addLayout(button_layout)
 
@@ -272,7 +301,13 @@ if USE_QT:
             super().keyPressEvent(event)
 
         def append_output(self, text):
-            self.output_text.append(text)
+            if self.markdown_mode and not self.mode == "terminal":
+                # Convert markdown to HTML with custom CSS
+                html_content = markdown.markdown(text, extensions=['fenced_code', 'tables'])
+                styled_html = f"{MARKDOWN_CSS}\n{html_content}"
+                self.output_text.setHtml(styled_html)
+            else:
+                self.output_text.append(text)
 
         def clear_output(self):
             self.output_text.clear()
@@ -295,6 +330,20 @@ if USE_QT:
             else:
                 self.mode = "chat"
                 self.append_output("\nSwitched to chat mode")
+
+        def toggle_markdown(self):
+            self.markdown_mode = not self.markdown_mode
+            current_text = self.output_text.toPlainText()
+            self.output_text.clear()
+            
+            if self.markdown_mode:
+                # Convert markdown to HTML with custom CSS
+                html_content = markdown.markdown(current_text, extensions=['fenced_code', 'tables'])
+                styled_html = f"{MARKDOWN_CSS}\n{html_content}"
+                self.output_text.setHtml(styled_html)
+            else:
+                # Show plain text
+                self.output_text.setPlainText(current_text)
 
         def send_message(self):
             message = self.input_text.toPlainText().strip()
@@ -331,9 +380,10 @@ else:
             self.root.geometry("800x600")
             
             # Initialize variables
-            self.mode = "chat"  # chat or terminal
+            self.mode = "chat"
             self.command_queue = Queue()
             self.output_queue = Queue()
+            self.markdown_mode = False
             
             # Pack the main frame
             self.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -405,9 +455,23 @@ else:
             )
             self.clear_button.pack(side=tk.LEFT, padx=5)
 
+            self.markdown_button = ttk.Button(
+                button_frame,
+                text="Toggle Markdown",
+                command=self.toggle_markdown
+            )
+            self.markdown_button.pack(side=tk.LEFT, padx=5)
+
         def append_output(self, text, tag=None):
             self.output_text.config(state=tk.NORMAL)
-            self.output_text.insert(tk.END, text + "\n", tag)
+            if self.markdown_mode and not self.mode == "terminal":
+                # Convert markdown to styled text
+                html_content = markdown.markdown(text, extensions=['fenced_code', 'tables'])
+                soup = BeautifulSoup(html_content, 'html.parser')
+                styled_text = self.style_markdown_text(soup.get_text())
+                self.output_text.insert(tk.END, styled_text + "\n", tag)
+            else:
+                self.output_text.insert(tk.END, text + "\n", tag)
             self.output_text.see(tk.END)
             self.output_text.config(state=tk.DISABLED)
 
@@ -463,6 +527,39 @@ else:
                 self.append_output(output)
             
             self.root.after(100, self.process_output_queue)
+
+        def toggle_markdown(self):
+            self.markdown_mode = not self.markdown_mode
+            current_text = self.output_text.get(1.0, tk.END)
+            self.output_text.config(state=tk.NORMAL)
+            self.output_text.delete(1.0, tk.END)
+            
+            if self.markdown_mode:
+                # Convert markdown to HTML
+                html_content = markdown.markdown(current_text, extensions=['fenced_code', 'tables'])
+                # Clean up the HTML and apply basic styling
+                soup = BeautifulSoup(html_content, 'html.parser')
+                styled_text = self.style_markdown_text(soup.get_text())
+                self.output_text.insert(tk.END, styled_text)
+            else:
+                self.output_text.insert(tk.END, current_text)
+            
+            self.output_text.config(state=tk.DISABLED)
+
+        def style_markdown_text(self, text):
+            """Apply basic styling to markdown text for Tkinter"""
+            lines = text.split('\n')
+            styled_lines = []
+            for line in lines:
+                if line.startswith('# '):
+                    styled_lines.append(f"\n{line[2:].upper()}\n{'='*len(line)}\n")
+                elif line.startswith('## '):
+                    styled_lines.append(f"\n{line[3:].title()}\n{'-'*len(line)}\n")
+                elif line.startswith('* '):
+                    styled_lines.append(f"  • {line[2:]}")
+                else:
+                    styled_lines.append(line)
+            return '\n'.join(styled_lines)
 
 def cleanup():
     """Cleanup function to be called before exit"""
