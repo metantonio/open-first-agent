@@ -53,7 +53,8 @@ USE_QT = IS_MACOS  # Use Qt on macOS
 # Import UI frameworks and define base classes
 if USE_QT:
     from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
-                                QHBoxLayout, QPushButton, QTextEdit, QLabel)
+                                QHBoxLayout, QPushButton, QTextEdit, QLabel,
+                                QProgressBar)
     from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread
     BaseThread = QThread
 else:
@@ -230,6 +231,7 @@ if USE_QT:
             self.command_queue = Queue()
             self.output_queue = Queue()
             self.markdown_mode = False
+            self.is_processing = False
             
             # Create central widget and layout
             central_widget = QWidget()
@@ -239,6 +241,7 @@ if USE_QT:
             # Create UI elements
             self.create_output_area(layout)
             self.create_input_area(layout)
+            self.create_loading_indicator(layout)
             self.create_buttons(layout)
             
             # Start async processor
@@ -264,6 +267,26 @@ if USE_QT:
             # Install event filter for handling key press events
             self.input_text.installEventFilter(self)
             layout.addWidget(self.input_text)
+
+        def create_loading_indicator(self, layout):
+            loading_layout = QHBoxLayout()
+            
+            self.loading_bar = QProgressBar()
+            self.loading_bar.setTextVisible(False)
+            self.loading_bar.setMaximumHeight(2)  # Make it thin
+            self.loading_bar.setStyleSheet("""
+                QProgressBar {
+                    border: none;
+                    background-color: #f0f0f0;
+                }
+                QProgressBar::chunk {
+                    background-color: #2196F3;
+                }
+            """)
+            self.loading_bar.hide()
+            
+            loading_layout.addWidget(self.loading_bar)
+            layout.addLayout(loading_layout)
 
         def create_buttons(self, layout):
             button_layout = QHBoxLayout()
@@ -345,6 +368,15 @@ if USE_QT:
                 # Show plain text
                 self.output_text.setPlainText(current_text)
 
+        def show_loading(self, show=True):
+            if show:
+                self.loading_bar.setRange(0, 0)  # Indeterminate mode
+                self.loading_bar.show()
+                self.is_processing = True
+            else:
+                self.loading_bar.hide()
+                self.is_processing = False
+
         def send_message(self):
             message = self.input_text.toPlainText().strip()
             if not message:
@@ -356,9 +388,11 @@ if USE_QT:
             else:
                 self.append_output(f"You: {message}")
             
+            self.show_loading(True)
             self.command_queue.put((message, self.mode))
 
         def handle_output(self, output):
+            self.show_loading(False)
             if output == "exit_terminal":
                 self.mode = "chat"
                 self.append_output("Exited terminal mode. Back to chat mode.")
@@ -368,6 +402,7 @@ if USE_QT:
                 self.append_output(output)
 
         def handle_error(self, error):
+            self.show_loading(False)
             self.append_output(error)
 
 else:
@@ -384,12 +419,16 @@ else:
             self.command_queue = Queue()
             self.output_queue = Queue()
             self.markdown_mode = False
+            self.is_processing = False
             
             # Pack the main frame
             self.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
             
             # Create output text area
             self.create_output_area()
+            
+            # Create loading indicator
+            self.create_loading_indicator()
             
             # Create input area
             self.create_input_area()
@@ -416,6 +455,18 @@ else:
             )
             self.output_text.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
             self.output_text.config(state=tk.DISABLED)
+
+        def create_loading_indicator(self):
+            self.loading_frame = ttk.Frame(self)
+            self.loading_frame.pack(fill=tk.X, pady=(0, 5))
+            
+            self.loading_bar = ttk.Progressbar(
+                self.loading_frame,
+                mode='indeterminate',
+                length=200
+            )
+            self.loading_bar.pack(fill=tk.X)
+            self.loading_bar.pack_forget()  # Hide initially
 
         def create_input_area(self):
             self.input_text = scrolledtext.ScrolledText(
@@ -508,6 +559,16 @@ else:
             """Handle Shift+Enter key press"""
             return None  # Allow default behavior (new line)
 
+        def show_loading(self, show=True):
+            if show and not self.is_processing:
+                self.loading_bar.pack(fill=tk.X)
+                self.loading_bar.start(10)  # Speed of animation
+                self.is_processing = True
+            elif not show and self.is_processing:
+                self.loading_bar.stop()
+                self.loading_bar.pack_forget()
+                self.is_processing = False
+
         def send_message(self):
             message = self.input_text.get(1.0, tk.END).strip()
             if not message:
@@ -519,11 +580,13 @@ else:
             else:
                 self.append_output(f"You: {message}")
             
+            self.show_loading(True)
             self.command_queue.put((message, self.mode))
 
         def process_output_queue(self):
             while not self.output_queue.empty():
                 output = self.output_queue.get()
+                self.show_loading(False)
                 self.append_output(output)
             
             self.root.after(100, self.process_output_queue)

@@ -131,6 +131,9 @@ class UniversalOrchestrator:
             
             5. For file operations (keywords: file, directory, create, delete, find, list):
                - Use "terminal" for file system operations
+
+            6. For chat tasks (keywords: chat, conversation, ask, question):
+               - Use "explanation_agent" for explaining the results
             
             Return ONLY a comma-separated list of required agents in execution order.
             Example responses:
