@@ -113,8 +113,17 @@ Required environment variables in your `.env` file:
 
 ## 📝 License
 
-MIT
+This project is licensed under a modified MIT License with non-commercial restrictions. The software is owned by Qualex Consulting Services, INC and Antonio Martínez. While you are free to use, modify, and distribute this software, you may not use it for any commercial purposes or monetary gain. See the [LICENSE](LICENSE) file for details.
+
+**Special Provisions:**
+- Employees of Qualex Consulting Services, INC are granted full usage rights, including commercial use
+- All contributions become the property of Qualex Consulting Services, INC and Antonio Martínez
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read our contributing guidelines before submitting pull requests.
+By contributing to this project, you agree to the following terms:
+1. You transfer all rights of your contributed code to Qualex Consulting Services, INC and Antonio Martínez
+2. Your contributions may be used, modified, or sold as part of this software by the owners
+3. Your contributions will fall under the same license terms as this software
+
+Please read our [LICENSE](LICENSE) file for complete terms before submitting pull requests.
