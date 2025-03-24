@@ -90,6 +90,7 @@ Required environment variables in your `.env` file:
 2. **Infrastructure Management**
    - Terraform configuration management
    - AWS CLI automation
+   - Provide the necessary data and tell to the AI to execute certain command in a EC2 instance.
 
 3. **Development Tools**
    - IDE setup and configuration
