@@ -312,7 +312,7 @@ The script will:
 - Export results to JSON and CSV files
 - Provide a summary of findings
 
-### Running the Duck Browser Agent
+### Running the UI Agents
 
 1. Navigate to the project directory
 2. Start the Chainlit UI:
