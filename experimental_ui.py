@@ -74,6 +74,28 @@ Type your request or toggle terminal mode to use terminal commands.
 Use ! prefix to execute terminal commands in chat mode.
 """
 
+TERMINAL_WELCOME_MESSAGE = """
+🖥️ Terminal Mode Activated 🖥️
+
+Common Commands:
+- ls, cd, pwd: File system navigation
+- cat, less: View file contents
+- mkdir, rm, cp, mv: File operations
+- grep: Search in files
+- ps, top: Process management
+- clear: Clear screen
+- exit: Return to chat mode
+
+SSH Commands:
+- ssh help: Show SSH commands
+- ssh user@hostname: Connect to remote host
+- scp source destination: Copy files securely
+- ssh-keygen: Generate SSH key pair
+- ssh-copy-id user@hostname: Copy SSH key to server
+
+Type 'help' for more commands or 'exit' to return to chat mode.
+"""
+
 class AsyncProcessor(BaseThread):
     """Handle async processing for both UI frameworks"""
     if USE_QT:
@@ -268,6 +290,7 @@ if USE_QT:
             if self.mode == "chat":
                 self.mode = "terminal"
                 self.append_output("\nSwitched to terminal mode")
+                self.append_output(TERMINAL_WELCOME_MESSAGE)
                 self.show_terminal_prompt()
             else:
                 self.mode = "chat"
@@ -406,6 +429,7 @@ else:
             if self.mode == "chat":
                 self.mode = "terminal"
                 self.append_output("\nSwitched to terminal mode")
+                self.append_output(TERMINAL_WELCOME_MESSAGE)
                 self.show_terminal_prompt()
             else:
                 self.mode = "chat"
