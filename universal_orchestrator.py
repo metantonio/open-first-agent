@@ -117,7 +117,7 @@ class UniversalOrchestrator:
                - Then "code_converter" to convert the code to requested language
                - Then "terminal" again to save the script file in the requested script language
             
-            2. For web tasks (keywords: search, lookup, find online):
+            2. For web tasks (keywords: search, lookup, find online, find):
                - Use "browser" for web searches
                - May be followed by other agents
             
