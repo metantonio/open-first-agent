@@ -194,6 +194,14 @@ class UniversalOrchestrator:
             elif not isinstance(request, str):
                 request = str(request)
 
+            # Check if this is a response to the explanation offer
+            if request.lower().strip() == 'yes' and hasattr(self, '_last_converted_code'):
+                logger.info("User requested explanation of converted code")
+                explanation = run_explanation_workflow(f"Print the full code and explain it, suggest improvements: {self._last_converted_code}")
+                # Clear the stored code after providing explanation
+                delattr(self, '_last_converted_code')
+                return explanation
+
             # Analyze workflow to get agent sequence
             agent_sequence = await self.analyze_workflow(request)
             logger.info(f"Processing request with agent sequence: {agent_sequence}")
@@ -211,17 +219,13 @@ class UniversalOrchestrator:
                 sas_file = None
                 python_file = None
                 
-                # Look for .sas file in the request
-                words = request.lower().split()
+                # Look for .sas file in request
+                words = request.split()
                 for i, word in enumerate(words):
-                    if '.sas' in word:
+                    if word.endswith('.sas'):
                         sas_file = word
-                        # Look for .py file after the .sas file
-                        for next_word in words[i+1:]:
-                            if '.py' in next_word:
-                                python_file = next_word
-                                break
-                        break
+                    elif word.endswith('.py'):
+                        python_file = word
                 
                 if not sas_file:
                     return "Error: No .sas file specified in the request"
@@ -233,13 +237,16 @@ class UniversalOrchestrator:
                 logger.info(f"Processing conversion from {sas_file} to {python_file}")
                 
                 # Step 1: Read SAS file
-                logger.info(f"Step 1: Reading SAS file from {sas_file}")
-                try:
-                    # The code converter will handle the path resolution
-                    sas_content = sas_file
-                except Exception as e:
-                    logger.error(f"Failed to read SAS file: {str(e)}")
-                    return f"Error: Failed to read SAS file - {str(e)}"
+                logger.info("Step 1: Reading SAS file content")
+                read_request = f"cat {sas_file}"
+                sas_content = run_terminal_workflow(read_request)
+                
+                if isinstance(sas_content, str) and sas_content.startswith('Error'):
+                    logger.error(f"Failed to read SAS file: {sas_content}")
+                    return sas_content
+                
+                logger.info(f"Successfully read SAS file. Content length: {len(str(sas_content))} characters")
+                logger.info("First 100 characters of SAS content: " + str(sas_content)[:100] + "...")
                 
                 # Step 2: Convert code
                 if sas_content:
@@ -265,12 +272,19 @@ class UniversalOrchestrator:
                     save_request = f"echo '{escaped_code}' > output/{python_file}"
                     
                     result = run_terminal_workflow(save_request)
-                    result = result + run_explanation_workflow(f"Print the full code and explain it, suggest improvements: {python_code}")
+                    
                     if isinstance(result, str) and result.startswith('Error'):
                         logger.error(f"Failed to save Python file: {result}")
+                        return result
                     else:
                         logger.info(f"Successfully saved Python code to {python_file}")
-                    
+                        # Store the code for potential explanation
+                        self._last_converted_code = python_code
+                        # Return success message with option to get explanation
+                        return f"""Successfully converted and saved the code to output/{python_file}
+
+The conversion has been completed. Would you like me to explain the converted code and suggest possible improvements? (Please respond with 'yes' if you'd like an explanation)"""
+
                     return result
                     
             else:
