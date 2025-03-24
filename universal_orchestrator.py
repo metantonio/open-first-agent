@@ -141,16 +141,24 @@ class UniversalOrchestrator:
             
             Return ONLY a comma-separated list of required agents in execution order.
             Example responses:
-            - "terminal" (for single agent)
-            - "browser,terminal" (for multi-agent sequence)
-            - "terminal,code_converter,terminal" (for code conversion tasks)
-            - "explanation_agent" (if the request do not require any other agents)
+            - terminal (for single agent)
+            - browser (for web research)
+            - browser,terminal (for multi-agent sequence)
+            - terminal,code_converter,terminal (for code conversion tasks)
+            - browser,explanation_agent (for research and explanation)
             """,
             context={"request": request}
         )
         
-        # Parse the workflow sequence
-        agent_sequence = [agent.strip() for agent in workflow_response.final_output.strip().lower().split(',')]
+        # Clean and parse the workflow sequence
+        response_text = workflow_response.final_output.strip().lower()
+        # Remove any quotes
+        response_text = response_text.replace('"', '').replace("'", '')
+        logger.info(f"Raw response from orchestrator: {response_text}")
+        
+        # Split by comma and clean each agent name
+        agent_sequence = [agent.strip() for agent in response_text.split(',')]
+        logger.info(f"Parsed agent sequence: {agent_sequence}")
         
         # Validate agent types
         valid_agents = {'browser', 'terraform', 'dev_env', 'aws_cli', 'terminal', 'code_converter', 'explanation_agent'}
@@ -162,12 +170,19 @@ class UniversalOrchestrator:
                 logger.info("Detected code conversion task, enforcing correct agent sequence")
                 agent_sequence = ['terminal', 'code_converter', 'terminal']
         
-        # Default to browser if no valid agents
+        # Special case: If the request is clearly a web search
+        web_search_keywords = ['search', 'buscar', 'find online', 'look up', 'google', 'web']
+        if any(keyword in request.lower() for keyword in web_search_keywords):
+            logger.info("Detected web search request, ensuring browser agent is first")
+            if 'browser' not in agent_sequence:
+                agent_sequence = ['browser'] + agent_sequence
+        
+        # Default to explanation_agent if no valid agents
         if not agent_sequence:
-            logger.warning(f"No valid agents in sequence, defaulting to browser")
+            logger.warning(f"No valid agents in sequence, defaulting to explanation_agent")
             return ['explanation_agent']
             
-        logger.info(f"Determined defaultagent sequence: {agent_sequence} for request: {request}")
+        logger.info(f"Final agent sequence: {agent_sequence} for request: {request}")
         return agent_sequence
 
     async def process_request(self, request: str):
