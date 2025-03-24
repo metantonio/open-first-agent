@@ -55,7 +55,7 @@ USE_QT = IS_MACOS  # Use Qt on macOS
 if USE_QT:
     from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                 QHBoxLayout, QPushButton, QTextEdit, QLabel,
-                                QProgressBar, QTextBrowser)
+                                QProgressBar, QTextBrowser, QDockWidget)
     from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread, QUrl
     from PyQt6.QtGui import QTextCursor, QDesktopServices
     BaseThread = QThread
@@ -145,9 +145,14 @@ class AsyncProcessor(BaseThread):
                 elif message.lower() == "clear":
                     return "clear_screen"
                 else:
-                    result = await terminal_manager.execute_command(message)
-                    terminal_manager.terminal.update_prompt()
-                    return f"{result}\n{terminal_manager.terminal.prompt}"
+                    try:
+                        result = await terminal_manager.execute_command(message)
+                        if result is None or result.strip() == "":
+                            result = "Command executed successfully"
+                        terminal_manager.terminal.update_prompt()
+                        return f"{result}\n{terminal_manager.terminal.prompt}"
+                    except Exception as e:
+                        return f"Error executing command: {str(e)}\n{terminal_manager.terminal.prompt}"
             else:
                 if message.startswith('!'):
                     command = message[1:].strip()
@@ -221,12 +226,78 @@ class AsyncProcessor(BaseThread):
                     logger.error(f"Error cleaning up loop: {str(e)}")
 
 if USE_QT:
+    class TerminalDockWidget(QDockWidget):
+        """Dockable terminal widget"""
+        def __init__(self, parent=None):
+            super().__init__("Terminal", parent)
+            self.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea)
+            
+            # Create terminal widget
+            self.terminal_widget = QWidget()
+            self.setWidget(self.terminal_widget)
+            
+            # Create layout
+            layout = QVBoxLayout(self.terminal_widget)
+            
+            # Create terminal output area with monospace font and dark theme
+            self.terminal_output = QTextBrowser()
+            self.terminal_output.setFont(QApplication.font("Courier"))
+            self.terminal_output.setStyleSheet("""
+                QTextBrowser {
+                    background-color: #1E1E1E;
+                    color: #FFFFFF;
+                    border: none;
+                    font-family: 'Courier New', monospace;
+                }
+            """)
+            self.terminal_output.setReadOnly(True)
+            layout.addWidget(self.terminal_output)
+            
+            # Create terminal input area with matching style
+            self.terminal_input = QTextEdit()
+            self.terminal_input.setMaximumHeight(50)
+            self.terminal_input.setFont(QApplication.font("Courier"))
+            self.terminal_input.setStyleSheet("""
+                QTextEdit {
+                    background-color: #1E1E1E;
+                    color: #FFFFFF;
+                    border: none;
+                    border-top: 1px solid #333333;
+                    font-family: 'Courier New', monospace;
+                }
+            """)
+            layout.addWidget(self.terminal_input)
+            
+            # Create send button with matching style
+            self.send_button = QPushButton("Send")
+            self.send_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #333333;
+                    color: #FFFFFF;
+                    border: none;
+                    padding: 5px;
+                    border-radius: 3px;
+                }
+                QPushButton:hover {
+                    background-color: #444444;
+                }
+            """)
+            layout.addWidget(self.send_button)
+
+        def append_output(self, text):
+            """Append text to terminal output with proper formatting"""
+            cursor = self.terminal_output.textCursor()
+            cursor.movePosition(cursor.MoveOperation.End)
+            self.terminal_output.setTextCursor(cursor)
+            self.terminal_output.insertPlainText(text + '\n')
+            self.terminal_output.ensureCursorVisible()
+
     class QtUI(QMainWindow):
         """PyQt6 UI implementation for macOS"""
         def __init__(self):
             super().__init__()
             self.setWindowTitle("AI Assistant")
-            self.setGeometry(100, 100, 800, 600)
+            self.setGeometry(100, 100, 1000, 600)  # Made window wider to accommodate dock
             
             # Initialize variables
             self.mode = "chat"
@@ -246,6 +317,15 @@ if USE_QT:
             self.create_loading_indicator(layout)
             self.create_buttons(layout)
             
+            # Create terminal dock widget
+            self.terminal_dock = TerminalDockWidget(self)
+            self.terminal_dock.hide()  # Hidden by default
+            self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.terminal_dock)
+            
+            # Connect terminal signals
+            self.terminal_dock.terminal_input.installEventFilter(self)
+            self.terminal_dock.send_button.clicked.connect(self.send_terminal_command)
+            
             # Start async processor
             self.async_processor = AsyncProcessor(self.command_queue, self.output_queue)
             self.async_processor.output_ready.connect(self.handle_output)
@@ -257,7 +337,7 @@ if USE_QT:
 
             # Connect text browser signals
             self.output_text.anchorClicked.connect(self.handle_link_click)
-            self.output_text.setOpenLinks(False)  # Prevent automatic link opening
+            self.output_text.setOpenLinks(False)
 
         def create_output_area(self, layout):
             self.output_text = QTextBrowser()
@@ -324,6 +404,10 @@ if USE_QT:
                 elif event.key() == Qt.Key.Key_Return and event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
                     # Allow Shift+Enter for new line
                     return False
+            elif obj is self.terminal_dock.terminal_input and event.type() == event.Type.KeyPress:
+                if event.key() == Qt.Key.Key_Return and not event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                    self.send_terminal_command()
+                    return True
             return super().eventFilter(obj, event)
 
         def keyPressEvent(self, event):
@@ -361,11 +445,12 @@ if USE_QT:
         def toggle_terminal_mode(self):
             if self.mode == "chat":
                 self.mode = "terminal"
-                self.append_output("\nSwitched to terminal mode")
-                self.append_output(TERMINAL_WELCOME_MESSAGE)
-                self.show_terminal_prompt()
+                self.terminal_dock.show()
+                self.terminal_dock.terminal_output.append(TERMINAL_WELCOME_MESSAGE)
+                self.terminal_dock.terminal_output.append(terminal_manager.terminal.prompt)
             else:
                 self.mode = "chat"
+                self.terminal_dock.hide()
                 self.append_output("\nSwitched to chat mode")
 
         def toggle_markdown(self):
@@ -409,11 +494,19 @@ if USE_QT:
             self.show_loading(False)
             if output == "exit_terminal":
                 self.mode = "chat"
+                self.terminal_dock.hide()
                 self.append_output("Exited terminal mode. Back to chat mode.")
             elif output == "clear_screen":
-                self.clear_output()
+                if self.mode == "terminal":
+                    self.terminal_dock.terminal_output.clear()
+                    self.terminal_dock.terminal_output.append(terminal_manager.terminal.prompt)
+                else:
+                    self.clear_output()
             else:
-                self.append_output(output)
+                if self.mode == "terminal":
+                    self.terminal_dock.terminal_output.append(output)
+                else:
+                    self.append_output(output)
 
         def handle_error(self, error):
             self.show_loading(False)
@@ -422,6 +515,18 @@ if USE_QT:
         def handle_link_click(self, url):
             """Handle clicking on links in the output text"""
             QDesktopServices.openUrl(url)
+
+        def send_terminal_command(self):
+            """Send command from terminal input"""
+            command = self.terminal_dock.terminal_input.toPlainText().strip()
+            if not command:
+                return
+            
+            self.terminal_dock.terminal_input.clear()
+            self.terminal_dock.terminal_output.append(f"> {command}")
+            
+            self.show_loading(True)
+            self.command_queue.put((command, "terminal"))
 
 else:
     class TkUI(tk.Frame):
