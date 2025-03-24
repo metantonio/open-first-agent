@@ -134,6 +134,7 @@ class UniversalOrchestrator:
 
             6. For chat tasks (keywords: chat, conversation, ask, question):
                - Use "explanation_agent" for explaining the results
+               - May be preceded by "browser" for research
             
             Return ONLY a comma-separated list of required agents in execution order.
             Example responses:
