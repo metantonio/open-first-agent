@@ -66,6 +66,11 @@ A powerful multi-agent system that combines various specialized AI agents to aut
 chainlit run ui.py
 ```
 
+**Experimental/Debug mode:**
+```bash
+python experimental_ui.py
+```
+
 ## 🔑 Environment Variables
 
 Required environment variables in your `.env` file:
