@@ -788,6 +788,7 @@ def run_workflow(request: str) -> str:
                     # Clean up any escaped quotes or formatting artifacts
                     content_part = content_part.replace("\\'", "'")  # Replace escaped single quotes
                     content_part = content_part.replace('\\"', '"')  # Replace escaped double quotes
+                    content_part = content_part.replace("'''", "'")  # Replace triple quotes with single quotes
                     
                     # If this is a Python file, ensure proper formatting
                     if output_path.endswith('.py'):
@@ -799,6 +800,13 @@ def run_workflow(request: str) -> str:
                         if content_part.endswith('```'):
                             content_part = content_part[:-3]
                         content_part = content_part.strip()
+                        
+                        # Fix string literals in Python code
+                        import re
+                        # Replace triple-quoted strings with single-quoted strings
+                        content_part = re.sub(r"'''([^']+)'''", r"'\1'", content_part)
+                        # Replace any remaining triple quotes
+                        content_part = content_part.replace("'''", "'")
                     
                     # Create the output directory if it doesn't exist
                     output_dir = os.path.dirname(output_path)
