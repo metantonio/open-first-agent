@@ -343,18 +343,8 @@ if USE_QT:
 
         def convert_urls_to_links(self, text):
             """Convert URLs in text to HTML links"""
-            # More robust URL pattern that excludes trailing punctuation
-            url_pattern = r'(https?://[^\s<>"]+(?<![\.,;!?>]))'
-            
-            # Clean up any malformed HTML links first
-            text = text.replace('<<a', '<a')
-            text = text.replace('>>', '>')
-            text = re.sub(r'href="([^"]+)>"', r'href="\1"', text)
-            
-            # Convert plain URLs to HTML links
-            text = re.sub(url_pattern, r'<a href="\1">\1</a>', text)
-            
-            return text
+            url_pattern = r'(https?://\S+)'
+            return re.sub(url_pattern, r'<a href="\1">\1</a>', text)
 
         def clear_output(self):
             self.output_text.clear()
