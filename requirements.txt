@@ -15,4 +15,5 @@ pytest-asyncio
 pytest-order
 pandas>=2.0.0
 numpy>=1.24.0
-pathlib>=1.0.1 
+pathlib>=1.0.1
+python-dotenv==1.0.1 
