@@ -137,6 +137,7 @@ class UniversalOrchestrator:
             - "terminal" (for single agent)
             - "browser,terminal" (for multi-agent sequence)
             - "terminal,code_converter,terminal" (for code conversion tasks)
+            - "explanation_agent" (if the request do not require any other agents)
             """,
             context={"request": request}
         )
@@ -145,7 +146,7 @@ class UniversalOrchestrator:
         agent_sequence = [agent.strip() for agent in workflow_response.final_output.strip().lower().split(',')]
         
         # Validate agent types
-        valid_agents = {'browser', 'terraform', 'dev_env', 'aws_cli', 'terminal', 'code_converter'}
+        valid_agents = {'browser', 'terraform', 'dev_env', 'aws_cli', 'terminal', 'code_converter', 'explanation_agent'}
         agent_sequence = [agent for agent in agent_sequence if agent in valid_agents]
         
         # Special case: If the request involves SAS to Python conversion
@@ -264,6 +265,8 @@ class UniversalOrchestrator:
                         result = run_terminal_workflow(request)
                     elif agent_type == "code_converter":
                         result = run_code_converter_workflow(request)
+                    elif agent_type == "explanation_agent":
+                        result = run_explanation_workflow(request)
                     
                     # Update request with result for context if needed
                     if isinstance(result, dict) and result.get('context'):
