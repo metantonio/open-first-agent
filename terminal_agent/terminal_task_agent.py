@@ -785,13 +785,28 @@ def run_workflow(request: str) -> str:
                     if content_part.startswith("'") and content_part.endswith("'"):
                         content_part = content_part[1:-1]
                     
+                    # Clean up any escaped quotes or formatting artifacts
+                    content_part = content_part.replace("\\'", "'")  # Replace escaped single quotes
+                    content_part = content_part.replace('\\"', '"')  # Replace escaped double quotes
+                    
+                    # If this is a Python file, ensure proper formatting
+                    if output_path.endswith('.py'):
+                        # Remove any markdown code block formatting
+                        if content_part.startswith('```python'):
+                            content_part = content_part[8:]
+                        elif content_part.startswith('```'):
+                            content_part = content_part[3:]
+                        if content_part.endswith('```'):
+                            content_part = content_part[:-3]
+                        content_part = content_part.strip()
+                    
                     # Create the output directory if it doesn't exist
                     output_dir = os.path.dirname(output_path)
                     if output_dir and not os.path.exists(output_dir):
                         logger.info(f"Terminal Agent: Creating output directory: {output_dir}")
                         os.makedirs(output_dir, exist_ok=True)
                     
-                    # Write the content directly to the file instead of using echo
+                    # Write the content directly to the file
                     logger.info(f"Terminal Agent: Writing content to file: {output_path}")
                     with open(output_path, 'w') as f:
                         f.write(content_part)
