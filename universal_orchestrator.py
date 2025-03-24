@@ -124,6 +124,7 @@ class UniversalOrchestrator:
             3. For infrastructure tasks (keywords: terraform, aws, infrastructure):
                - Use "terraform" for IaC tasks
                - Use "aws_cli" for AWS operations
+               - May be followed by other agents
             
             4. For development setup (keywords: setup, install, configure):
                - Use "dev_env" for environment setup
@@ -131,10 +132,12 @@ class UniversalOrchestrator:
             
             5. For file operations (keywords: file, directory, create, delete, find, list):
                - Use "terminal" for file system operations
+               - May be followed by other agents
 
-            6. For chat tasks (keywords: chat, conversation, ask, question):
+            6. For chat tasks or explanations (keywords: chat, conversation, ask, question):
                - Use "explanation_agent" for explaining the results
                - May be preceded by "browser" for research
+               - May be followed by other agents
             
             Return ONLY a comma-separated list of required agents in execution order.
             Example responses:
