@@ -108,8 +108,26 @@ MARKDOWN_CSS = """
     h1 { color: #2c3e50; border-bottom: 2px solid #eee; }
     h2 { color: #2c3e50; border-bottom: 1px solid #eee; }
     h3, h4, h5, h6 { color: #2c3e50; }
-    code { background-color: #f8f9fa; padding: 2px 4px; border-radius: 4px; color: #e83e8c; }
-    pre { background-color: #f8f9fa; padding: 1em; border-radius: 4px; overflow-x: auto; }
+    code { 
+        background-color: #1E1E1E; 
+        color: #D4D4D4; 
+        padding: 2px 4px; 
+        border-radius: 4px; 
+        font-family: 'Courier New', monospace;
+    }
+    pre { 
+        background-color: #1E1E1E; 
+        color: #D4D4D4;
+        padding: 1em; 
+        border-radius: 4px; 
+        overflow-x: auto;
+        font-family: 'Courier New', monospace;
+    }
+    pre code {
+        background-color: transparent;
+        padding: 0;
+        border-radius: 0;
+    }
     blockquote { border-left: 4px solid #eee; margin-left: 0; padding-left: 1em; color: #666; }
     table { border-collapse: collapse; width: 100%; margin: 1em 0; }
     th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
@@ -363,7 +381,7 @@ if USE_QT:
             self.mode = "chat"
             self.command_queue = Queue()
             self.output_queue = Queue()
-            self.markdown_mode = False
+            self.markdown_mode = True  # Start with markdown mode active
             self.is_processing = False
             
             # Create central widget and layout
@@ -510,7 +528,10 @@ if USE_QT:
                 self.show_terminal_prompt()
 
         def show_welcome_message(self):
-            self.append_output(WELCOME_MESSAGE)
+            # Convert welcome message to HTML since markdown mode is active by default
+            html_content = markdown.markdown(WELCOME_MESSAGE, extensions=['fenced_code', 'tables'])
+            styled_html = f"{MARKDOWN_CSS}\n{html_content}"
+            self.output_text.setHtml(styled_html)
 
         def show_terminal_prompt(self):
             prompt = terminal_manager.terminal.prompt
