@@ -9,6 +9,8 @@ from agents import Agent, Runner, AsyncOpenAI, OpenAIChatCompletionsModel, funct
 from .config import get_model_config
 import shutil
 import fnmatch
+import re
+import subprocess
 
 # Configure logging
 logging.basicConfig(
@@ -666,242 +668,101 @@ terminal_orchestrator = Agent(
 # 4. Main workflow function
 
 def run_workflow(request: str) -> str:
-    """Run the terminal workflow with the orchestrator as the main controller."""
+    """Run the terminal workflow."""
     logger.info(f"Starting terminal workflow for request: {request}")
     
     try:
-        # Create a new event loop for the orchestrator
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        try:
-            # Special handling for file reading (cat command)
-            if 'cat' in request:
-                logger.info("Terminal Agent: Executing file read operation")
-                logger.info(f"Terminal Agent: Reading file with command: {request}")
-                
-                # First, verify the file exists and get its full path
-                file_name = request.replace('cat', '').strip()
-                logger.info(f"Terminal Agent: Looking for file: {file_name}")
-                
-                # Check common paths
-                possible_paths = [
-                    file_name,  # Current directory
-                    f"output/{file_name}",  # Output directory
-                    os.path.join('output', file_name),  # OS-specific path
-                    os.path.abspath(file_name),  # Absolute path
-                    os.path.abspath(os.path.join('output', file_name))  # Absolute path in output
-                ]
-                
-                file_path = None
-                for path in possible_paths:
-                    if os.path.exists(path):
-                        file_path = path
-                        break
-                
-                if not file_path:
-                    error_msg = f"Could not find file '{file_name}' in any of these locations: {', '.join(possible_paths)}"
-                    logger.error(f"Terminal Agent: {error_msg}")
-                    return f"Error: {error_msg}"
-                
+        # Handle file read operations (cat command)
+        if request.startswith('cat '):
+            logger.info("Terminal Agent: Executing file read operation")
+            file_path = request.split('cat ', 1)[1].strip()
+            logger.info(f"Terminal Agent: Reading file with command: {request}")
+            
+            # Check if file exists
+            if os.path.exists(file_path):
                 logger.info(f"Terminal Agent: Found file at path: {file_path}")
-                
-                # Execute the cat command with the full path
-                cat_command = f"cat {file_path}"
-                logger.info(f"Terminal Agent: Executing command: {cat_command}")
-                
-                # Execute the cat command through the terminal orchestrator
-                response = Runner.run_sync(
-                    terminal_orchestrator,
-                    f"Execute command: {cat_command}",
-                    context={"command": cat_command}
-                )
-                
-                if not response:
-                    logger.error("Terminal Agent: No response received from orchestrator")
-                    return "Error: No response received from orchestrator"
-                
-                final_output = response.final_output
-                
-                if isinstance(final_output, dict):
-                    if final_output.get('success'):
-                        content = final_output.get('output', '')
-                        # Clean up any JSON or markdown formatting
-                        if content.startswith('```') and content.endswith('```'):
-                            content = content[3:-3].strip()
-                        # If content is JSON, try to extract the actual file content
-                        if content.startswith('{') and '"output"' in content:
-                            try:
-                                import json
-                                json_content = json.loads(content)
-                                if isinstance(json_content, dict) and 'output' in json_content:
-                                    content = json_content['output']
-                            except:
-                                pass  # Keep original content if JSON parsing fails
-                        
-                        logger.info("Terminal Agent: File read operation completed")
-                        logger.info(f"Terminal Agent: Content length: {len(content)} characters")
-                        logger.info("Terminal Agent: First 100 characters of content: " + content[:100] + "...")
-                        return content
-                    else:
-                        error = final_output.get('error', 'Unknown error')
-                        logger.error(f"Terminal Agent: Failed to read file: {error}")
-                        return f"Error: {error}"
-                elif isinstance(final_output, str):
-                    # Clean up any JSON or markdown formatting
-                    if final_output.startswith('```') and final_output.endswith('```'):
-                        final_output = final_output[3:-3].strip()
-                    # If content is JSON, try to extract the actual file content
-                    if final_output.startswith('{') and '"output"' in final_output:
-                        try:
-                            import json
-                            json_content = json.loads(final_output)
-                            if isinstance(json_content, dict) and 'output' in json_content:
-                                final_output = json_content['output']
-                        except:
-                            pass  # Keep original content if JSON parsing fails
-                            
-                    if final_output.startswith('Error'):
-                        logger.error(f"Terminal Agent: Failed to read file: {final_output}")
-                        return final_output
-                    else:
-                        logger.info("Terminal Agent: File read operation completed")
-                        logger.info(f"Terminal Agent: Content length: {len(final_output)} characters")
-                        logger.info("Terminal Agent: First 100 characters of content: " + final_output[:100] + "...")
-                        return final_output
-            
-            # Special handling for file writing (echo command)
-            elif 'echo' in request and '>' in request:
-                logger.info("Terminal Agent: Executing file write operation")
-                logger.info(f"Terminal Agent: Writing file with command: {request}")
-                
                 try:
-                    # Extract the output file path and content
-                    parts = request.split('>')
-                    content_part = '>'.join(parts[:-1]).replace('echo', '', 1).strip()
-                    output_path = parts[-1].strip()
-                    
-                    # Remove surrounding quotes if they exist
-                    if content_part.startswith("'") and content_part.endswith("'"):
-                        content_part = content_part[1:-1]
-                    
-                    # Clean up any escaped quotes or formatting artifacts
-                    content_part = content_part.replace("\\'", "'")  # Replace escaped single quotes
-                    content_part = content_part.replace('\\"', '"')  # Replace escaped double quotes
-                    content_part = content_part.replace("'''", "'")  # Replace triple quotes with single quotes
-                    
-                    # If this is a Python file, ensure proper formatting
-                    if output_path.endswith('.py'):
-                        # Remove any markdown code block formatting
-                        if content_part.startswith('```python'):
-                            content_part = content_part[8:]
-                        elif content_part.startswith('```'):
-                            content_part = content_part[3:]
-                        if content_part.endswith('```'):
-                            content_part = content_part[:-3]
-                        content_part = content_part.strip()
-                        
-                        # Fix string literals in Python code
-                        import re
-                        # Replace triple-quoted strings with single-quoted strings
-                        content_part = re.sub(r"'''([^']+)'''", r"'\1'", content_part)
-                        # Replace any remaining triple quotes
-                        content_part = content_part.replace("'''", "'")
-                    
-                    # Create the output directory if it doesn't exist
-                    output_dir = os.path.dirname(output_path)
-                    if output_dir and not os.path.exists(output_dir):
-                        logger.info(f"Terminal Agent: Creating output directory: {output_dir}")
-                        os.makedirs(output_dir, exist_ok=True)
-                    
-                    # Write the content directly to the file
-                    logger.info(f"Terminal Agent: Writing content to file: {output_path}")
-                    with open(output_path, 'w') as f:
-                        f.write(content_part)
-                    
-                    logger.info("Terminal Agent: File write operation completed successfully")
-                    return "File saved successfully"
-                    
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read().strip()  # Strip any leading/trailing whitespace
+                        if content:
+                            logger.info(f"Terminal Agent: File read operation completed")
+                            logger.info(f"Terminal Agent: Content length: {len(content)} characters")
+                            logger.info(f"Terminal Agent: First 100 characters of content: {content[:100]}...")
+                            return content
+                        else:
+                            error_msg = f"File is empty: {file_path}"
+                            logger.error(f"Terminal Agent: {error_msg}")
+                            return f"Error: {error_msg}"
                 except Exception as e:
-                    error_msg = f"Failed to write file: {str(e)}"
+                    error_msg = f"Error reading file {file_path}: {str(e)}"
                     logger.error(f"Terminal Agent: {error_msg}")
                     return f"Error: {error_msg}"
-            
-            # For other commands, use the orchestrator
-            response = Runner.run_sync(
-                terminal_orchestrator,
-                request,
-                context={
-                    "extract_path": extract_path,
-                    "extract_content": extract_content,
-                    "extract_directory": extract_directory,
-                    "extract_pattern": extract_pattern,
-                    "extract_command": extract_command,
-                    "extract_source_path": extract_source_path,
-                    "extract_dest_path": extract_dest_path
-                }
-            )
-        finally:
-            loop.close()
-        
-        if not response:
-            return "No response received from orchestrator"
-            
-        # Get the final output from the response
-        final_output = response.final_output
-        
-        # Handle command structure responses
-        if isinstance(final_output, str):
-            if "<command>" in final_output and "</command>" in final_output:
-                if "<transfer_to_file_creator>" in final_output:
-                    import json
-                    try:
-                        start = final_output.find("<transfer_to_file_creator>") + len("<transfer_to_file_creator>")
-                        end = final_output.find("</transfer_to_file_creator>")
-                        json_str = final_output[start:end].strip()
-                        params = json.loads(json_str)
-                        result = asyncio.run(create_file(**params))
-                        return str(result)
-                    except Exception as e:
-                        return f"Error executing file creation: {str(e)}"
-                return "Unhandled command type"
             else:
-                return final_output.strip()
-                
-        # Handle dictionary responses
-        elif isinstance(final_output, dict):
-            if not final_output.get('success', True):
-                error_msg = final_output.get('error', 'Unknown error occurred')
+                error_msg = f"File not found: {file_path}"
+                logger.error(f"Terminal Agent: {error_msg}")
                 return f"Error: {error_msg}"
                 
-            if 'output' in final_output:
-                return final_output['output']
-            elif 'message' in final_output:
-                return final_output['message']
-            elif 'matches' in final_output:
-                return "\n".join([
-                    "Matching files:",
-                    *[f"- {match}" for match in sorted(final_output['matches'])]
-                ])
-            elif 'files' in final_output or 'directories' in final_output:
-                output = []
-                if final_output.get('files'):
-                    output.append("Files:")
-                    output.extend(f"- {f}" for f in sorted(final_output['files']))
-                if final_output.get('directories'):
-                    if output:
-                        output.append("")
-                    output.append("Directories:")
-                    output.extend(f"- {d}" for d in sorted(final_output['directories']))
-                return "\n".join(output) if output else "No files or directories found"
-            else:
-                return str(final_output)
-        else:
-            return str(final_output)
+        # Handle file write operations (echo command)
+        elif request.startswith('echo '):
+            logger.info("Terminal Agent: Executing file write operation")
             
+            # Extract content and file path directly without using regex
+            try:
+                # Split by '>' and get the file path
+                parts = request.split('>')
+                if len(parts) != 2:
+                    raise ValueError("Invalid echo command format")
+                
+                file_path = parts[1].strip()
+                
+                # Extract content between the echo command and the '>'
+                content = parts[0][5:].strip()  # Remove 'echo ' prefix
+                
+                # If content is wrapped in quotes, remove them
+                if (content.startswith("'") and content.endswith("'")) or \
+                   (content.startswith('"') and content.endswith('"')):
+                    content = content[1:-1]
+                
+                # Ensure directory exists
+                os.makedirs(os.path.dirname(file_path) or '.', exist_ok=True)
+                
+                # Write content directly to file
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                    
+                logger.info(f"Terminal Agent: Successfully wrote to file: {file_path}")
+                return f"Successfully wrote content to {file_path}"
+                
+            except Exception as e:
+                error_msg = f"Error writing to file: {str(e)}"
+                logger.error(f"Terminal Agent: {error_msg}")
+                return f"Error: {error_msg}"
+        
+        # Handle other terminal commands
+        else:
+            logger.info(f"Terminal Agent: Executing command: {request}")
+            try:
+                result = subprocess.run(
+                    request,
+                    shell=True,
+                    text=True,
+                    capture_output=True,
+                    check=True
+                )
+                return result.stdout
+            except subprocess.CalledProcessError as e:
+                error_msg = f"Command failed with exit code {e.returncode}: {e.stderr}"
+                logger.error(f"Terminal Agent: {error_msg}")
+                return f"Error: {error_msg}"
+            except Exception as e:
+                error_msg = f"Error executing command: {str(e)}"
+                logger.error(f"Terminal Agent: {error_msg}")
+                return f"Error: {error_msg}"
+                
     except Exception as e:
-        logger.error(f"Error in workflow execution: {str(e)}")
-        return f"Error executing workflow: {str(e)}"
+        error_msg = f"Unexpected error in terminal workflow: {str(e)}"
+        logger.error(f"Terminal Agent: {error_msg}")
+        return f"Error: {error_msg}"
 
 def parse_request(request: str) -> dict:
     """Parse the request to identify the operation type and parameters."""

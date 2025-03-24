@@ -26,6 +26,7 @@ def read_sas_file(file_path: str) -> str:
     """
     try:
         # Convert to Path object to handle both Windows and Unix paths
+        logger.info(f"initial path {file_path}")
         path = Path(file_path)
         
         # If path is relative and doesn't exist, try looking in the output directory
@@ -33,7 +34,7 @@ def read_sas_file(file_path: str) -> str:
             output_path = Path('output') / path.name
             if output_path.exists():
                 path = output_path
-        
+        logger.info(f"Resolved SAS file path: {path}")
         # Verify file exists and has .sas extension
         if not path.exists():
             raise FileNotFoundError(f"SAS file not found: {file_path}")
@@ -433,14 +434,20 @@ def run_workflow(sas_input: str) -> str:
     logger.info("Starting code conversion workflow")
     
     try:
-        # Check if input is a file path or direct code
-        if isinstance(sas_input, str) and ('.sas' in sas_input.lower() or '/' in sas_input or '\\' in sas_input):
+        # If input is a file path, read the file
+        if isinstance(sas_input, str) and (
+            ('.sas' in sas_input.lower() or '/' in sas_input or '\\' in sas_input) 
+            and '/*' not in sas_input 
+            and not any(kw in sas_input.lower() for kw in ['data ', 'proc '])
+        ):
             try:
+                logger.info(f"sas_input should be a file path: {sas_input}")
                 sas_code = read_sas_file(sas_input)
             except Exception as e:
                 logger.error(f"Failed to read SAS file: {str(e)}")
                 return f"Error: Failed to read SAS file - {str(e)}"
         else:
+            # Input is the actual SAS code
             sas_code = sas_input
             
         # Log received content

@@ -234,59 +234,72 @@ class UniversalOrchestrator:
                     # Default to same name with .py extension
                     python_file = sas_file.replace('.sas', '.py')
                 
-                logger.info(f"Processing conversion from {sas_file} to {python_file}")
+                # Check if file exists in current directory or output directory
+                sas_file_path = sas_file
+                if not os.path.exists(sas_file):
+                    output_path = os.path.join('output', sas_file)
+                    if os.path.exists(output_path):
+                        sas_file_path = output_path
+                    else:
+                        return f"Error: SAS file not found in either current directory or output directory: {sas_file}"
+                
+                logger.info(f"Processing conversion from {sas_file_path} to {python_file}")
                 
                 # Step 1: Read SAS file
                 logger.info("Step 1: Reading SAS file content")
-                read_request = f"cat {sas_file}"
+                read_request = f"cat {sas_file_path}"
                 sas_content = run_terminal_workflow(read_request)
                 
                 if isinstance(sas_content, str) and sas_content.startswith('Error'):
                     logger.error(f"Failed to read SAS file: {sas_content}")
                     return sas_content
                 
-                logger.info(f"Successfully read SAS file. Content length: {len(str(sas_content))} characters")
-                logger.info("First 100 characters of SAS content: " + str(sas_content)[:100] + "...")
-                
                 # Step 2: Convert code
-                if sas_content:
-                    logger.info("Step 2: Converting SAS to Python")
-                    python_code = run_code_converter_workflow(sas_content)
-                    
-                    if isinstance(python_code, str) and python_code.startswith('Error'):
-                        logger.error(f"Failed to convert code: {python_code}")
-                        return python_code
-                    
-                    logger.info(f"Successfully converted code. Python code length: {len(str(python_code))} characters")
-                    logger.info("First 100 characters of Python code: " + str(python_code)[:100] + "...")
-                
-                # Step 3: Save Python file
-                if python_code:
-                    logger.info(f"Step 3: Saving Python code to {python_file}")
-                    
-                    # Ensure output directory exists
-                    os.makedirs('output', exist_ok=True)
-                    
-                    # Properly escape the Python code for the echo command
-                    escaped_code = python_code.replace("'", "'\\''")
-                    save_request = f"echo '{escaped_code}' > output/{python_file}"
-                    
-                    result = run_terminal_workflow(save_request)
-                    
-                    if isinstance(result, str) and result.startswith('Error'):
-                        logger.error(f"Failed to save Python file: {result}")
-                        return result
-                    else:
-                        logger.info(f"Successfully saved Python code to {python_file}")
-                        # Store the code for potential explanation
-                        self._last_converted_code = python_code
-                        # Return success message with option to get explanation
-                        return f"""Successfully converted and saved the code to output/{python_file}
+                if isinstance(sas_content, str):
+                    logger.info("Step 2: Converting SAS to Python: sas_content: " + sas_content)
+                    try:
+                        # Pass the actual SAS content to the converter
+                        python_code = run_code_converter_workflow(sas_content)
+                        
+                        if isinstance(python_code, str):
+                            if python_code.startswith('Error'):
+                                logger.error(f"Failed to convert code: {python_code}")
+                                return python_code
+                            
+                            # Step 3: Save Python file
+                            logger.info(f"Step 3: Saving Python code to {python_file}")
+                            
+                            # Ensure output directory exists
+                            os.makedirs('output', exist_ok=True)
+                            
+                            # Write the file directly
+                            output_path = os.path.join('output', python_file)
+                            try:
+                                with open(output_path, 'w', encoding='utf-8') as f:
+                                    f.write(python_code)
+                                logger.info(f"Successfully saved Python code to {output_path}")
+                                
+                                # Store the code for potential explanation
+                                self._last_converted_code = python_code
+                                # Return success message with option to get explanation
+                                return f"""Successfully converted and saved the code to output/{python_file}
 
 The conversion has been completed. Would you like me to explain the converted code and suggest possible improvements? (Please respond with 'yes' if you'd like an explanation)"""
+                            except Exception as e:
+                                error_msg = f"Failed to save Python file: {str(e)}"
+                                logger.error(error_msg)
+                                return f"Error: {error_msg}"
+                        else:
+                            logger.error("Invalid Python code format returned from converter")
+                            return "Error: Invalid Python code format returned from converter"
+                    except Exception as e:
+                        error_msg = f"Error during code conversion: {str(e)}"
+                        logger.error(error_msg)
+                        return f"Error: {error_msg}"
+                else:
+                    logger.error("Invalid SAS content format")
+                    return "Error: Invalid SAS content format"
 
-                    return result
-                    
             else:
                 # Normal workflow for non-code-conversion tasks
                 for agent_type in agent_sequence:

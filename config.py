@@ -22,7 +22,7 @@ openai_provider = {
 }
 
 # Temperature setting
-TEMPERATURE = 0.1
+TEMPERATURE = 0.0
 
 def get_provider_config(agent_name=None):
     """Get the provider configuration based on environment variables."""
