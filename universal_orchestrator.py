@@ -161,7 +161,7 @@ class UniversalOrchestrator:
         # Default to browser if no valid agents
         if not agent_sequence:
             logger.warning(f"No valid agents in sequence, defaulting to browser")
-            return ['browser']
+            return ['explanation_agent']
             
         logger.info(f"Determined defaultagent sequence: {agent_sequence} for request: {request}")
         return agent_sequence
