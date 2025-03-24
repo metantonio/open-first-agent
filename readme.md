@@ -99,11 +99,9 @@ Required environment variables in your `.env` file:
 
 4. **Code Conversion**
    - Conversion of SAS programming code to Python. Eg.:
-
-  ```bash
+  ```sh
    in the output folder I have a file named example_sas.sas I want convert it to python using and put the resulted block of code in a file named example_sas.py
   ```
-
    - Ask to the AI to use or not certain libraries in the result.
 
 5. **Terminal Mode**
