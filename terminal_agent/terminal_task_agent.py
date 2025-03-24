@@ -775,68 +775,34 @@ def run_workflow(request: str) -> str:
                 logger.info("Terminal Agent: Executing file write operation")
                 logger.info(f"Terminal Agent: Writing file with command: {request}")
                 
-                # Extract the output file path and content
-                parts = request.split('>')
-                content_part = '>'.join(parts[:-1]).replace('echo', '', 1).strip()
-                output_path = parts[-1].strip()
-                
-                # Remove surrounding quotes if they exist
-                if content_part.startswith("'") and content_part.endswith("'"):
-                    content_part = content_part[1:-1]
-                
-                # Process the content to ensure dictionary keys are properly quoted
-                if '[' in content_part or '{' in content_part:
-                    logger.info("Terminal Agent: Detected dictionary/list content, ensuring proper quotes")
+                try:
+                    # Extract the output file path and content
+                    parts = request.split('>')
+                    content_part = '>'.join(parts[:-1]).replace('echo', '', 1).strip()
+                    output_path = parts[-1].strip()
                     
-                    # Replace unquoted dictionary keys with quoted ones
-                    # This regex looks for word characters followed by a colon that aren't already quoted
-                    import re
-                    processed_content = re.sub(r'(\w+)(?=\s*:)', r"'\1'", content_part)
+                    # Remove surrounding quotes if they exist
+                    if content_part.startswith("'") and content_part.endswith("'"):
+                        content_part = content_part[1:-1]
                     
-                    # Escape any existing single quotes in the content
-                    processed_content = processed_content.replace("'", "\\'")
+                    # Create the output directory if it doesn't exist
+                    output_dir = os.path.dirname(output_path)
+                    if output_dir and not os.path.exists(output_dir):
+                        logger.info(f"Terminal Agent: Creating output directory: {output_dir}")
+                        os.makedirs(output_dir, exist_ok=True)
                     
-                    # Create the new echo command with properly quoted content
-                    write_command = f"echo '{processed_content}' > {output_path}"
-                else:
-                    write_command = request
-                
-                logger.info(f"Terminal Agent: Processed write command: {write_command}")
-                
-                # Ensure the output directory exists
-                output_dir = os.path.dirname(output_path)
-                if output_dir and not os.path.exists(output_dir):
-                    logger.info(f"Terminal Agent: Creating output directory: {output_dir}")
-                    os.makedirs(output_dir, exist_ok=True)
-                
-                # Execute the echo command through the terminal orchestrator
-                response = Runner.run_sync(
-                    terminal_orchestrator,
-                    f"Execute command: {write_command}",
-                    context={"command": write_command}
-                )
-                
-                if not response:
-                    logger.error("Terminal Agent: No response received from orchestrator")
-                    return "Error: No response received from orchestrator"
-                
-                final_output = response.final_output
-                
-                if isinstance(final_output, dict):
-                    if final_output.get('success'):
-                        logger.info("Terminal Agent: File write operation completed")
-                        return "File saved successfully"
-                    else:
-                        error = final_output.get('error', 'Unknown error')
-                        logger.error(f"Terminal Agent: Failed to write file: {error}")
-                        return f"Error: {error}"
-                elif isinstance(final_output, str):
-                    if final_output.startswith('Error'):
-                        logger.error(f"Terminal Agent: Failed to write file: {final_output}")
-                        return final_output
-                    else:
-                        logger.info("Terminal Agent: File write operation completed")
-                        return "File saved successfully"
+                    # Write the content directly to the file instead of using echo
+                    logger.info(f"Terminal Agent: Writing content to file: {output_path}")
+                    with open(output_path, 'w') as f:
+                        f.write(content_part)
+                    
+                    logger.info("Terminal Agent: File write operation completed successfully")
+                    return "File saved successfully"
+                    
+                except Exception as e:
+                    error_msg = f"Failed to write file: {str(e)}"
+                    logger.error(f"Terminal Agent: {error_msg}")
+                    return f"Error: {error_msg}"
             
             # For other commands, use the orchestrator
             response = Runner.run_sync(
