@@ -55,9 +55,9 @@ USE_QT = IS_MACOS  # Use Qt on macOS
 if USE_QT:
     from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                 QHBoxLayout, QPushButton, QTextEdit, QLabel,
-                                QProgressBar, QTextBrowser, QDockWidget)
+                                QProgressBar, QTextBrowser, QDockWidget, QComboBox)
     from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread, QUrl
-    from PyQt6.QtGui import QTextCursor, QDesktopServices
+    from PyQt6.QtGui import QTextCursor, QDesktopServices, QSyntaxHighlighter, QTextCharFormat, QColor
     BaseThread = QThread
 else:
     import tkinter as tk
@@ -292,12 +292,72 @@ if USE_QT:
             self.terminal_output.insertPlainText(text + '\n')
             self.terminal_output.ensureCursorVisible()
 
+    class CodeViewerDockWidget(QDockWidget):
+        """Dockable code viewer widget with syntax highlighting"""
+        def __init__(self, parent=None):
+            super().__init__("Code Viewer", parent)
+            self.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea)
+            
+            # Create main widget
+            self.main_widget = QWidget()
+            self.setWidget(self.main_widget)
+            layout = QVBoxLayout(self.main_widget)
+            
+            # Create toolbar
+            toolbar = QHBoxLayout()
+            
+            # Add language selector
+            self.language_selector = QComboBox()
+            self.language_selector.addItems(["python", "javascript", "bash", "shell", "sas"])
+            self.language_selector.currentTextChanged.connect(self.update_highlighting)
+            toolbar.addWidget(QLabel("Language:"))
+            toolbar.addWidget(self.language_selector)
+            
+            # Add copy button
+            self.copy_button = QPushButton("Copy Code")
+            self.copy_button.clicked.connect(self.copy_code)
+            toolbar.addWidget(self.copy_button)
+            
+            layout.addLayout(toolbar)
+            
+            # Create code editor
+            self.code_editor = QTextEdit()
+            self.code_editor.setFont(QApplication.font("Courier"))
+            self.code_editor.setStyleSheet("""
+                QTextEdit {
+                    background-color: #1E1E1E;
+                    color: #D4D4D4;
+                    border: none;
+                    font-family: 'Courier New', monospace;
+                }
+            """)
+            self.code_editor.setReadOnly(True)
+            layout.addWidget(self.code_editor)
+
+        def set_code(self, code, language=None):
+            """Set the code content and optionally specify the language"""
+            self.code_editor.setPlainText(code)
+            if language:
+                index = self.language_selector.findText(language.lower())
+                if index >= 0:
+                    self.language_selector.setCurrentIndex(index)
+            self.update_highlighting()
+
+        def copy_code(self):
+            """Copy code to clipboard"""
+            QApplication.clipboard().setText(self.code_editor.toPlainText())
+
+        def update_highlighting(self):
+            """Update syntax highlighting based on selected language"""
+            # Basic syntax highlighting could be implemented here
+            pass
+
     class QtUI(QMainWindow):
         """PyQt6 UI implementation for macOS"""
         def __init__(self):
             super().__init__()
             self.setWindowTitle("AI Assistant")
-            self.setGeometry(100, 100, 1000, 600)  # Made window wider to accommodate dock
+            self.setGeometry(100, 100, 1200, 600)  # Made window wider
             
             # Initialize variables
             self.mode = "chat"
@@ -319,10 +379,15 @@ if USE_QT:
             
             # Create terminal dock widget
             self.terminal_dock = TerminalDockWidget(self)
-            self.terminal_dock.hide()  # Hidden by default
+            self.terminal_dock.hide()
             self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.terminal_dock)
             
-            # Connect terminal signals
+            # Create code viewer dock widget
+            self.code_viewer = CodeViewerDockWidget(self)
+            self.code_viewer.hide()
+            self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.code_viewer)
+            
+            # Connect signals
             self.terminal_dock.terminal_input.installEventFilter(self)
             self.terminal_dock.send_button.clicked.connect(self.send_terminal_command)
             
@@ -416,10 +481,19 @@ if USE_QT:
 
         def append_output(self, text):
             if self.markdown_mode and not self.mode == "terminal":
+                # Check for code blocks before converting to HTML
+                code_blocks = re.findall(r'```(\w+)?\n(.*?)\n```', text, re.DOTALL)
+                
                 # Convert markdown to HTML with custom CSS
                 html_content = markdown.markdown(text, extensions=['fenced_code', 'tables'])
                 styled_html = f"{MARKDOWN_CSS}\n{html_content}"
                 self.output_text.setHtml(styled_html)
+                
+                # If code blocks were found, show them in the code viewer
+                if code_blocks:
+                    language, code = code_blocks[0]  # Show the first code block
+                    self.code_viewer.show()
+                    self.code_viewer.set_code(code.strip(), language)
             else:
                 # Convert URLs to clickable links
                 text_with_links = self.convert_urls_to_links(text)
