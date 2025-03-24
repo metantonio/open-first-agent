@@ -108,7 +108,7 @@ Required environment variables in your `.env` file:
    - Execute a Terminal 
 
 6. **Execute commands in the chat mode**
-   - Execute commands in the chat mode. Eg: `!ls -la` 
+   - Execute commands in the chat mode using `!`. Eg: `!ls -la` 
 
 
 ## 📝 License
