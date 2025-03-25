@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Assistant</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f4; }
+        #container { max-width: 800px; margin: auto; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        #output { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: scroll; background: #f9f9f9; border-radius: 5px; }
+        #input { width: calc(100% - 100px); padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+        #send, #stop, #toggle-mode { padding: 10px; border: none; border-radius: 5px; cursor: pointer; }
+        #send { background: #3498db; color: white; }
+        #send:hover { background: #2980b9; }
+        #stop { background: #e74c3c; color: white; }
+        #stop:hover { background: #c0392b; }
+        #toggle-mode { background: #2ecc71; color: white; }
+        #toggle-mode:hover { background: #27ae60; }
+        #spinner { display: none; margin: 10px auto; border: 8px solid #f3f3f3; border-top: 8px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h1>AI Assistant</h1>
+        <div id="welcome"></div>
+        <div id="output"></div>
+        <input type="text" id="input" placeholder="Type your command here..." />
+        <button id="send">Send</button>
+        <button id="stop">Stop</button>
+        <button id="toggle-mode">Switch to Terminal Mode</button>
+        <div id="spinner"></div>
+    </div>
+
+    <script>
+        let currentMode = "chat"; // Default mode
+
+        // Welcome message
+        const welcomeMessage = `
+            👋 Welcome to the AI Assistant!
+            I can help you with various tasks:
+            1. 🌐 Web Search and News
+            2. 🏗️ Terraform Infrastructure
+            3. 💻 Development Environment Setup
+            4. ☁️ AWS CLI Configuration
+            5. 📂 File System Operations
+            6. 🖥️ Terminal Interface
+            Type your request or toggle terminal mode to use terminal commands.
+            Use ! prefix to execute terminal commands in chat mode.
+        `;
+        document.getElementById('welcome').innerText = welcomeMessage;
+
+        document.getElementById('send').onclick = async function() {
+            await sendMessage();
+        };
+
+        document.getElementById('input').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        document.getElementById('toggle-mode').onclick = function() {
+            toggleMode();
+        };
+
+        document.getElementById('stop').onclick = function() {
+            stopProcessing();
+        };
+
+        async function sendMessage() {
+            const input = document.getElementById('input');
+            const command = input.value;
+            input.value = '';
+
+            // Show the spinner
+            document.getElementById('spinner').style.display = 'block';
+
+            await fetch('/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command, mode: currentMode }) // Use current mode
+            });
+
+            // Hide the spinner after the request is sent
+            document.getElementById('spinner').style.display = 'none';
+
+            fetchOutput();
+        }
+
+        async function fetchOutput() {
+            const response = await fetch('/output');
+            const data = await response.json();
+            if (data.output) {
+                const outputDiv = document.getElementById('output');
+                outputDiv.innerHTML += `<div>${data.output}</div>`;
+                outputDiv.scrollTop = outputDiv.scrollHeight; // Scroll to bottom
+            }
+        }
+
+        function toggleMode() {
+            if (currentMode === "chat") {
+                currentMode = "terminal";
+                document.getElementById('toggle-mode').innerText = "Switch to Chat Mode";
+                document.getElementById('input').placeholder = "Type your terminal command here...";
+            } else {
+                currentMode = "chat";
+                document.getElementById('toggle-mode').innerText = "Switch to Terminal Mode";
+                document.getElementById('input').placeholder = "Type your command here...";
+            }
+        }
+
+        function stopProcessing() {
+            fetch('/stop', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    console.log(data.status);
+                });
+        }
+
+        setInterval(fetchOutput, 1000); // Poll for output every second
+    </script>
+</body>
+</html> 
