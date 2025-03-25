@@ -164,6 +164,7 @@ class AsyncProcessor(BaseThread):
                     return "clear_screen"
                 else:
                     try:
+                        # Execute the command asynchronously
                         result = await terminal_manager.execute_command(message)
                         if result is None or result.strip() == "":
                             result = "Command executed successfully"
@@ -172,7 +173,75 @@ class AsyncProcessor(BaseThread):
                     except Exception as e:
                         return f"Error executing command: {str(e)}\n{terminal_manager.terminal.prompt}"
             else:
-                if message.startswith('!'):
+                if message.startswith('ssh'):
+                    # Remove 'connect' from the command if present
+                    if 'connect' in message:
+                        message = message.replace('connect', '').strip()
+                    
+                    # Check if command line arguments are provided
+                    if len(message.split()) > 2:
+                        try:
+                            # Parse command line arguments
+                            params = parse_ssh_args(message)
+                            
+                            # If we have both hostname and username
+                            if 'hostname' in params and 'username' in params:
+                                if 'password' in params:
+                                    # Connect with password
+                                    result = await terminal_manager.terminal.connect_ssh(
+                                        hostname=params['hostname'],
+                                        username=params['username'],
+                                        password=params['password']
+                                    )
+                                elif 'key_path' in params:
+                                    # Connect with key
+                                    result = await terminal_manager.terminal.connect_ssh(
+                                        hostname=params['hostname'],
+                                        username=params['username'],
+                                        key_path=params['key_path'],
+                                        options="-o StrictHostKeyChecking=no"  # Automatically accept host key
+                                    )
+                                    
+                                    # If key is encrypted, fall back to interactive mode for key password
+                                    if result.get('details', {}).get('error_type') == 'encrypted_key':
+                                        await cl.Message(content="Key is encrypted, please provide the password.").send()
+                                        key_password = await cl.AskUserMessage(
+                                            content="Enter key password:",
+                                            timeout=180,
+                                            password=True
+                                        ).send()
+                                        
+                                        if key_password:
+                                            result = await terminal_manager.terminal.connect_ssh(
+                                                hostname=params['hostname'],
+                                                username=params['username'],
+                                                key_path=params['key_path'],
+                                                key_password=key_password
+                                            )
+                                else:
+                                    # No authentication method provided, ask interactively
+                                    await handle_ssh_connection(message)
+                                    return
+                                
+                                # Handle connection result
+                                if result['status'] == 'success':
+                                    await cl.Message(content=f"✅ {result['message']}").send()
+                                else:
+                                    await cl.Message(content=f"❌ Connection failed: {result['message']}").send()
+                                    if 'error' in result.get('details', {}):
+                                        await cl.Message(content=f"Error details: {result['details']['error']}").send()
+                                return
+                            else:
+                                # Missing required parameters, fall back to interactive mode
+                                await handle_ssh_connection(message)
+                                return
+                        except ValueError as e:
+                            await cl.Message(content=f"❌ Error parsing arguments: {str(e)}").send()
+                            return
+                        except Exception as e:
+                            await cl.Message(content=f"❌ Error during SSH connection: {str(e)}").send()
+                            return
+                elif message.startswith('!'):
                     command = message[1:].strip()
                     result = await terminal_manager.execute_command(command)
                     return f"📝 Output:\n{result}"
@@ -242,6 +311,36 @@ class AsyncProcessor(BaseThread):
                     self.loop.close()
                 except Exception as e:
                     logger.error(f"Error cleaning up loop: {str(e)}")
+
+def parse_ssh_args(command: str) -> dict:
+    """Parse SSH command line arguments into a dictionary."""
+    args = command.split()
+    params = {}
+    i = 2  # Skip 'ssh connect'
+    
+    while i < len(args):
+        if args[i] in ['-h', '--host']:
+            if i + 1 < len(args):
+                params['hostname'] = args[i + 1]
+                i += 2
+            else:
+                raise ValueError("Missing hostname value after -h/--host")
+        elif args[i] in ['-u', '--user']:
+            if i + 1 < len(args):
+                params['username'] = args[i + 1]
+                i += 2
+            else:
+                raise ValueError("Missing username value after -u/--user")
+        elif args[i] in ['-k', '--key']:
+            if i + 1 < len(args):
+                params['key_path'] = args[i + 1]
+                i += 2
+            else:
+                raise ValueError("Missing key path value after -k/--key")
+        else:
+            raise ValueError(f"Unknown argument: {args[i]}")  # Raise an error for unknown arguments
+    
+    return params
 
 if USE_QT:
     class TerminalDockWidget(QDockWidget):
