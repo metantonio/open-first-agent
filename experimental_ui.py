@@ -248,18 +248,21 @@ class AsyncProcessor(BaseThread):
                                     username=params['username'],
                                     key_path=params['key_path']
                                 )
-                                await cl.Message(content=result['message']).send()
-                                return
+                                return result['message']
+                                #return
                             else:
                                 # Missing required parameters, fall back to interactive mode
                                 await handle_ssh_connection()
                                 return
                         except ValueError as e:
-                            await cl.Message(content=f"❌ Error parsing arguments: {str(e)}").send()
-                            return
+                            #await cl.Message(content=f"❌ Error parsing arguments: {str(e)}").send()
+                            logger.info(f"Error parsing arguments: {str(e)}")
+                            return f"❌ Error parsing arguments: {str(e)}"
+                            #return
                         except Exception as e:
-                            await cl.Message(content=f"❌ Error during SSH connection: {str(e)}").send()
-                            return
+                            #await cl.Message(content=f"❌ Error during SSH connection: {str(e)}").send()
+                            logger.info(f"Error during SSH connection: {str(e)}")
+                            return f"❌ Error during SSH connection: {str(e)}"
                 elif message.startswith('!'):
                     command = message[1:].strip()
                     result = await terminal_manager.execute_command(command)
