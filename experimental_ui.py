@@ -18,6 +18,7 @@ import nest_asyncio
 import markdown
 from bs4 import BeautifulSoup
 import webbrowser
+import paramiko
 
 # Apply nest_asyncio to allow nested event loops
 nest_asyncio.apply()
@@ -154,6 +155,61 @@ class AsyncProcessor(BaseThread):
         self.daemon = True
         self._running = True
 
+    async def debug_ssh_connection(self, hostname, username, key_path):
+        """
+        Debug SSH connection with detailed logging and error handling
+        """
+        logging.basicConfig(level=logging.DEBUG)
+        logger = logging.getLogger(__name__)
+
+        try:
+            # Create SSH client
+            client = paramiko.SSHClient()
+            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+            # Load private key
+            private_key = paramiko.RSAKey.from_private_key_file(key_path)
+
+            # Set connection timeout and logging
+            logger.info(f"Attempting to connect to {hostname} as {username}")
+            
+            try:
+                # Use asyncio to set a timeout
+                with asyncio.timeout(10):  # 10-second timeout
+                    client.connect(
+                        hostname, 
+                        username=username, 
+                        pkey=private_key,
+                        timeout=10
+                    )
+                
+                logger.info("SSH Connection successful")
+                
+                # Try running a simple command
+                stdin, stdout, stderr = client.exec_command('whoami')
+                result = stdout.read().decode().strip()
+                logger.info(f"Remote user: {result}")
+
+            except asyncio.TimeoutError:
+                logger.error("Connection timed out")
+                return {"status": "error", "message": "Connection timed out"}
+            except paramiko.AuthenticationException:
+                logger.error("Authentication failed")
+                return {"status": "error", "message": "Authentication failed"}
+            except paramiko.SSHException as ssh_exception:
+                logger.error(f"SSH Exception: {ssh_exception}")
+                return {"status": "error", "message": str(ssh_exception)}
+            except Exception as e:
+                logger.error(f"Unexpected error: {e}")
+                return {"status": "error", "message": str(e)}
+            
+            finally:
+                client.close()
+
+        except Exception as setup_error:
+            logger.error(f"Setup error: {setup_error}")
+            return {"status": "error", "message": str(setup_error)}
+
     async def process_message(self, message, mode):
         """Process a message asynchronously"""
         try:
@@ -186,50 +242,13 @@ class AsyncProcessor(BaseThread):
                             
                             # If we have both hostname and username
                             if 'hostname' in params and 'username' in params:
-                                if 'password' in params:
-                                    # Connect with password
-                                    result = await terminal_manager.terminal.connect_ssh(
-                                        hostname=params['hostname'],
-                                        username=params['username'],
-                                        password=params['password']
-                                    )
-                                elif 'key_path' in params:
-                                    # Connect with key
-                                    result = await terminal_manager.terminal.connect_ssh(
-                                        hostname=params['hostname'],
-                                        username=params['username'],
-                                        key_path=params['key_path'],
-                                        options="-o StrictHostKeyChecking=no"  # Automatically accept host key
-                                    )
-                                    
-                                    # If key is encrypted, fall back to interactive mode for key password
-                                    if result.get('details', {}).get('error_type') == 'encrypted_key':
-                                        await cl.Message(content="Key is encrypted, please provide the password.").send()
-                                        key_password = await cl.AskUserMessage(
-                                            content="Enter key password:",
-                                            timeout=180,
-                                            password=True
-                                        ).send()
-                                        
-                                        if key_password:
-                                            result = await terminal_manager.terminal.connect_ssh(
-                                                hostname=params['hostname'],
-                                                username=params['username'],
-                                                key_path=params['key_path'],
-                                                key_password=key_password
-                                            )
-                                else:
-                                    # No authentication method provided, ask interactively
-                                    await handle_ssh_connection(message)
-                                    return
-                                
-                                # Handle connection result
-                                if result['status'] == 'success':
-                                    await cl.Message(content=f"✅ {result['message']}").send()
-                                else:
-                                    await cl.Message(content=f"❌ Connection failed: {result['message']}").send()
-                                    if 'error' in result.get('details', {}):
-                                        await cl.Message(content=f"Error details: {result['details']['error']}").send()
+                                # Call the debug function instead of connect_ssh
+                                result = await self.debug_ssh_connection(
+                                    hostname=params['hostname'],
+                                    username=params['username'],
+                                    key_path=params['key_path']
+                                )
+                                await cl.Message(content=result['message']).send()
                                 return
                             else:
                                 # Missing required parameters, fall back to interactive mode
@@ -341,6 +360,112 @@ def parse_ssh_args(command: str) -> dict:
             raise ValueError(f"Unknown argument: {args[i]}")  # Raise an error for unknown arguments
     
     return params
+
+async def handle_ssh_connection(message):
+    """Handle SSH connection with proper user input handling"""
+    try:
+        # Ask for connection details
+        await cl.Message(content="Please provide SSH connection details:").send()
+        
+        # Get hostname
+        hostname = await cl.AskUserMessage(
+            content="Enter hostname (e.g., example.com):",
+            timeout=180
+        ).send()
+        
+        if not hostname:
+            await cl.Message(content="Connection cancelled - no hostname provided").send()
+            return
+            
+        # Get username
+        username = await cl.AskUserMessage(
+            content="Enter username:",
+            timeout=180
+        ).send()
+        
+        if not username:
+            await cl.Message(content="Connection cancelled - no username provided").send()
+            return
+            
+        # Ask for authentication method
+        auth_method = await cl.AskUserMessage(
+            content="Choose authentication method (password/key):",
+            timeout=180
+        ).send()
+        
+        if not auth_method or auth_method.lower() not in ['password', 'key']:
+            await cl.Message(content="Invalid authentication method. Please use 'password' or 'key'").send()
+            return
+            
+        if auth_method.lower() == 'password':
+            # Get password
+            password = await cl.AskUserMessage(
+                content="Enter password:",
+                timeout=180,
+                password=True  # This will mask the password input
+            ).send()
+            
+            if not password:
+                await cl.Message(content="Connection cancelled - no password provided").send()
+                return
+                
+            # Connect with password
+            result = await terminal_manager.terminal.connect_ssh(
+                hostname=hostname,
+                username=username,
+                password=password
+            )
+        else:
+            # Get key path
+            key_path = await cl.AskUserMessage(
+                content="Enter path to private key file:",
+                timeout=180
+            ).send()
+            
+            if not key_path:
+                await cl.Message(content="Connection cancelled - no key path provided").send()
+                return
+                
+            # Try connecting without key password first
+            result = await terminal_manager.terminal.connect_ssh(
+                hostname=hostname,
+                username=username,
+                key_path=key_path
+            )
+            
+            # If key is encrypted, ask for password
+            if result.get('details', {}).get('error_type') == 'encrypted_key':
+                key_password = await cl.AskUserMessage(
+                    content="Key is encrypted. Please enter key password:",
+                    timeout=180,
+                    password=True
+                ).send()
+                
+                if not key_password:
+                    await cl.Message(content="Connection cancelled - no key password provided").send()
+                    return
+                    
+                # Try again with key password
+                result = await terminal_manager.terminal.connect_ssh(
+                    hostname=hostname,
+                    username=username,
+                    key_path=key_path,
+                    key_password=key_password
+                )
+        
+        # Handle connection result
+        if result['status'] == 'success':
+            await cl.Message(content=f"✅ {result['message']}").send()
+            return True
+        else:
+            await cl.Message(content=f"❌ Connection failed: {result['message']}").send()
+            if 'error' in result.get('details', {}):
+                await cl.Message(content=f"Error details: {result['details']['error']}").send()
+            return False
+            
+    except Exception as e:
+        await cl.Message(content=f"❌ Error during SSH connection: {str(e)}").send()
+        return False
 
 if USE_QT:
     class TerminalDockWidget(QDockWidget):
