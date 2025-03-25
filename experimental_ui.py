@@ -252,7 +252,7 @@ class AsyncProcessor(BaseThread):
                                 return
                             else:
                                 # Missing required parameters, fall back to interactive mode
-                                await handle_ssh_connection(message)
+                                await handle_ssh_connection()
                                 return
                         except ValueError as e:
                             await cl.Message(content=f"❌ Error parsing arguments: {str(e)}").send()
@@ -361,52 +361,29 @@ def parse_ssh_args(command: str) -> dict:
     
     return params
 
-async def handle_ssh_connection(message):
+async def handle_ssh_connection():
     """Handle SSH connection with proper user input handling"""
     try:
         # Ask for connection details
-        await cl.Message(content="Please provide SSH connection details:").send()
-        
-        # Get hostname
-        hostname = await cl.AskUserMessage(
-            content="Enter hostname (e.g., example.com):",
-            timeout=180
-        ).send()
-        
+        hostname = input("Enter hostname (e.g., example.com): ")
         if not hostname:
-            await cl.Message(content="Connection cancelled - no hostname provided").send()
+            print("Connection cancelled - no hostname provided")
             return
             
-        # Get username
-        username = await cl.AskUserMessage(
-            content="Enter username:",
-            timeout=180
-        ).send()
-        
+        username = input("Enter username: ")
         if not username:
-            await cl.Message(content="Connection cancelled - no username provided").send()
+            print("Connection cancelled - no username provided")
             return
             
-        # Ask for authentication method
-        auth_method = await cl.AskUserMessage(
-            content="Choose authentication method (password/key):",
-            timeout=180
-        ).send()
-        
+        auth_method = input("Choose authentication method (password/key): ")
         if not auth_method or auth_method.lower() not in ['password', 'key']:
-            await cl.Message(content="Invalid authentication method. Please use 'password' or 'key'").send()
+            print("Invalid authentication method. Please use 'password' or 'key'")
             return
             
         if auth_method.lower() == 'password':
-            # Get password
-            password = await cl.AskUserMessage(
-                content="Enter password:",
-                timeout=180,
-                password=True  # This will mask the password input
-            ).send()
-            
+            password = input("Enter password: ")
             if not password:
-                await cl.Message(content="Connection cancelled - no password provided").send()
+                print("Connection cancelled - no password provided")
                 return
                 
             # Connect with password
@@ -416,14 +393,9 @@ async def handle_ssh_connection(message):
                 password=password
             )
         else:
-            # Get key path
-            key_path = await cl.AskUserMessage(
-                content="Enter path to private key file:",
-                timeout=180
-            ).send()
-            
+            key_path = input("Enter path to private key file: ")
             if not key_path:
-                await cl.Message(content="Connection cancelled - no key path provided").send()
+                print("Connection cancelled - no key path provided")
                 return
                 
             # Try connecting without key password first
@@ -435,14 +407,9 @@ async def handle_ssh_connection(message):
             
             # If key is encrypted, ask for password
             if result.get('details', {}).get('error_type') == 'encrypted_key':
-                key_password = await cl.AskUserMessage(
-                    content="Key is encrypted. Please enter key password:",
-                    timeout=180,
-                    password=True
-                ).send()
-                
+                key_password = input("Key is encrypted. Please enter key password: ")
                 if not key_password:
-                    await cl.Message(content="Connection cancelled - no key password provided").send()
+                    print("Connection cancelled - no key password provided")
                     return
                     
                 # Try again with key password
@@ -455,16 +422,16 @@ async def handle_ssh_connection(message):
         
         # Handle connection result
         if result['status'] == 'success':
-            await cl.Message(content=f"✅ {result['message']}").send()
+            print(f"✅ {result['message']}")
             return True
         else:
-            await cl.Message(content=f"❌ Connection failed: {result['message']}").send()
+            print(f"❌ Connection failed: {result['message']}")
             if 'error' in result.get('details', {}):
-                await cl.Message(content=f"Error details: {result['details']['error']}").send()
+                print(f"Error details: {result['details']['error']}")
             return False
             
     except Exception as e:
-        await cl.Message(content=f"❌ Error during SSH connection: {str(e)}").send()
+        print(f"❌ Error during SSH connection: {str(e)}")
         return False
 
 if USE_QT:
