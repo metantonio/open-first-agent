@@ -580,12 +580,6 @@ if USE_QT:
             self.setCentralWidget(central_widget)
             layout = QVBoxLayout(central_widget)
             
-            # Create UI elements
-            self.create_output_area(layout)
-            self.create_input_area(layout)
-            self.create_loading_indicator(layout)
-            self.create_buttons(layout)
-            
             # Create terminal dock widget
             self.terminal_dock = TerminalDockWidget(self)
             self.terminal_dock.hide()
@@ -595,6 +589,12 @@ if USE_QT:
             self.code_viewer = CodeViewerDockWidget(self)
             self.code_viewer.hide()
             self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.code_viewer)
+            
+            # Create UI elements
+            self.create_output_area(layout)
+            self.create_input_area(layout)
+            self.create_loading_indicator(layout)
+            self.create_buttons(layout)
             
             # Connect signals
             self.terminal_dock.terminal_input.installEventFilter(self)
