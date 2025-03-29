@@ -19,6 +19,7 @@ import markdown
 from bs4 import BeautifulSoup
 import webbrowser
 import paramiko
+import shutil
 
 # Apply nest_asyncio to allow nested event loops
 nest_asyncio.apply()
@@ -1092,4 +1093,7 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
+    if not shutil.which("npx"):
+        raise RuntimeError("npx is not installed. Please install it with `npm install -g npx`.")
+
     main() 
