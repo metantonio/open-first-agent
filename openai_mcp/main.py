@@ -89,19 +89,6 @@ async def run_workflow(request: str) -> str:
         logger.info(f"MCP response: {response}")
         return response
 
-class YourClass:
-    def __init__(self):
-        # Initialize any necessary attributes
-        self.output_ready = ""  # Define how output_ready is initialized
-
-    async def process_commands(self, request: str):  # Accept request as a parameter
-        logger.info("process_commands called with request: {}".format(request))  # Debugging line
-        result = await run_workflow(request)  # Await the coroutine
-        if isinstance(result, str):  # Check if result is a string
-            self.output_ready.emit(result)  # Emit the result
-        else:
-            logger.error("Expected a string result but got: {}".format(type(result)))
-
 if __name__ == "__main__":
     # Let's make sure the user has npx installed
     if not shutil.which("npx"):
