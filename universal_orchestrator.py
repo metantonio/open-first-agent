@@ -10,6 +10,7 @@ from code_converter_agent.code_converter_agent import run_workflow as run_code_c
 from explanation_agent.explanation_agent import run_workflow as run_explanation_workflow
 from mcp_github.main import run_workflow as run_github_workflow
 from mcp_gitlab.main import run_workflow as run_gitlab_workflow
+from mcp_sequential_thinking.main import run_workflow as run_sequential_thinking
 import logging
 from config import get_model_config, TEMPERATURE
 import os
@@ -37,6 +38,7 @@ class UniversalOrchestrator:
                - Terminal commands execution
                - SSH connections and operations
                - Any local system operations (open files with cat command, run commands)
+               - Sequential thinking or deep thinking about some problem
                
                Browser Agent:
                - Web searches and research
@@ -158,6 +160,9 @@ class UniversalOrchestrator:
 
             9. For gitlab operations (keywords: gitlab)
                 - Use "gitlab"
+
+            10. For deep thinking or sequential thinking (keywords: think, deep)
+                - Use "think"
             
             Return ONLY a comma-separated list of required agents in execution order.
             Example responses:
@@ -181,7 +186,7 @@ class UniversalOrchestrator:
         logger.info(f"Parsed agent sequence: {agent_sequence}")
         
         # Validate agent types
-        valid_agents = {'browser', 'terraform', 'dev_env', 'aws_cli', 'terminal', 'code_converter', 'explanation_agent', 'file_system', 'gitlab','github'}
+        valid_agents = {'browser', 'terraform', 'dev_env', 'aws_cli', 'terminal', 'code_converter', 'explanation_agent', 'file_system', 'gitlab','github', 'think'}
         agent_sequence = [agent for agent in agent_sequence if agent in valid_agents]
         
         # Special case: If the request involves SAS to Python conversion
@@ -345,6 +350,8 @@ The conversion has been completed. Would you like me to explain the converted co
                         result = await run_github_workflow(request)
                     elif agent_type == "gitlab":
                         result == await run_gitlab_workflow(request)
+                    elif agent_type == "think":
+                        result == await run_sequential_thinking(request)
                     
                     # Update request with result for context if needed
                     if isinstance(result, dict) and result.get('context'):

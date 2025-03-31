@@ -11,7 +11,7 @@ from pathlib import Path
 
 env_path = Path('..') / '.env'
 
-load_dotenv()
+load_dotenv(dotenv_path=env_path, override=True)
 
 logger = logging.getLogger(__name__)
 

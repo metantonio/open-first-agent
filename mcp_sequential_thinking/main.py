@@ -9,23 +9,22 @@ from .config import get_model_config
 import traceback
 from pathlib import Path
 
-env_path = Path('..') / '.env'
+env_path = Path('.') / '.env'
 
-load_dotenv(dotenv_path=env_path, override=True)
+#load_dotenv(dotenv_path=env_path, override=True)
 
 logger = logging.getLogger(__name__)
-logger.info(f"env_path from github mcp: {env_path}")
+
 # Ensure output directory exists for logs
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'output')
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 model = get_model_config()  # Ensure model is fetched here
 
-GITHUB_PERSONAL_ACCESS_TOKEN = os.getenv('GITHUB_PERSONAL_ACCESS_TOKEN')
 
 async def run(mcp_server: MCPServer, request: str = ""):
     agent = Agent(
-        name="Github MCP Server",
-        instructions=f"Use the tools to read the github repository and try to respond the user questions.",
+        name="Sequential thinking MCP server",
+        instructions=f"Respond user questions using deep thinking.",
         model=model,
         mcp_servers=[mcp_server],
     )
@@ -41,16 +40,13 @@ async def main():
     logger.info(f"sample directory: {samples_dir}")
     print(f"sample directory: {samples_dir}")
     async with MCPServerStdio(
-        name="Gitlab mcp via npm",
+        name="Sequential thinking",
         params={
             "command": "npx",
             "args": [
                 "-y",
-                "@modelcontextprotocol/server-github"
-            ],
-            "env": {
-                "GITHUB_PERSONAL_ACCESS_TOKEN": GITHUB_PERSONAL_ACCESS_TOKEN
-            }
+                "@modelcontextprotocol/server-sequential-thinking"
+            ]
         },
     ) as server:
         """ trace_id = gen_trace_id()
@@ -64,26 +60,15 @@ async def run_workflow(request: str) -> str:
     samples_dir = os.path.join(current_dir, "../output")
 
     async with MCPServerStdio(
-        name="Github mcp via npm",
+        name="Sequential thinking",
         params={
             "command": "npx",
             "args": [
                 "-y",
-                "@modelcontextprotocol/server-github"
-            ],
-            "env": {
-                "GITHUB_PERSONAL_ACCESS_TOKEN": GITHUB_PERSONAL_ACCESS_TOKEN,
-            }
+                "@modelcontextprotocol/server-sequential-thinking"
+            ]
         },
     ) as server:
-        """ trace_id = gen_trace_id()
-        with trace(workflow_name="MCP Filesystem Example", trace_id=trace_id):
-            print(f"View trace: https://platform.openai.com/traces/{trace_id}\n")
-            response = await run(server, request)  # Capturar la respuesta aquí
-            print(response)
-            logger.info(f"MCP response: {response}")
-            return response """
-            #return response.final_output  # Retornar el output final
         response = await run(server, request)  # Capturar la respuesta aquí
         print(response)
         logger.info(f"MCP response: {response}")
