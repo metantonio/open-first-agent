@@ -71,12 +71,12 @@ async def run_workflow(request: str) -> str:
     logger.info(f"request to the MCP file system: {request}")
     current_dir = os.path.dirname(os.path.abspath(__file__))
     samples_dir = os.path.join(current_dir, "../output")
-
+    root = os.path.join(current_dir, "../")
     async with MCPServerStdio(
         name="Filesystem Server, via npx",
         params={
             "command": "npx",
-            "args": ["-y", "@modelcontextprotocol/server-filesystem", OUTPUT_DIR],
+            "args": ["-y", "@modelcontextprotocol/server-filesystem", OUTPUT_DIR, root],
         },
     ) as server:
         """ trace_id = gen_trace_id()
