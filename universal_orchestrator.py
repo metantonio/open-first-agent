@@ -125,7 +125,7 @@ class UniversalOrchestrator:
             Request: {request}
 
             Agent Selection Rules:
-            1. For code conversion tasks (keywords: convert, sas, to python, .sas):
+            1. For code conversion tasks (keywords: sas to python, transform to):
                - Use "terminal" first to find and read the requested file with cat command, don't use it for other tasks
                - Then "code_converter" to convert the code to requested language
                - Then "terminal" again to save the script file in the requested script language
@@ -190,7 +190,7 @@ class UniversalOrchestrator:
         agent_sequence = [agent for agent in agent_sequence if agent in valid_agents]
         
         # Special case: If the request involves SAS to Python conversion
-        if any(keyword in request.lower() for keyword in ['convert', '.sas', 'sas to python']):
+        if any(keyword in request.lower() for keyword in ['sas to python']):
             if agent_sequence != ['terminal', 'code_converter', 'terminal']:
                 logger.info("Detected code conversion task, enforcing correct agent sequence")
                 agent_sequence = ['terminal', 'code_converter', 'terminal']
