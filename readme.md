@@ -68,7 +68,7 @@ A powerful multi-agent system that combines various specialized AI agents to aut
 chainlit run ui.py
 ```
 
-**Experimental Mac / Debug mode:**
+**Experimental Mac UI / Debug mode:**
 ```bash
 python experimental_ui.py
 ```
