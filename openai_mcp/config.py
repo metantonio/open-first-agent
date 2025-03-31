@@ -7,7 +7,7 @@ from agents import AsyncOpenAI, OpenAIChatCompletionsModel
 load_dotenv()
 
 # Get provider configurations from environment variables
-DEFAULT_PROVIDER = os.getenv('FILE_SYSTEM_PROVIDER', 'ollama')
+DEFAULT_PROVIDER = os.getenv('MPC_FILE_SYSTEM', 'ollama')
 
 # Ollama provider configuration
 ollama_provider = {
