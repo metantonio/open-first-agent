@@ -8,6 +8,8 @@ from openai_mcp.main import run_workflow as run_file_system_mpc
 from terminal_agent.terminal_task_agent import run_workflow as run_terminal_workflow
 from code_converter_agent.code_converter_agent import run_workflow as run_code_converter_workflow
 from explanation_agent.explanation_agent import run_workflow as run_explanation_workflow
+from mcp_github.main import run_workflow as run_github_workflow
+from mcp_gitlab.main import run_workflow as run_gitlab_workflow
 import logging
 from config import get_model_config, TEMPERATURE
 import os
@@ -64,6 +66,14 @@ class UniversalOrchestrator:
                - Converting SAS macros to Python functions
                - Maintaining code structure and dependencies
                - Ensuring proper import statements
+
+               Github Agent:
+               - Read github repositories
+               - Perform task in github
+
+               Gitlab Agent:
+               - Read gitlab repositories
+               - Perform task in gitlab
 
             3. Multi-Agent Workflow Rules:
                - Identify dependencies between sub-tasks
@@ -142,6 +152,12 @@ class UniversalOrchestrator:
 
             7. For terminal operations (keywords: sudo, ls, pwd, chmod):
                 - Use "terminal"
+
+            8. For github operations (keywords: github)
+                - Use "github"
+
+            9. For gitlab operations (keywords: gitlab)
+                - Use "gitlab"
             
             Return ONLY a comma-separated list of required agents in execution order.
             Example responses:
@@ -165,7 +181,7 @@ class UniversalOrchestrator:
         logger.info(f"Parsed agent sequence: {agent_sequence}")
         
         # Validate agent types
-        valid_agents = {'browser', 'terraform', 'dev_env', 'aws_cli', 'terminal', 'code_converter', 'explanation_agent', 'file_system'}
+        valid_agents = {'browser', 'terraform', 'dev_env', 'aws_cli', 'terminal', 'code_converter', 'explanation_agent', 'file_system', 'gitlab','github'}
         agent_sequence = [agent for agent in agent_sequence if agent in valid_agents]
         
         # Special case: If the request involves SAS to Python conversion
@@ -325,6 +341,10 @@ The conversion has been completed. Would you like me to explain the converted co
                         result = run_explanation_workflow(request)
                     elif agent_type == 'file_system':
                         result = await run_file_system_mpc(request)
+                    elif agent_type == "github":
+                        result = await run_github_workflow(request)
+                    elif agent_type == "gitlab":
+                        result == await run_gitlab_workflow(request)
                     
                     # Update request with result for context if needed
                     if isinstance(result, dict) and result.get('context'):
