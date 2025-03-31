@@ -30,6 +30,8 @@ A powerful multi-agent system that combines various specialized AI agents to aut
 
 ## 🛠 Installation
 
+0. **Install NPM to be able to use MCP**
+
 1. **Clone the repository**
    ```bash
    git clone https://github.com/metantonio/open-first-agent
