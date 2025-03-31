@@ -4,6 +4,7 @@ from terraform_agent.terraform_agent import run_workflow as run_terraform_workfl
 from dev_env_agent.dev_env_agent import run_workflow as run_dev_env_workflow
 from aws_cli_agent.aws_cli_agent import run_workflow as run_aws_cli_workflow
 from file_system_agent.file_system_agent import run_workflow as run_file_env_workflow
+from openai_mcp.main import run_workflow as run_file_system_mpc
 from terminal_agent.terminal_task_agent import run_workflow as run_terminal_workflow
 from code_converter_agent.code_converter_agent import run_workflow as run_code_converter_workflow
 from explanation_agent.explanation_agent import run_workflow as run_explanation_workflow
@@ -131,13 +132,16 @@ class UniversalOrchestrator:
                - May be preceded by "browser" for research
             
             5. For file operations (keywords: file, directory, create, delete, find, list):
-               - Use "terminal" for file system operations
+               - Use "file_system" for file system operations
                - May be followed by other agents
 
             6. For chat tasks or explanations (keywords: chat, conversation, ask, question):
                - Use "explanation_agent" for explaining the results
                - May be preceded by "browser" for research
                - May be followed by other agents
+
+            7. For terminal operations (keywords: sudo, ls, pwd, chmod):
+                - Use "terminal"
             
             Return ONLY a comma-separated list of required agents in execution order.
             Example responses:
@@ -161,7 +165,7 @@ class UniversalOrchestrator:
         logger.info(f"Parsed agent sequence: {agent_sequence}")
         
         # Validate agent types
-        valid_agents = {'browser', 'terraform', 'dev_env', 'aws_cli', 'terminal', 'code_converter', 'explanation_agent'}
+        valid_agents = {'browser', 'terraform', 'dev_env', 'aws_cli', 'terminal', 'code_converter', 'explanation_agent', 'file_system'}
         agent_sequence = [agent for agent in agent_sequence if agent in valid_agents]
         
         # Special case: If the request involves SAS to Python conversion
@@ -319,6 +323,8 @@ The conversion has been completed. Would you like me to explain the converted co
                         result = run_code_converter_workflow(request)
                     elif agent_type == "explanation_agent":
                         result = run_explanation_workflow(request)
+                    elif agent_type == 'file_system':
+                        result = await run_file_system_mpc(request)
                     
                     # Update request with result for context if needed
                     if isinstance(result, dict) and result.get('context'):

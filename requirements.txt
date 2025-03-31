@@ -1,7 +1,7 @@
 beautifulsoup4==4.13.3
 requests==2.32.3
-openai==1.66.2
-openai-agents==0.0.3
+openai==1.66.5
+openai-agents==0.0.7
 pydantic==2.10.6
 chainlit 
 duckduckgo-search
@@ -22,3 +22,6 @@ nest-asyncio>=1.5.8  # For handling nested event loops
 markdown>=3.5.1  # For markdown rendering
 Flask 
 Flask[async]
+mcp==1.6.0
+mcp-agent
+weave

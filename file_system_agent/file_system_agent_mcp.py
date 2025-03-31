@@ -3,7 +3,7 @@ import os
 import shutil
 import logging
 from agents import Agent, Runner, gen_trace_id, trace
-from agents.mcp import MCPServer, MCPServerStdio
+from mcp.server import MCPServer, MCPServerStdio
 from .config import get_model_config
 
 model = get_model_config()
@@ -12,12 +12,11 @@ logger = logging.getLogger(__name__)
 # Ensure output directory exists for logs
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'output')
 os.makedirs(OUTPUT_DIR, exist_ok=True)
-model = get_model_config()  # Ensure model is fetched here
 
-async def run(mcp_server: MCPServer):
+async def run(mcp_server: MCPServer, request: str):
     agent = Agent(
         name="Assistant",
-        instructions="Use the tools to read the filesystem and answer questions based on those files.",
+        instructions=f"Use the tools to read the filesystem and answer questions based on those files.: {request}",
         model=model,
         mcp_servers=[mcp_server],
     )
@@ -26,7 +25,7 @@ async def run(mcp_server: MCPServer):
     #response = await Runner.run_sync(agent, "Process this file system request.")
     #return response  # Retornar la respuesta
 
-async def run_workflow():
+async def run_workflow(request: str) -> str:
     current_dir = os.path.dirname(os.path.abspath(__file__))
     samples_dir = os.path.join(current_dir, "output")
 

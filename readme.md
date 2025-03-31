@@ -115,6 +115,9 @@ Required environment variables in your `.env` file:
 6. **Execute commands in the chat mode**
    - Execute commands in the chat mode using `!`. Eg: `!ls -la` 
 
+## Notes
+
+To let MCP to have access to folders, you must change permission of the targeted folder, Eg: `chmod 777 ./openai_mcp/sample_files`
 
 ## 📝 License
 
