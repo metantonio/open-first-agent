@@ -3,7 +3,7 @@ from duck_browser_agent.dds_agent import run_workflow as run_browser_workflow
 from terraform_agent.terraform_agent import run_workflow as run_terraform_workflow
 from dev_env_agent.dev_env_agent import run_workflow as run_dev_env_workflow
 from aws_cli_agent.aws_cli_agent import run_workflow as run_aws_cli_workflow
-from file_system_agent.file_system_agent import run_workflow as run_file_env_workflow
+from file_system_agent.file_system_agent import run_workflow as run_file_env_workflow # deprecated, now using mpc
 from openai_mcp.main import run_workflow as run_file_system_mpc
 from terminal_agent.terminal_task_agent import run_workflow as run_terminal_workflow
 from code_converter_agent.code_converter_agent import run_workflow as run_code_converter_workflow
