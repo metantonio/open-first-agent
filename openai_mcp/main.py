@@ -15,6 +15,9 @@ logger = logging.getLogger(__name__)
 # Ensure output directory exists for logs
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'output')
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+# Guarda los permisos originales
+original_perms = os.stat(OUTPUT_DIR).st_mode
+os.chmod(OUTPUT_DIR, 0o755)
 model = get_model_config()  # Ensure model is fetched here
 
 async def run(mcp_server: MCPServer, request: str = ""):
@@ -73,7 +76,7 @@ async def run_workflow(request: str) -> str:
         name="Filesystem Server, via npx",
         params={
             "command": "npx",
-            "args": ["-y", "@modelcontextprotocol/server-filesystem", samples_dir, OUTPUT_DIR],
+            "args": ["-y", "@modelcontextprotocol/server-filesystem", OUTPUT_DIR],
         },
     ) as server:
         """ trace_id = gen_trace_id()
@@ -87,6 +90,7 @@ async def run_workflow(request: str) -> str:
         response = await run(server, request)  # Capturar la respuesta aquí
         print(response)
         logger.info(f"MCP response: {response}")
+        os.chmod(OUTPUT_DIR, original_perms)
         return response
 
 if __name__ == "__main__":

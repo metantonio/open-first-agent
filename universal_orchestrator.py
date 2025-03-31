@@ -232,6 +232,7 @@ class UniversalOrchestrator:
             logger.info(f"Processing request with agent sequence: {agent_sequence}")
             
             # Execute agents in sequence
+            #result = ""
             result = None
             sas_content = None
             python_code = None
@@ -356,6 +357,10 @@ The conversion has been completed. Would you like me to explain the converted co
                     # Update request with result for context if needed
                     if isinstance(result, dict) and result.get('context'):
                         request = f"{request}\nContext: {result['context']}"
+
+                    #if isinstance(result, str):
+                    #    result += "\n"+result                    
+
             
             return result if result is not None else "No agents were able to process the request"
                 
