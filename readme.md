@@ -50,6 +50,7 @@ A powerful multi-agent system that combines various specialized AI agents to aut
   ```bash
    conda create -n openai-first-agent python=3.10
    conda activate openai-first-agent
+   pip install -r requirements.txt
   ```
    
 
