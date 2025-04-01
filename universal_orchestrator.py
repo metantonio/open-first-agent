@@ -222,7 +222,7 @@ class UniversalOrchestrator:
             # Check if this is a response to the explanation offer
             if request.lower().strip() == 'yes' and hasattr(self, '_last_converted_code'):
                 logger.info("User requested explanation of converted code")
-                explanation = run_explanation_workflow(f"Print the full code and explain it, suggest improvements: {self._last_converted_code}")
+                explanation = run_explanation_workflow(f"Print the full code first and then explain it, finally suggest improvements: {self._last_converted_code}")
                 # Clear the stored code after providing explanation
                 delattr(self, '_last_converted_code')
                 return explanation
