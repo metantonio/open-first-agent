@@ -7,7 +7,7 @@ chainlit
 duckduckgo-search
 ipykernel
 jupyter
-conda-env
+conda-env #only install it if you have conda installed first, if don't mute this line
 paramiko
 pytest 
 asyncio
@@ -23,6 +23,6 @@ markdown>=3.5.1  # For markdown rendering
 Flask 
 Flask[async]
 mcp==1.6.0
-mcp-agent
+#mcp-agent
 weave
 openpyxl>=3.1.2
