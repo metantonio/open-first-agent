@@ -70,6 +70,14 @@ chainlit run ui.py
 ```
 
 **Experimental Mac UI / Debug mode:**
+
+You will need to install the following library depending if you are in Mac or Windows:
+
+```bash
+pip install PyQt6>=6.4.0 # For Mac
+pip install tkinter # For Windows
+```
+
 ```bash
 python experimental_ui.py
 ```
