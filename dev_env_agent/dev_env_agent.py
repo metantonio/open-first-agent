@@ -785,11 +785,11 @@ orchestrator_agent = Agent(
 
 # 4. Main workflow function
 
-def run_workflow(request):
+async def run_workflow(request):
     """Run the development environment setup workflow."""
     logger.info(f"Starting development environment setup for request: {request}")
     
-    orchestrator_response = Runner.run_sync(
+    orchestrator_response = await Runner.run(
         orchestrator_agent,
         f"""Process this development environment setup request: {request}
 

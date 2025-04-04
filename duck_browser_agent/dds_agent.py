@@ -157,12 +157,12 @@ orchestrator_agent = Agent(
 
 # 4. Main workflow function
 
-def run_workflow(topic):
+async def run_workflow(topic):
     """Run the workflow with the orchestrator as the main controller."""
     print(f"Starting workflow for topic: {topic}")
     
     # Let the orchestrator handle the entire workflow
-    orchestrator_response = Runner.run_sync(
+    orchestrator_response = await Runner.run(
         orchestrator_agent,
         f"""Process this request for information about: {topic}
 

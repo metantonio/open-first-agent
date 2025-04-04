@@ -667,7 +667,7 @@ terminal_orchestrator = Agent(
 
 # 4. Main workflow function
 
-def run_workflow(request: str) -> str:
+async def run_workflow(request: str) -> str:
     """Run the terminal workflow."""
     logger.info(f"Starting terminal workflow for request: {request}")
     

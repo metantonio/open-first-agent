@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, Any
 from pathlib import Path
 from agents import Agent, Runner, AsyncOpenAI, OpenAIChatCompletionsModel, function_tool, ModelSettings
 from .config import get_model_config, TEMPERATURE
+import asyncio
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -429,16 +430,16 @@ code_converter_orchestrator = Agent(
     model_settings=ModelSettings(temperature=TEMPERATURE)
 )
 
-def run_workflow(sas_input: str) -> str:
+async def run_workflow(sas_input: str) -> str:
     """Run the code conversion workflow with the orchestrator as the main controller."""
     logger.info("Starting code conversion workflow")
     
     try:
         # If input is a file path, read the file
         if isinstance(sas_input, str) and (
-            ('.sas' in sas_input.lower() or '/' in sas_input or '\\' in sas_input) 
+            (sas_input.lower().endswith('.sas') or '/' in sas_input or '\\' in sas_input) 
             and '/*' not in sas_input 
-            and not any(kw in sas_input.lower() for kw in ['data ', 'proc '])
+            and not any(kw in sas_input.lower() for kw in ['data ', 'proc ', '%macro'])
         ):
             try:
                 logger.info(f"sas_input should be a file path: {sas_input}")
@@ -455,38 +456,37 @@ def run_workflow(sas_input: str) -> str:
         logger.info(f"Code Converter Agent: Input content length: {len(str(sas_code))} characters")
         logger.info("Code Converter Agent: First 100 characters of input: " + str(sas_code)[:100] + "...")
         
+        # Ensure we're passing a string to the Runner
+        if not isinstance(sas_code, str):
+            sas_code = str(sas_code)
+        
         # Create a new Runner instance
-        response = Runner.run_sync(
+        response = await Runner.run(
             code_converter_orchestrator,
             sas_code
         )
         
+        # Rest of the function remains the same...
         if not response or not response.final_output:
             logger.error("Code Converter Agent: No response received from orchestrator")
             return "Error: No response received from orchestrator"
         
-        # Extract the Python code from the response
         output = response.final_output.strip()
         
-        # If the output is already an error message, return it
         if output.lower().startswith('error:'):
             logger.error(f"Code Converter Agent: Conversion error - {output}")
             return output
             
-        # Handle empty output
         if not output:
             logger.error("Code Converter Agent: Empty response from orchestrator")
             return "Error: Empty response from orchestrator"
             
-        # Clean up the output
         if isinstance(output, str):
-            # Remove markdown code blocks
             if "```" in output:
                 code_blocks = re.findall(r'```(?:python)?\n?(.*?)\n?```', output, re.DOTALL)
                 if code_blocks:
                     output = '\n\n'.join(block.strip() for block in code_blocks)
             
-            # Remove tool call formatting
             if '"code":' in output:
                 code_blocks = re.findall(r'"code":\s*"(.*?)"', output)
                 if code_blocks:
@@ -497,14 +497,11 @@ def run_workflow(sas_input: str) -> str:
                     logger.error(f"Code Converter Agent: Conversion error in response - {error_blocks[0]}")
                     return f"Error: {error_blocks[0]}"
             
-            # Clean up whitespace
             output = output.strip()
             
-            # Ensure consistent imports
             if output and not output.startswith('import'):
                 output = 'import pandas as pd\nimport numpy as np\n\n' + output
             
-            # Log the converted output
             logger.info("Code Converter Agent: Successfully converted SAS code to Python")
             logger.info(f"Code Converter Agent: Output content length: {len(output)} characters")
             logger.info("Code Converter Agent: First 100 characters of output: " + output[:100] + "...")
@@ -516,4 +513,19 @@ def run_workflow(sas_input: str) -> str:
         
     except Exception as e:
         logger.error(f"Code Converter Agent: Error in code conversion workflow - {str(e)}")
-        return f"Error: {str(e)}" 
+        return f"Error: {str(e)}"
+
+def run_workflow_sync(request: str) -> str:
+    """Synchronous wrapper for the async workflow."""
+    try:
+        return asyncio.get_event_loop().run_until_complete(run_workflow(request))
+    except RuntimeError as e:
+        if "no running event loop" in str(e):
+            # Create new event loop if none exists
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(run_workflow(request))
+            finally:
+                loop.close()
+        raise

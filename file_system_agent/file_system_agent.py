@@ -575,11 +575,11 @@ file_system_agent = Agent(
 
 # 4. Main workflow function
 
-def run_workflow(request: str) -> str:
+async def run_workflow(request: str) -> str:
     """Run the file system workflow."""
     logger.info(f"Starting file system workflow for request: {request}")
     
-    response = Runner.run_sync(
+    response = await Runner.run(
         file_system_agent,
         f"""Process this file system request: {request}
         

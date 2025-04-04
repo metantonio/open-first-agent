@@ -222,127 +222,51 @@ class UniversalOrchestrator:
             # Check if this is a response to the explanation offer
             if request.lower().strip() == 'yes' and hasattr(self, '_last_converted_code'):
                 logger.info("User requested explanation of converted code")
-                explanation = await run_explanation_workflow(f"Print the full code first and then explain it, finally suggest improvements: {self._last_converted_code}")
-                # Clear the stored code after providing explanation
-                delattr(self, '_last_converted_code')
-                return explanation
+                try:
+                    explanation = await run_explanation_workflow(
+                        f"Print the full code first and then explain it, finally suggest improvements: {self._last_converted_code}"
+                    )
+                    # Clear the stored code after providing explanation
+                    delattr(self, '_last_converted_code')
+                    return explanation
+                except Exception as e:
+                    logger.error(f"Error generating explanation: {str(e)}")
+                    return f"Error generating explanation: {str(e)}"
 
             # Analyze workflow to get agent sequence
             agent_sequence = await self.analyze_workflow(request)
             logger.info(f"Processing request with agent sequence: {agent_sequence}")
             
             # Execute agents in sequence
-            #result = ""
             result = None
-            sas_content = None
-            python_code = None
             
             # Special handling for code conversion workflow
             if agent_sequence == ['terminal', 'code_converter', 'terminal']:
                 logger.info("Executing code conversion workflow")
+                try:
+                    result = await self._handle_code_conversion(request)
+                    return result
+                except Exception as e:
+                    logger.error(f"Error in code conversion workflow: {str(e)}")
+                    return f"Error during code conversion: {str(e)}"
+            
+            # Normal workflow for non-code-conversion tasks
+            for agent_type in agent_sequence:
+                logger.info(f"Executing agent: {agent_type}")
                 
-                # Extract file paths from request
-                sas_file = None
-                python_file = None
-                
-                # Look for .sas file in request
-                words = request.split()
-                for i, word in enumerate(words):
-                    if word.endswith('.sas'):
-                        sas_file = word
-                    elif word.endswith('.py'):
-                        python_file = word
-                
-                if not sas_file:
-                    return "Error: No .sas file specified in the request"
-                
-                if not python_file:
-                    # Default to same name with .py extension
-                    python_file = sas_file.replace('.sas', '.py')
-                
-                # Check if file exists in current directory or output directory
-                sas_file_path = sas_file
-                if not os.path.exists(sas_file):
-                    output_path = os.path.join('output', sas_file)
-                    if os.path.exists(output_path):
-                        sas_file_path = output_path
-                    else:
-                        return f"Error: SAS file not found in either current directory or output directory: {sas_file}"
-                
-                logger.info(f"Processing conversion from {sas_file_path} to {python_file}")
-                
-                # Step 1: Read SAS file
-                logger.info("Step 1: Reading SAS file content")
-                read_request = f"cat {sas_file_path}"
-                sas_content = run_terminal_workflow(read_request)
-                
-                if isinstance(sas_content, str) and sas_content.startswith('Error'):
-                    logger.error(f"Failed to read SAS file: {sas_content}")
-                    return sas_content
-                
-                # Step 2: Convert code
-                if isinstance(sas_content, str):
-                    logger.info("Step 2: Converting SAS to Python: sas_content: " + sas_content)
-                    try:
-                        # Pass the actual SAS content to the converter
-                        python_code = run_code_converter_workflow(sas_content)
-                        
-                        if isinstance(python_code, str):
-                            if python_code.startswith('Error'):
-                                logger.error(f"Failed to convert code: {python_code}")
-                                return python_code
-                            
-                            # Step 3: Save Python file
-                            logger.info(f"Step 3: Saving Python code to {python_file}")
-                            
-                            # Ensure output directory exists
-                            os.makedirs('output', exist_ok=True)
-                            
-                            # Write the file directly
-                            output_path = os.path.join('output', python_file)
-                            try:
-                                with open(output_path, 'w', encoding='utf-8') as f:
-                                    f.write(python_code)
-                                logger.info(f"Successfully saved Python code to {output_path}")
-                                
-                                # Store the code for potential explanation
-                                self._last_converted_code = python_code
-                                # Return success message with option to get explanation
-                                return f"""Successfully converted and saved the code to output/{python_file}
-
-The conversion has been completed. Would you like me to explain the converted code and suggest possible improvements? (Please respond with 'yes' if you'd like an explanation)"""
-                            except Exception as e:
-                                error_msg = f"Failed to save Python file: {str(e)}"
-                                logger.error(error_msg)
-                                return f"Error: {error_msg}"
-                        else:
-                            logger.error("Invalid Python code format returned from converter")
-                            return "Error: Invalid Python code format returned from converter"
-                    except Exception as e:
-                        error_msg = f"Error during code conversion: {str(e)}"
-                        logger.error(error_msg)
-                        return f"Error: {error_msg}"
-                else:
-                    logger.error("Invalid SAS content format")
-                    return "Error: Invalid SAS content format"
-
-            else:
-                # Normal workflow for non-code-conversion tasks
-                for agent_type in agent_sequence:
-                    logger.info(f"Executing agent: {agent_type}")
-                    
+                try:
                     if agent_type == "browser":
-                        result = run_browser_workflow(request)
+                        result = await run_browser_workflow(request)
                     elif agent_type == "terraform":
-                        result = run_terraform_workflow(request)
+                        result = await run_terraform_workflow(request)
                     elif agent_type == "dev_env":
-                        result = run_dev_env_workflow(request)
+                        result = await run_dev_env_workflow(request)
                     elif agent_type == "aws_cli":
-                        result = run_aws_cli_workflow(request)
+                        result = await run_aws_cli_workflow(request)
                     elif agent_type == "terminal":
-                        result = run_terminal_workflow(request)
+                        result = await run_terminal_workflow(request)
                     elif agent_type == "code_converter":
-                        result = run_code_converter_workflow(request)
+                        result = await run_code_converter_workflow(request)
                     elif agent_type == "explanation_agent":
                         result = await run_explanation_workflow(request)
                     elif agent_type == 'file_system':
@@ -350,23 +274,90 @@ The conversion has been completed. Would you like me to explain the converted co
                     elif agent_type == "github":
                         result = await run_github_workflow(request)
                     elif agent_type == "gitlab":
-                        result == await run_gitlab_workflow(request)
+                        result = await run_gitlab_workflow(request)
                     elif agent_type == "think":
-                        result == await run_sequential_thinking(request)
+                        result = await run_sequential_thinking(request)
                     
                     # Update request with result for context if needed
                     if isinstance(result, dict) and result.get('context'):
                         request = f"{request}\nContext: {result['context']}"
+                        
+                except Exception as e:
+                    logger.error(f"Error executing agent {agent_type}: {str(e)}")
+                    return f"Error in {agent_type} agent: {str(e)}"
 
-                    #if isinstance(result, str):
-                    #    result += "\n"+result                    
-
-            
             return result if result is not None else "No agents were able to process the request"
                 
         except Exception as e:
             logger.error(f"Error processing request: {str(e)}")
             return f"Error processing request: {str(e)}"
 
+    async def _handle_code_conversion(self, request: str):
+        """Handle the code conversion workflow with proper async operations"""
+        try:
+            # Extract file paths from request
+            sas_file = None
+            python_file = None
+            
+            # Look for .sas file in request
+            words = request.split()
+            for word in words:
+                if word.endswith('.sas'):
+                    sas_file = word
+                elif word.endswith('.py'):
+                    python_file = word
+            
+            if not sas_file:
+                return "Error: No .sas file specified in the request"
+            
+            if not python_file:
+                python_file = sas_file.replace('.sas', '.py')
+            
+            # Check file existence
+            sas_file_path = sas_file
+            if not os.path.exists(sas_file):
+                output_path = os.path.join('output', sas_file)
+                if os.path.exists(output_path):
+                    sas_file_path = output_path
+                else:
+                    return f"Error: SAS file not found: {sas_file}"
+            
+            logger.info(f"Converting {sas_file_path} to {python_file}")
+            
+            try:
+                # Step 1: Read SAS file
+                read_request = f"cat {sas_file_path}"
+                sas_content_response = await run_terminal_workflow(read_request)
+                
+                # Handle the response properly
+                if isinstance(sas_content_response, str) and sas_content_response.startswith('Error'):
+                    return sas_content_response
+                
+                # Step 2: Convert code
+                python_code_response = await run_code_converter_workflow(sas_content_response)
+                
+                if isinstance(python_code_response, str) and python_code_response.startswith('Error'):
+                    return python_code_response
+                
+                # Step 3: Save Python file
+                os.makedirs('output', exist_ok=True)
+                output_path = os.path.join('output', python_file)
+                
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(python_code_response)
+                
+                self._last_converted_code = python_code_response
+                return f"""Successfully converted to output/{python_file}
+                
+    Would you like an explanation of the converted code? (respond 'yes')"""
+                
+            except Exception as e:
+                error_msg = f"Failed to save Python file: {str(e)}"
+                logger.error(error_msg)
+                return f"Error: {error_msg}"
+                
+        except Exception as e:
+            logger.error(f"Unexpected error in code conversion: {str(e)}")
+            return f"Error: {str(e)}"
 # Create a singleton instance
 orchestrator = UniversalOrchestrator() 
