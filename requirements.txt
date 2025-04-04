@@ -26,3 +26,5 @@ mcp==1.6.0
 #mcp-agent
 weave
 openpyxl>=3.1.2
+fastapi 
+uvicorn

@@ -107,7 +107,7 @@ explanation_orchestrator = Agent(
     tools=[explain_concept]
 )
 
-def run_workflow(request: str) -> str:
+async def run_workflow(request: str) -> str:
     """Run the explanation workflow with the orchestrator as the main controller."""
     logger.info(f"Starting explanation workflow for request: {request}")
     
@@ -117,7 +117,7 @@ def run_workflow(request: str) -> str:
         logger.info(f"Explanation Agent: Request: {request}")
         
         # Create a new Runner instance and execute the explanation
-        response = Runner.run_sync(
+        response =  await Runner.run_sync(
             explanation_orchestrator,
             request
         )
@@ -159,4 +159,4 @@ def run_workflow(request: str) -> str:
             
     except Exception as e:
         logger.error(f"Explanation Agent: Error in explanation workflow - {str(e)}")
-        return f"Error: {str(e)}" 
+        return f"Error" 

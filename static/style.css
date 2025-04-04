@@ -1,0 +1,248 @@
+:root {
+    --primary: #6366f1;
+    --primary-dark: #4f46e5;
+    --background: #1a1a1a;
+    --surface: #2d2d2d;
+    --text: #e0e0e0;
+    --text-secondary: #a0a0a0;
+    --success: #10b981;
+    --error: #ef4444;
+    --warning: #f59e0b;
+    --terminal-bg: #1e1e1e;
+    --terminal-text: #f8f8f8;
+    --terminal-prompt: #4CAF50;
+    --terminal-command: #64B5F6;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', sans-serif;
+    background-color: var(--background);
+    color: var(--text);
+}
+
+#app {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.sidebar {
+    width: 250px;
+    background-color: var(--surface);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+}
+
+.logo {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 30px;
+    color: var(--primary);
+}
+
+.menu {
+    margin-bottom: 30px;
+}
+
+.menu-button {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 10px;
+    background-color: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.menu-button:hover {
+    background-color: var(--primary-dark);
+}
+
+.status {
+    margin-top: auto;
+}
+
+.status-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.status-label {
+    color: var(--text-secondary);
+}
+
+.status-value {
+    font-weight: 500;
+}
+
+.status-value.connected {
+    color: var(--success);
+}
+
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.message-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+.message {
+    margin-bottom: 15px;
+    padding: 15px;
+    border-radius: 8px;
+    background-color: var(--surface);
+    animation: fadeIn 0.3s ease-out;
+}
+
+.message.user {
+    background-color: var(--primary);
+    color: white;
+    margin-left: 20%;
+}
+
+.message.assistant {
+    margin-right: 20%;
+}
+
+.message-content {
+    margin-bottom: 5px;
+}
+
+.message-time {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    text-align: right;
+}
+
+.input-area {
+    padding: 15px;
+    border-top: 1px solid #333;
+    display: flex;
+}
+
+.input-area textarea {
+    flex: 1;
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #444;
+    background-color: var(--surface);
+    color: var(--text);
+    resize: none;
+    font-family: 'Inter', sans-serif;
+    min-height: 50px;
+    max-height: 150px;
+}
+
+.send-button {
+    margin-left: 10px;
+    padding: 0 20px;
+    background-color: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.terminal-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background-color: var(--terminal-bg);
+    color: var(--terminal-text);
+    font-family: 'Roboto Mono', monospace;
+}
+
+.terminal-header {
+    padding: 10px 15px;
+    border-bottom: 1px solid #333;
+    display: flex;
+    justify-content: space-between;
+}
+
+.terminal-title {
+    font-weight: 500;
+}
+
+.terminal-status {
+    display: flex;
+    align-items: center;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: var(--error);
+    margin-right: 8px;
+}
+
+.status-dot.active {
+    background-color: var(--success);
+}
+
+.terminal-output {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+}
+
+.terminal-line {
+    margin-bottom: 10px;
+}
+
+.prompt {
+    color: var(--terminal-prompt);
+    margin-right: 5px;
+}
+
+.command {
+    color: var(--terminal-command);
+}
+
+.output {
+    margin-top: 5px;
+    white-space: pre-wrap;
+}
+
+.terminal-input {
+    padding: 10px 15px;
+    border-top: 1px solid #333;
+    display: flex;
+    align-items: center;
+}
+
+.command-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--terminal-text);
+    font-family: 'Roboto Mono', monospace;
+    padding: 5px;
+}
+
+.command-input:focus {
+    outline: none;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
