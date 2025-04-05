@@ -151,10 +151,19 @@ const app = createApp({
 
                             case 'server_log':
                                 serverLogs.value.push(data.message);
-                                console.log('Received server log:', data.message); // Debug
-                                if (serverLogs.value.length > 100) { // Keep only last 100 logs
-                                    serverLogs.value.shift();
-                                }
+                                console.log('Server log received:', data.message); // Debug
+                                // Force Vue to update by creating a new array
+                                serverLogs.value = [...serverLogs.value];
+                                /* if (serverLogs.value.length > 100) {
+                                    serverLogs.value = serverLogs.value.slice(-100);
+                                } */
+                               // Ensure the log panel scrolls to bottom
+                                nextTick(() => {
+                                    const logPanel = document.querySelector('.log-content');
+                                    if (logPanel) {
+                                        logPanel.scrollTop = logPanel.scrollHeight;
+                                    }
+                                });
                                 break;
                                 
                             default:

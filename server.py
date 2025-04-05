@@ -26,9 +26,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-logger.addHandler(logging.StreamHandler(sys.stdout))
-logger.addHandler(logging.FileHandler('agent.log'))
-logger.info("Started server")
 
 app = FastAPI()
 
@@ -72,37 +69,51 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 # Add this to server.py after the ConnectionManager class
+# Replace your LogHandler class with this improved version
 class LogHandler(logging.Handler):
     def __init__(self, manager: ConnectionManager):
         super().__init__()
         self.manager = manager
+        self.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
     
     def emit(self, record):
-        log_entry = self.format(record)
-        asyncio.run_coroutine_threadsafe(
-            self.broadcast_log(log_entry),
-            asyncio.get_event_loop()
-        )
-    
-    async def broadcast_log(self, message):
-        for connection_id in manager.active_connections:
-            await manager.send_message({
-                "type": "server_log",
-                "message": message
-            }, connection_id)
-
+        try:
+            log_entry = self.format(record)
+            # Create a new event loop if none exists
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
+            # Send to all active connections
+            for connection_id in self.manager.active_connections:
+                loop.run_until_complete(
+                    self.manager.send_message({
+                        "type": "server_log",
+                        "message": log_entry
+                    }, connection_id)
+                )
+        except Exception as e:
+            print(f"Error in LogHandler: {str(e)}")
 # Formateador
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
-# Handler de consola
+# Add WebSocket handler FIRST
+ws_log_handler = LogHandler(manager)
+ws_log_handler.setFormatter(formatter)
+logger.addHandler(ws_log_handler)
+
+# Then add other handlers
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
-# Handler de archivo
 file_handler = logging.FileHandler('agent.log')
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
+
+logger.info("Started server")  
 
 # Handler WebSocket (solo si no existe)
 if not any(isinstance(h, LogHandler) for h in logger.handlers):
