@@ -467,3 +467,8 @@ body {
 .status-dot.active {
     background-color: var(--success);
 }
+
+.menu-button.active {
+    background-color: #4CAF50;
+    color: white;
+}

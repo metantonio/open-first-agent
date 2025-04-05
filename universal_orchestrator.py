@@ -15,6 +15,7 @@ from prompts.universal_orchestrator_prompt import universal_orchestrator_prompt
 import logging
 from config import get_model_config, TEMPERATURE
 import os
+from typing import Set
 
 model = get_model_config()
 logger = logging.getLogger(__name__)
@@ -27,6 +28,25 @@ class UniversalOrchestrator:
             model=model,
             model_settings=ModelSettings(temperature=TEMPERATURE)
         )
+        self._browser_enabled = True  # Default to enabled
+
+    @property
+    def browser_enabled(self) -> bool:
+        return self._browser_enabled
+    
+    @browser_enabled.setter
+    def browser_enabled(self, value: bool):
+        self._browser_enabled = value
+        logger.info(f"Browser agent {'enabled' if value else 'disabled'}")
+
+    def get_valid_agents(self) -> Set[str]:
+        """Get the current set of valid agents based on settings"""
+        base_agents = {'terraform', 'dev_env', 'aws_cli', 'terminal', 
+                      'code_converter', 'explanation_agent', 'file_system', 
+                      'gitlab', 'github', 'think'}
+        if self._browser_enabled:
+            base_agents.add('browser')
+        return base_agents
 
     async def analyze_workflow(self, request: str) -> list:
         """Analyze request to determine required agents and sequence."""
@@ -98,7 +118,7 @@ class UniversalOrchestrator:
         logger.info(f"Parsed agent sequence: {agent_sequence}")
         
         # Validate agent types
-        valid_agents = {'browser', 'terraform', 'dev_env', 'aws_cli', 'terminal', 'code_converter', 'explanation_agent', 'file_system', 'gitlab','github', 'think'}
+        valid_agents = self.get_valid_agents()
         agent_sequence = [agent for agent in agent_sequence if agent in valid_agents]
         
         # Special case: If the request involves SAS to Python conversion

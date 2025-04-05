@@ -115,6 +115,10 @@ async def get_ui():
                         {{ mode === 'chat' ? 'Terminal Mode' : 'Chat Mode' }}
                     </button>
                     <button @click="clearChat" class="menu-button">Clear</button>
+                    <button @click="toggleBrowserAgent" class="menu-button" 
+                            :class="{ 'active': browserEnabled }">
+                        {{ browserEnabled ? 'Disable Browser Agent' : 'Enable Browser Agent' }}
+                    </button>
                 </div>
                 <div class="status">
                     <div class="status-item">
@@ -218,6 +222,12 @@ async def handle_client_message(data: dict, connection_id: str):
         await handle_terminal_command(data["command"], connection_id)
     elif message_type == "action":
         await handle_action(data["action"], connection_id)
+    elif message_type == "toggle_browser":  # Add this new handler
+        orchestrator.browser_enabled = data["enabled"]
+        await manager.send_message({
+            "type": "browser_status",
+            "enabled": orchestrator.browser_enabled
+        }, connection_id)
 
 async def handle_chat_message(message: str, connection_id: str):
     """Handle chat messages from the user"""

@@ -28,6 +28,21 @@ const app = createApp({
         const isLoading = ref(false);
         const errorMessage = ref(null); // For displaying errors to user
         const ansi_up = new AnsiUp();
+        const browserEnabled = ref(true);
+
+        // Add this method
+        const toggleBrowserAgent = () => {
+            browserEnabled.value = !browserEnabled.value;
+            try {
+                socket.send(JSON.stringify({
+                    type: 'toggle_browser',
+                    enabled: browserEnabled.value
+                }));
+            } catch (error) {
+                console.error('Error toggling browser agent:', error);
+                errorMessage.value = 'Failed to toggle browser agent';
+            }
+        };
         
         // Initialize WebSocket with error handling
         const initializeWebSocket = () => {
@@ -126,6 +141,10 @@ const app = createApp({
                                 currentPrompt.value = terminal_manager.terminal.prompt;
                                 scrollToBottom(terminalOutput);
                                 isLoading.value = false;
+                                break;
+
+                            case 'browser_status':
+                                browserEnabled.value = data.enabled;
                                 break;
                                 
                             default:
@@ -251,7 +270,9 @@ const app = createApp({
             clearChat,
             formatTime,
             isLoading,
-            dismissError
+            dismissError,
+            browserEnabled,
+            toggleBrowserAgent
         };
     }
     
