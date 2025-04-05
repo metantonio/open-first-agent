@@ -12,6 +12,7 @@ from typing import Dict, List
 import asyncio
 import uuid
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Configure logging
 logging.basicConfig(
@@ -30,6 +31,19 @@ app = FastAPI()
 static_dir = Path(__file__).parent / "static"
 static_dir.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+
+# Load environment variables from .env file
+env_path = Path('.') / '.env'
+load_dotenv(dotenv_path=env_path, override=True)
+
+# Verify and export critical environment variables
+if not os.getenv('OPENAI_API_KEY'):
+    raise EnvironmentError("OPENAI_API_KEY not found in environment variables. Please check your .env file.")
+
+# Ensure OPENAI_API_KEY is explicitly set in the environment
+os.environ['OPENAI_API_KEY'] = os.getenv('OPENAI_API_KEY')
+os.environ['OPENAI_AGENTS_DISABLE_TRACING'] = os.getenv('OPENAI_AGENTS_DISABLE_TRACING')
 
 # Store active WebSocket connections
 active_connections: Dict[str, WebSocket] = {}
