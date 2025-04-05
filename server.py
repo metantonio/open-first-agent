@@ -14,19 +14,7 @@ import uuid
 from pathlib import Path
 from dotenv import load_dotenv
 import sys
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('agent.log')
-    ]
-)
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
+from logger import logger
 
 
 # Serve static files from a 'static' directory
