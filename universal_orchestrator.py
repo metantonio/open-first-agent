@@ -128,7 +128,7 @@ class UniversalOrchestrator:
         agent_sequence = [agent for agent in agent_sequence if agent in valid_agents]
         
         # Special case: If the request involves SAS to Python conversion
-        if any(keyword in request.lower() for keyword in ['sas to python']):
+        if any(keyword in request.lower() for keyword in ['.sas']):
             if agent_sequence != ['terminal', 'code_converter', 'terminal']:
                 logger.info("Detected code conversion task, enforcing correct agent sequence")
                 agent_sequence = ['terminal', 'code_converter', 'terminal']

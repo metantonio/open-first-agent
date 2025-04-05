@@ -250,7 +250,7 @@ body {
   /* Bloques de código */
 .message pre {
     position: relative;
-    background-color: #2d2d2d;
+    background-color: #000000 !important;
     border-radius: 6px;
     padding: 16px;
     overflow-x: auto;
@@ -259,10 +259,12 @@ body {
 }
 
 .message code {
-    font-family: 'Roboto Mono', monospace;
-    font-size: 0.9em;
-    display: block;
-    white-space: pre;
+    position: relative;
+    background-color: #000000 !important;
+    border-radius: 6px;
+    padding: 16px;
+    overflow-x: auto;
+    margin: 10px 0;
 }
 
 .copy-button {
