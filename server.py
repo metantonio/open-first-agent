@@ -68,8 +68,7 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# Add this to server.py after the ConnectionManager class
-# Replace your LogHandler class with this improved version
+# Replaced LogHandler class 
 class LogHandler(logging.Handler):
     def __init__(self, manager: ConnectionManager):
         super().__init__()
@@ -79,23 +78,19 @@ class LogHandler(logging.Handler):
     def emit(self, record):
         try:
             log_entry = self.format(record)
-            # Create a new event loop if none exists
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
             
-            # Send to all active connections
-            for connection_id in self.manager.active_connections:
-                loop.run_until_complete(
-                    self.manager.send_message({
-                        "type": "server_log",
-                        "message": log_entry
-                    }, connection_id)
-                )
+            # Solución: Usar asyncio.ensure_future para ejecutar la corrutina en segundo plano
+            for connection_id in list(self.manager.active_connections.keys()):  # Usar una copia de las claves
+                if connection_id in self.manager.active_connections:
+                    asyncio.ensure_future(
+                        self.manager.send_message({
+                            "type": "server_log",
+                            "message": log_entry
+                        }, connection_id)
+                    )
         except Exception as e:
-            print(f"Error in LogHandler: {str(e)}")
+            # Usar logging para errores internos (evita print)
+            logging.error(f"Error in LogHandler: {str(e)}", exc_info=True)
 # Formateador
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
@@ -317,8 +312,11 @@ async def handle_client_message(data: dict, connection_id: str):
 
 async def handle_chat_message(message: str, connection_id: str):
     """Handle chat messages from the user"""
+    logger.info(f"Received chat message from connection {connection_id}: {message}")
+
     if message.startswith('!'):
         command = message[1:].strip()
+        logger.debug(f"Executing terminal command: {command}")
         result = await terminal_manager.execute_command(command)
         await update_terminal_display(connection_id)
         await manager.send_message({
@@ -328,12 +326,15 @@ async def handle_chat_message(message: str, connection_id: str):
         return
     
     # Process normal chat message
+    logger.debug("Processing chat message with orchestrator...")
     response = await orchestrator.process_request(message)
+    logger.info(f"Assistant response: {response[:50]}...")
     
     # Send the raw response to the frontend - let JavaScript handle markdown processing
     content, command_blocks = process_code_blocks(response)
     
     if command_blocks:
+        logger.debug(f"Found {len(command_blocks)} command blocks in response")
         await manager.send_message({
             "type": "chat_message",
             "content": content,
@@ -341,6 +342,7 @@ async def handle_chat_message(message: str, connection_id: str):
         }, connection_id)
         
         for i, cmd_block in enumerate(command_blocks):
+            logger.debug(f"Sending command block {i + 1}: {cmd_block['code']}")
             await manager.send_message({
                 "type": "command_block",
                 "command": cmd_block['code'],
