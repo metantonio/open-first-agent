@@ -235,6 +235,7 @@ class UniversalOrchestrator:
                             delattr(self, '_last_converted_code')
                         except Exception as converted_error:
                             logger.error(f"Error deleting latest converted code: {str(converted_error)}")
+                        logger.info(f"explanation \n: {explanation}")    
                         return explanation
                     except Exception as e:
                         logger.error(f"Error generating explanation: {str(e)}", exc_info=True)
