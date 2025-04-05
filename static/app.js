@@ -89,12 +89,15 @@ const app = createApp({
                             case 'terminal_output':
                                 try {
                                     terminalLines.value.push({
-                                        prompt: currentPrompt.value,
+                                        prompt: data.prompt || currentPrompt.value,
                                         command: data.command,
                                         output: ansi_up.ansi_to_html(data.output)
                                     });
-                                    currentPrompt.value = data.prompt;
+                                    currentPrompt.value = data.prompt || currentPrompt.value;
                                     scrollToBottom(terminalOutput);
+                                    break;
+                                    //currentPrompt.value = data.prompt;
+                                    //scrollToBottom(terminalOutput);
                                 } catch (ansiError) {
                                     console.error('Error converting ANSI output:', ansiError);
                                     terminalLines.value.push({
@@ -261,6 +264,8 @@ function uuidv4() {
         (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
     );
 }
+
+
 
 const WELCOME_MESSAGE = `👋 Welcome to the AI Assistant!
 

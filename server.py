@@ -93,7 +93,8 @@ async def update_terminal_display(connection_id: str):
 @app.get("/", response_class=HTMLResponse)
 async def get_ui():
     """Serve the main HTML interface"""
-    return f"""
+    
+    return """
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -111,20 +112,20 @@ async def get_ui():
                 <div class="logo">AI Assistant</div>
                 <div class="menu">
                     <button @click="toggleMode" class="menu-button">
-                        {{{{ mode === 'chat' ? 'Terminal Mode' : 'Chat Mode' }}}}
+                        {{ mode === 'chat' ? 'Terminal Mode' : 'Chat Mode' }}
                     </button>
                     <button @click="clearChat" class="menu-button">Clear</button>
                 </div>
                 <div class="status">
                     <div class="status-item">
                         <span class="status-label">SSH:</span>
-                        <span class="status-value" :class="{{ 'connected': sshConnected }}">
-                            {{{{ sshConnected ? 'Connected' : 'Disconnected' }}}}
+                        <span class="status-value" :class="{ 'connected': sshConnected }">
+                            {{ sshConnected ? 'Connected' : 'Disconnected' }}
                         </span>
                     </div>
                     <div class="status-item">
                         <span class="status-label">Mode:</span>
-                        <span class="status-value">{{{{ mode.toUpperCase() }}}}</span>
+                        <span class="status-value">{{ mode.toUpperCase() }}</span>
                     </div>
                 </div>
             </div>
@@ -134,17 +135,15 @@ async def get_ui():
                     <div class="message-list" ref="messageList">
                         <div v-for="(msg, index) in messages" :key="index" class="message" :class="msg.type">
                             <div class="message-content" v-html="msg.content"></div>
-                            <div class="message-time">{{{{ formatTime(msg.timestamp) }}}}</div>
+                            <div class="message-time">{{ formatTime(msg.timestamp) }}</div>
                         </div>
 
-                        
                         <div v-if="isLoading" class="message assistant loading-indicator">
-                            <div class="message-content" v-html="msg.content"></div>
-                                <div class="typing-animation">
-                                    <div class="dot"></div>
-                                    <div class="dot"></div>
-                                    <div class="dot"></div>
-                                </div>
+                            <div class="message-content"></div>
+                            <div class="typing-animation">
+                                <div class="dot"></div>
+                                <div class="dot"></div>
+                                <div class="dot"></div>
                             </div>
                         </div>
                     </div>
@@ -155,43 +154,33 @@ async def get_ui():
                         <button @click="sendMessage" class="send-button">Send</button>
                     </div>
                 </div>
-                
+
                 <div v-else class="terminal-container">
                     <div class="terminal-header">
                         <div class="terminal-title">Terminal</div>
                         <div class="terminal-status">
-                            <span class="status-dot" :class="{{ 'active': sshConnected }}"></span>
-                            <span>{{{{ sshConnected ? sshInfo : 'Local Terminal' }}}}</span>
+                            <span class="status-dot" :class="{ 'active': sshConnected }"></span>
+                            <span>{{ sshConnected ? sshInfo : 'Local Terminal' }}</span>
                         </div>
                     </div>
                     
                     <div class="terminal-output" ref="terminalOutput">
                         <div v-for="(line, index) in terminalLines" :key="index" class="terminal-line">
-                            <span class="prompt">{{{{ line.prompt }}}}</span>
-                            <span class="command">{{{{ line.command }}}}</span>
+                            <span class="prompt">{{ line.prompt }}</span>
+                            <span class="command">{{ line.command }}</span>
                             <div class="output" v-html="line.output"></div>
+                        </div>
+                        
+                        <div v-if="isLoading" class="terminal-line processing">
+                            <span class="prompt">{{ currentPrompt }}</span>
+                            <span class="command">Processing...</span>
                         </div>
                     </div>
                     
                     <div class="terminal-input">
-                        <span class="prompt">{{{{ currentPrompt }}}}</span>
-                        <input v-model="terminalCommand" @keydown.enter="executeTerminalCommand" 
-                               type="text" class="command-input">
-                    </div>
-
-                    <div v-if="isLoading" class="terminal-line">
                         <span class="prompt">{{ currentPrompt }}</span>
-                        <span class="command">Processing...</span>
-                        <div class="typing-animation">
-                            <div class="dot"></div>
-                            <div class="dot"></div>
-                            <div class="dot"></div>
-                        </div>
-                    </div>
-
-                    <div v-if="errorMessage" class="error-message">
-                        {{ errorMessage }}
-                        <button @click="dismissError">Dismiss</button>
+                        <input v-model="terminalCommand" @keydown.enter="executeTerminalCommand" 
+                            type="text" class="command-input">
                     </div>
                 </div>
             </div>
@@ -294,7 +283,7 @@ async def handle_terminal_command(command: str, connection_id: str):
         "type": "terminal_output",
         "command": command,
         "output": result,
-        "prompt": terminal_manager.terminal.prompt
+        "prompt": terminal_manager.terminal.prompt or "$ "  # Fallback to basic prompt
     }, connection_id)
 
 async def handle_ssh_command(command: str, connection_id: str):

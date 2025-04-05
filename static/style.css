@@ -409,3 +409,61 @@ body {
 .message li {
     margin: 0.25em 0;
 }
+
+/* Terminal line formatting */
+.terminal-line {
+    margin-bottom: 10px;
+    font-family: 'Roboto Mono', monospace;
+    white-space: pre-wrap;
+}
+
+/* Prompt formatting */
+.prompt {
+    color: var(--terminal-prompt);
+    margin-right: 5px;
+    font-weight: bold;
+}
+
+/* Command input formatting */
+.terminal-input {
+    padding: 10px 15px;
+    border-top: 1px solid #333;
+    display: flex;
+    align-items: center;
+    background-color: var(--terminal-bg);
+}
+
+.command-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--terminal-text);
+    font-family: 'Roboto Mono', monospace;
+    padding: 5px;
+    margin-left: 5px;
+}
+
+/* Processing indicator */
+.terminal-line.processing {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+/* Status bar formatting */
+.terminal-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: var(--error);
+    margin-right: 5px;
+}
+
+.status-dot.active {
+    background-color: var(--success);
+}
