@@ -93,6 +93,11 @@ const app = createApp({
                                         content = data.content; // Fallback to raw content
                                     }
                                 }
+
+                                serverLogs.value.push(data.content);
+                                console.log('Server log received:', data.content); // Debug
+                                // Force Vue to update by creating a new array
+                                serverLogs.value = [...serverLogs.value];
                                 
                                 messages.value.push({
                                     type: data.sender,
