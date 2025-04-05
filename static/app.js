@@ -29,6 +29,8 @@ const app = createApp({
         const errorMessage = ref(null); // For displaying errors to user
         const ansi_up = new AnsiUp();
         const browserEnabled = ref(true);
+        const serverLogs = ref([]);
+        const showServerLogs = ref(false);
 
         // Add this method
         const toggleBrowserAgent = () => {
@@ -146,6 +148,13 @@ const app = createApp({
                             case 'browser_status':
                                 browserEnabled.value = data.enabled;
                                 break;
+
+                            case 'server_log':
+                                serverLogs.value.push(data.message);
+                                if (serverLogs.value.length > 100) { // Keep only last 100 logs
+                                    serverLogs.value.shift();
+                                }
+                                break;
                                 
                             default:
                                 console.warn('Unknown message type:', data.type);
@@ -238,6 +247,14 @@ const app = createApp({
             errorMessage.value = null;
         };
 
+        const toggleServerLogs = () => {
+            showServerLogs.value = !showServerLogs.value;
+        };
+        
+        const clearServerLogs = () => {
+            serverLogs.value = [];
+        };
+
         onMounted(() => {
             initializeWebSocket();
             
@@ -272,7 +289,11 @@ const app = createApp({
             isLoading,
             dismissError,
             browserEnabled,
-            toggleBrowserAgent
+            toggleBrowserAgent,
+            serverLogs,
+            showServerLogs,
+            toggleServerLogs,
+            clearServerLogs
         };
     }
     

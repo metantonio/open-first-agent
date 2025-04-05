@@ -16,9 +16,14 @@ import logging
 from config import get_model_config, TEMPERATURE
 import os
 from typing import Set
+import sys
 
 model = get_model_config()
+
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.addHandler(logging.StreamHandler(sys.stdout))
+logger.addHandler(logging.FileHandler('agent.log'))
 
 class UniversalOrchestrator:
     def __init__(self):

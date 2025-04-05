@@ -13,6 +13,7 @@ import asyncio
 import uuid
 from pathlib import Path
 from dotenv import load_dotenv
+import sys
 
 # Configure logging
 logging.basicConfig(
@@ -24,6 +25,10 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.addHandler(logging.StreamHandler(sys.stdout))
+logger.addHandler(logging.FileHandler('agent.log'))
+logger.info("Started server")
 
 app = FastAPI()
 
@@ -65,6 +70,48 @@ class ConnectionManager:
             await self.active_connections[connection_id].send_json(message)
 
 manager = ConnectionManager()
+
+# Add this to server.py after the ConnectionManager class
+class LogHandler(logging.Handler):
+    def __init__(self, manager: ConnectionManager):
+        super().__init__()
+        self.manager = manager
+    
+    def emit(self, record):
+        log_entry = self.format(record)
+        asyncio.run_coroutine_threadsafe(
+            self.broadcast_log(log_entry),
+            asyncio.get_event_loop()
+        )
+    
+    async def broadcast_log(self, message):
+        for connection_id in manager.active_connections:
+            await manager.send_message({
+                "type": "server_log",
+                "message": message
+            }, connection_id)
+
+# Replace the existing logging configuration
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# Create a formatter
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+# Add the console handler
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
+
+# Add the file handler
+file_handler = logging.FileHandler('agent.log')
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
+
+# Add the WebSocket log handler
+ws_log_handler = LogHandler(manager)
+ws_log_handler.setFormatter(formatter)
+logger.addHandler(ws_log_handler)
 
 def process_code_blocks(content: str) -> tuple[str, list[dict]]:
     """Process content to find code blocks with run tags"""
@@ -133,6 +180,9 @@ async def get_ui():
                             :class="{ 'active': browserEnabled }">
                         {{ browserEnabled ? 'Disable Browser Agent' : 'Enable Browser Agent' }}
                     </button>
+                    <button @click="toggleServerLogs" class="menu-button">
+                        {{ showServerLogs ? 'Hide Server Logs' : 'Show Server Logs' }}
+                    </button>
                 </div>
                 <div class="status">
                     <div class="status-item">
@@ -199,6 +249,18 @@ async def get_ui():
                         <span class="prompt">{{ currentPrompt }}</span>
                         <input v-model="terminalCommand" @keydown.enter="executeTerminalCommand" 
                             type="text" class="command-input">
+                    </div>
+                </div>
+
+                <div v-if="showServerLogs" class="log-panel">
+                    <div class="log-header">
+                        <h3>Server Logs</h3>
+                        <button @click="clearServerLogs" class="clear-button">Clear</button>
+                    </div>
+                    <div class="log-content">
+                        <div v-for="(log, index) in serverLogs" :key="index" class="log-entry">
+                            {{ log }}
+                        </div>
                     </div>
                 </div>
             </div>
