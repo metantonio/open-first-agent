@@ -139,7 +139,7 @@ async def get_ui():
 
                         
                         <div v-if="isLoading" class="message assistant loading-indicator">
-                            <div class="message-content">
+                            <div class="message-content" v-html="msg.content"></div>
                                 <div class="typing-animation">
                                     <div class="dot"></div>
                                     <div class="dot"></div>
