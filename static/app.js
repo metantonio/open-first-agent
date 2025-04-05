@@ -68,10 +68,20 @@ const app = createApp({
                     }
                 };
                 
-                socket.onmessage = (event) => {
+                socket.onmessage = async (event) => {
+                    console.log('Raw WebSocket message received:', event.data); // Log raw message
                     try {
-                        const data = JSON.parse(event.data);
+                        // Handle both string and already-parsed messages
+                        if (typeof event.data === 'string') {
+                            data = JSON.parse(event.data);
+                        } else if (typeof event.data === 'object') {
+                            data = event.data;
+                        } else {
+                            console.error('Unknown message format:', event.data);
+                            return;
+                        }
                         
+                        console.log('Processed message:', data);
                         switch(data.type) {
                             case 'chat_message':
                                 let content = data.content;

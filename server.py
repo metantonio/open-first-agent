@@ -27,12 +27,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-app = FastAPI()
+
 
 # Serve static files from a 'static' directory
 static_dir = Path(__file__).parent / "static"
 static_dir.mkdir(exist_ok=True)
-app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
 
 
 # Load environment variables from .env file
@@ -113,6 +113,8 @@ file_handler = logging.FileHandler('agent.log')
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
+app = FastAPI()
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 logger.info("Started server")  
 
 # Handler WebSocket (solo si no existe)
