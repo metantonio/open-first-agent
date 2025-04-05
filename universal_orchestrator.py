@@ -101,6 +101,9 @@ class UniversalOrchestrator:
 
             10. For deep thinking or sequential thinking (keywords: think, deep)
                 - Use "think"
+
+            11. For code generation tasks (keywords: create a python code, write a script, generate code):
+                - Use "explanation_agent" directly for simple code generation
             
             Return ONLY a comma-separated list of required agents in execution order.
             Example responses:
@@ -128,10 +131,9 @@ class UniversalOrchestrator:
         agent_sequence = [agent for agent in agent_sequence if agent in valid_agents]
         
         # Special case: If the request involves SAS to Python conversion
-        if any(keyword in request.lower() for keyword in ['.sas']):
-            if agent_sequence != ['terminal', 'code_converter', 'terminal']:
-                logger.info("Detected code conversion task, enforcing correct agent sequence")
-                agent_sequence = ['terminal', 'code_converter', 'terminal']
+        if ('sas to python' in request.lower() or 
+            any(word.endswith('.sas') for word in request.lower().split())):
+            agent_sequence = ['terminal', 'code_converter', 'terminal']
         
         # Special case: If the request is clearly a web search
         web_search_keywords = ['search', 'buscar', 'find online', 'look up', 'google', 'web']
