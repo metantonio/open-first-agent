@@ -64,9 +64,9 @@ A powerful multi-agent system that combines various specialized AI agents to aut
 ### Running the UI Agents
 
 1. Navigate to the project directory
-2. Start the Chainlit UI:
+2. Start the UI server:
 ```bash
-chainlit run ui.py
+python server.py
 ```
 
 **Experimental Mac UI / Debug mode:**
