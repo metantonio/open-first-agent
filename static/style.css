@@ -246,3 +246,110 @@ body {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+  /* Bloques de código */
+.message pre {
+    position: relative;
+    background-color: #2d2d2d;
+    border-radius: 6px;
+    padding: 16px;
+    overflow-x: auto;
+    margin: 10px 0;
+    border-left: 4px solid var(--primary);
+}
+
+.message code {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.9em;
+    display: block;
+    white-space: pre;
+}
+
+.copy-button {
+    position: absolute;
+    right: 8px;
+    top: 8px;
+    background-color: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 0.8em;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.message pre:hover .copy-button {
+    opacity: 1;
+}
+
+.copy-button:hover {
+    background-color: var(--primary-dark);
+}
+
+/* Estilos específicos para mensajes de usuario/assistente con código */
+.message.user pre {
+    background-color: rgba(99, 102, 241, 0.2);
+    border-left-color: var(--primary-dark);
+}
+
+.message.assistant pre {
+    background-color: var(--surface);
+}
+
+/* Asegurar que el resaltado de sintaxis se vea bien */
+.hljs {
+    background: transparent !important;
+}
+
+/* Indicador de carga */
+.loading-indicator {
+    background-color: var(--surface);
+    padding: 15px;
+    margin-right: 20%;
+}
+
+.typing-animation {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+}
+
+.typing-animation .dot {
+    width: 8px;
+    height: 8px;
+    margin: 0 4px;
+    background-color: var(--text-secondary);
+    border-radius: 50%;
+    display: inline-block;
+    animation: typingAnimation 1.4s infinite ease-in-out;
+}
+
+.typing-animation .dot:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.typing-animation .dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-animation .dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes typingAnimation {
+    0%, 60%, 100% {
+        transform: translateY(0);
+    }
+    30% {
+        transform: translateY(-5px);
+    }
+}
+
+/* Deshabilitar el input durante la carga */
+.input-area.disabled {
+    opacity: 0.7;
+    pointer-events: none;
+}

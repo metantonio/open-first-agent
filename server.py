@@ -101,6 +101,7 @@ async def get_ui():
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>AI Assistant</title>
         <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github-dark.min.css" rel="stylesheet">
         <link href="/static/style.css" rel="stylesheet">
     </head>
     <body>
@@ -133,6 +134,17 @@ async def get_ui():
                         <div v-for="(msg, index) in messages" :key="index" class="message" :class="msg.type">
                             <div class="message-content" v-html="msg.content"></div>
                             <div class="message-time">{{{{ formatTime(msg.timestamp) }}}}</div>
+                        </div>
+
+                        
+                        <div v-if="isLoading" class="message assistant loading-indicator">
+                            <div class="message-content">
+                                <div class="typing-animation">
+                                    <div class="dot"></div>
+                                    <div class="dot"></div>
+                                    <div class="dot"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
@@ -171,6 +183,8 @@ async def get_ui():
         
         <script src="https://cdn.jsdelivr.net/npm/vue@3.2.31/dist/vue.global.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/ansi_up@5.1.0/ansi_up.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/marked@4.2.12/marked.min.js"></script>
+        
         <script src="/static/app.js"></script>
     </body>
     </html>

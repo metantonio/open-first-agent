@@ -1,5 +1,18 @@
 const { createApp, ref, onMounted, nextTick } = Vue;
 
+// Configura marked para usar highlight.js
+marked.setOptions({
+    highlight: function(code, lang) {
+      if (lang && hljs.getLanguage(lang)) {
+        return hljs.highlight(lang, code).value;
+      }
+      return hljs.highlightAuto(code).value;
+    },
+    breaks: true,
+    gfm: true
+  });
+  
+
 createApp({
     setup() {
         const socket = new WebSocket(`ws://${window.location.host}/ws/${uuidv4()}`);
@@ -13,7 +26,7 @@ createApp({
         const currentPrompt = ref('$ ');
         const messageList = ref(null);
         const terminalOutput = ref(null);
-
+        const isLoading = ref(false);  // Añade esta línea para el estado de carga
         // Initialize ANSI converter
         const ansi_up = new AnsiUp();
         
@@ -22,12 +35,19 @@ createApp({
             
             switch(data.type) {
                 case 'chat_message':
+                    let content = data.content;
+                    // Si el mensaje contiene bloques de código Markdown, procesarlo
+                    if (data.content.includes('```')) {
+                        content = marked.parse(data.content);
+                    }
+                    
                     messages.value.push({
                         type: data.sender,
                         content: data.content,
                         timestamp: new Date()
                     });
                     scrollToBottom(messageList);
+                    isLoading.value = false;
                     break;
                     
                 case 'command_block':
@@ -37,6 +57,7 @@ createApp({
                         timestamp: new Date()
                     });
                     scrollToBottom(messageList);
+                    isLoading.value = false;
                     break;
                     
                 case 'terminal_output':
@@ -47,6 +68,7 @@ createApp({
                     });
                     currentPrompt.value = data.prompt;
                     scrollToBottom(terminalOutput);
+                    isLoading.value = false;
                     break;
                     
                 case 'mode_change':
@@ -65,13 +87,14 @@ createApp({
                     });
                     currentPrompt.value = terminal_manager.terminal.prompt;
                     scrollToBottom(terminalOutput);
+                    isLoading.value = false;
                     break;
             }
         };
 
         const sendMessage = () => {
             if(!inputMessage.value.trim()) return;
-            
+            isLoading.value = true;  // Activa el loading al enviar el mensaje
             if(mode.value === 'chat') {
                 messages.value.push({
                     type: 'user',
@@ -153,7 +176,8 @@ createApp({
             executeTerminalCommand,
             toggleMode,
             clearChat,
-            formatTime
+            formatTime,
+            isLoading
         };
     }
 }).mount('#app');
