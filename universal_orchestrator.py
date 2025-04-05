@@ -219,19 +219,29 @@ class UniversalOrchestrator:
             elif not isinstance(request, str):
                 request = str(request)
 
-            # Check if this is a response to the explanation offer
-            if request.lower().strip() == 'yes' and hasattr(self, '_last_converted_code'):
-                logger.info("User requested explanation of converted code")
-                try:
-                    explanation = await run_explanation_workflow(
-                        f"Print the full code first and then explain it, finally suggest improvements: {self._last_converted_code}"
-                    )
-                    # Clear the stored code after providing explanation
-                    delattr(self, '_last_converted_code')
-                    return explanation
-                except Exception as e:
-                    logger.error(f"Error generating explanation: {str(e)}")
-                    return f"Error generating explanation: {str(e)}"
+           # Check if this is a response to the explanation offer
+            cleaned_request = request.lower().strip()
+            if cleaned_request == 'yes':
+                logger.info(f"Checking for explanation request, has _last_converted_code: {hasattr(self, '_last_converted_code')}")
+                if hasattr(self, '_last_converted_code'):
+                    logger.info(f"User requested explanation of converted code. Code length: {len(self._last_converted_code)}")
+                    try:
+                        explanation = await run_explanation_workflow(
+                            f"Print the full code first and then explain it, finally suggest improvements: {self._last_converted_code}"
+                        )
+                        logger.info("Explanation generated successfully")
+                        try:
+                            # Clear the stored code after providing explanation
+                            delattr(self, '_last_converted_code')
+                        except Exception as converted_error:
+                            logger.error(f"Error deleting latest converted code: {str(converted_error)}")
+                        return explanation
+                    except Exception as e:
+                        logger.error(f"Error generating explanation: {str(e)}", exc_info=True)
+                        return f"Error generating explanation: {str(e)}"
+                else:
+                    logger.warning("User requested explanation but no converted code was found")
+                    return "No converted code available for explanation. Please perform a code conversion first."
 
             # Analyze workflow to get agent sequence
             agent_sequence = await self.analyze_workflow(request)

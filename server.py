@@ -177,6 +177,16 @@ async def get_ui():
                         <input v-model="terminalCommand" @keydown.enter="executeTerminalCommand" 
                                type="text" class="command-input">
                     </div>
+
+                    <div v-if="isLoading" class="terminal-line">
+                        <span class="prompt">{{ currentPrompt }}</span>
+                        <span class="command">Processing...</span>
+                        <div class="typing-animation">
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
