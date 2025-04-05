@@ -187,6 +187,11 @@ async def get_ui():
                             <div class="dot"></div>
                         </div>
                     </div>
+
+                    <div v-if="errorMessage" class="error-message">
+                        {{ errorMessage }}
+                        <button @click="dismissError">Dismiss</button>
+                    </div>
                 </div>
             </div>
         </div>

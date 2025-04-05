@@ -11,11 +11,10 @@ marked.setOptions({
     breaks: true,
     gfm: true
 });
-  
 
 createApp({
     setup() {
-        const socket = new WebSocket(`ws://${window.location.host}/ws/${uuidv4()}`);
+        let socket;
         const messages = ref([]);
         const inputMessage = ref('');
         const mode = ref('chat');
@@ -26,79 +25,125 @@ createApp({
         const currentPrompt = ref('$ ');
         const messageList = ref(null);
         const terminalOutput = ref(null);
-        const isLoading = ref(false);  // Añade esta línea para el estado de carga
-        // Initialize ANSI converter
+        const isLoading = ref(false);
+        const errorMessage = ref(null); // For displaying errors to user
         const ansi_up = new AnsiUp();
         
-        socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            
-            switch(data.type) {
-                case 'chat_message':
-                    let content = data.content;
-                    // Si el mensaje contiene bloques de código Markdown, procesarlo
-                    /* if (data.content.includes('```')) {
-                        content = marked.parse(data.content);
-                    } */
-
-                    if (data.sender === 'assistant') {
-                        content = marked.parse(data.content);
+        // Initialize WebSocket with error handling
+        const initializeWebSocket = () => {
+            try {
+                socket = new WebSocket(`ws://${window.location.host}/ws/${uuidv4()}`);
+                
+                socket.onopen = () => {
+                    errorMessage.value = null;
+                    console.log('WebSocket connection established');
+                };
+                
+                socket.onerror = (error) => {
+                    errorMessage.value = 'Connection error. Please refresh the page.';
+                    console.error('WebSocket error:', error);
+                };
+                
+                socket.onclose = (event) => {
+                    if (!event.wasClean) {
+                        errorMessage.value = 'Connection lost. Please refresh the page.';
+                        console.error(`WebSocket closed unexpectedly: ${event.code} ${event.reason}`);
                     }
-                    
-                    messages.value.push({
-                        type: data.sender,
-                        content: data.content,
-                        timestamp: new Date()
-                    });
-                    scrollToBottom(messageList);
-                    isLoading.value = false;
-                    break;
-                    
-                case 'command_block':
-                    messages.value.push({
-                        type: 'command',
-                        content: `Command ${data.index}: <code>${data.command}</code> (in ${data.working_dir})`,
-                        timestamp: new Date()
-                    });
-                    scrollToBottom(messageList);
-                    isLoading.value = false;
-                    break;
-                    
-                case 'terminal_output':
-                    terminalLines.value.push({
-                        prompt: currentPrompt.value,
-                        command: data.command,
-                        output: ansi_up.ansi_to_html(data.output)
-                    });
-                    currentPrompt.value = data.prompt;
-                    scrollToBottom(terminalOutput);
-                    isLoading.value = false;
-                    break;
-                    
-                case 'mode_change':
-                    mode.value = data.mode;
-                    break;
-                    
-                case 'ssh_status':
-                    sshConnected.value = data.connected;
-                    if(data.connected) {
-                        sshInfo.value = `${data.username}@${data.hostname}`;
+                };
+                
+                socket.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        
+                        switch(data.type) {
+                            case 'chat_message':
+                                let content = data.content;
+                                if (data.sender === 'assistant') {
+                                    try {
+                                        content = marked.parse(data.content);
+                                    } catch (markdownError) {
+                                        console.error('Error parsing markdown:', markdownError);
+                                        content = data.content; // Fallback to raw content
+                                    }
+                                }
+                                
+                                messages.value.push({
+                                    type: data.sender,
+                                    content: content,
+                                    timestamp: new Date()
+                                });
+                                scrollToBottom(messageList);
+                                isLoading.value = false;
+                                break;
+                                
+                            case 'command_block':
+                                messages.value.push({
+                                    type: 'command',
+                                    content: `Command ${data.index}: <code>${data.command}</code> (in ${data.working_dir})`,
+                                    timestamp: new Date()
+                                });
+                                scrollToBottom(messageList);
+                                isLoading.value = false;
+                                break;
+                                
+                            case 'terminal_output':
+                                try {
+                                    terminalLines.value.push({
+                                        prompt: currentPrompt.value,
+                                        command: data.command,
+                                        output: ansi_up.ansi_to_html(data.output)
+                                    });
+                                    currentPrompt.value = data.prompt;
+                                    scrollToBottom(terminalOutput);
+                                } catch (ansiError) {
+                                    console.error('Error converting ANSI output:', ansiError);
+                                    terminalLines.value.push({
+                                        prompt: currentPrompt.value,
+                                        command: data.command,
+                                        output: data.output // Fallback to raw output
+                                    });
+                                }
+                                isLoading.value = false;
+                                break;
+                                
+                            case 'mode_change':
+                                mode.value = data.mode;
+                                break;
+                                
+                            case 'ssh_status':
+                                sshConnected.value = data.connected;
+                                if(data.connected) {
+                                    sshInfo.value = `${data.username}@${data.hostname}`;
+                                }
+                                terminalLines.value.push({
+                                    prompt: currentPrompt.value,
+                                    command: 'ssh',
+                                    output: `<span class="${data.status === 'success' ? 'success' : 'error'}">${data.message}</span>`
+                                });
+                                currentPrompt.value = terminal_manager.terminal.prompt;
+                                scrollToBottom(terminalOutput);
+                                isLoading.value = false;
+                                break;
+                                
+                            default:
+                                console.warn('Unknown message type:', data.type);
+                        }
+                    } catch (parseError) {
+                        console.error('Error parsing WebSocket message:', parseError);
+                        errorMessage.value = 'Error processing server response';
+                        isLoading.value = false;
                     }
-                    terminalLines.value.push({
-                        prompt: currentPrompt.value,
-                        command: 'ssh',
-                        output: `<span class="${data.status === 'success' ? 'success' : 'error'}">${data.message}</span>`
-                    });
-                    currentPrompt.value = terminal_manager.terminal.prompt;
-                    scrollToBottom(terminalOutput);
-                    isLoading.value = false;
-                    break;
+                };
+            } catch (wsError) {
+                console.error('WebSocket initialization error:', wsError);
+                errorMessage.value = 'Failed to connect to server. Please refresh the page.';
             }
         };
 
         const sendMessage = () => {
             if(!inputMessage.value.trim()) return;
-            isLoading.value = true;  // Activa el loading al enviar el mensaje
+            
+            isLoading.value = true;
             if(mode.value === 'chat') {
                 messages.value.push({
                     type: 'user',
@@ -106,10 +151,17 @@ createApp({
                     timestamp: new Date()
                 });
                 
-                socket.send(JSON.stringify({
-                    type: 'chat_message',
-                    content: inputMessage.value
-                }));
+                try {
+                    socket.send(JSON.stringify({
+                        type: 'chat_message',
+                        content: inputMessage.value
+                    }));
+                } catch (sendError) {
+                    console.error('Error sending chat message:', sendError);
+                    errorMessage.value = 'Failed to send message. Please try again.';
+                    isLoading.value = false;
+                    return;
+                }
             } else {
                 executeTerminalCommand();
             }
@@ -121,10 +173,17 @@ createApp({
         const executeTerminalCommand = () => {
             if(!terminalCommand.value.trim()) return;
             
-            socket.send(JSON.stringify({
-                type: 'terminal_command',
-                command: terminalCommand.value
-            }));
+            try {
+                socket.send(JSON.stringify({
+                    type: 'terminal_command',
+                    command: terminalCommand.value
+                }));
+            } catch (commandError) {
+                console.error('Error sending terminal command:', commandError);
+                errorMessage.value = 'Failed to execute command. Please try again.';
+                isLoading.value = false;
+                return;
+            }
             
             terminalCommand.value = '';
         };
@@ -153,7 +212,13 @@ createApp({
             });
         };
 
+        const dismissError = () => {
+            errorMessage.value = null;
+        };
+
         onMounted(() => {
+            initializeWebSocket();
+            
             // Initialize with welcome message
             messages.value.push({
                 type: 'system',
@@ -176,12 +241,14 @@ createApp({
             currentPrompt,
             messageList,
             terminalOutput,
+            errorMessage,
             sendMessage,
             executeTerminalCommand,
             toggleMode,
             clearChat,
             formatTime,
-            isLoading
+            isLoading,
+            dismissError
         };
     }
 }).mount('#app');
