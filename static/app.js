@@ -12,7 +12,7 @@ marked.setOptions({
     gfm: true
 });
 
-createApp({
+const app = createApp({
     setup() {
         let socket;
         const messages = ref([]);
@@ -251,7 +251,10 @@ createApp({
             dismissError
         };
     }
+    
 }).mount('#app');
+
+app.config.compilerOptions.delimiters = ['{{{', '}}}'];
 
 function uuidv4() {
     return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
