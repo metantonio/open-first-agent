@@ -151,6 +151,7 @@ const app = createApp({
 
                             case 'server_log':
                                 serverLogs.value.push(data.message);
+                                console.log('Received server log:', data.message); // Debug
                                 if (serverLogs.value.length > 100) { // Keep only last 100 logs
                                     serverLogs.value.shift();
                                 }
@@ -249,6 +250,7 @@ const app = createApp({
 
         const toggleServerLogs = () => {
             showServerLogs.value = !showServerLogs.value;
+            console.log('Server logs visibility:', showServerLogs.value); // Debug
         };
         
         const clearServerLogs = () => {

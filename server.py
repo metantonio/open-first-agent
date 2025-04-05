@@ -91,27 +91,24 @@ class LogHandler(logging.Handler):
                 "message": message
             }, connection_id)
 
-# Replace the existing logging configuration
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-# Create a formatter
+# Formateador
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
-# Add the console handler
+# Handler de consola
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
-# Add the file handler
+# Handler de archivo
 file_handler = logging.FileHandler('agent.log')
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
-# Add the WebSocket log handler
-ws_log_handler = LogHandler(manager)
-ws_log_handler.setFormatter(formatter)
-logger.addHandler(ws_log_handler)
+# Handler WebSocket (solo si no existe)
+if not any(isinstance(h, LogHandler) for h in logger.handlers):
+    ws_log_handler = LogHandler(manager)
+    ws_log_handler.setFormatter(formatter)
+    logger.addHandler(ws_log_handler)
 
 def process_code_blocks(content: str) -> tuple[str, list[dict]]:
     """Process content to find code blocks with run tags"""
