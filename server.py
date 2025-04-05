@@ -238,6 +238,8 @@ async def handle_chat_message(message: str, connection_id: str):
     
     # Process normal chat message
     response = await orchestrator.process_request(message)
+    
+    # Send the raw response to the frontend - let JavaScript handle markdown processing
     content, command_blocks = process_code_blocks(response)
     
     if command_blocks:
@@ -257,7 +259,7 @@ async def handle_chat_message(message: str, connection_id: str):
     else:
         await manager.send_message({
             "type": "chat_message",
-            "content": response,
+            "content": response,  # Send raw response
             "sender": "assistant"
         }, connection_id)
 

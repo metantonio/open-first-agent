@@ -10,7 +10,7 @@ marked.setOptions({
     },
     breaks: true,
     gfm: true
-  });
+});
   
 
 createApp({
@@ -37,7 +37,11 @@ createApp({
                 case 'chat_message':
                     let content = data.content;
                     // Si el mensaje contiene bloques de código Markdown, procesarlo
-                    if (data.content.includes('```')) {
+                    /* if (data.content.includes('```')) {
+                        content = marked.parse(data.content);
+                    } */
+
+                    if (data.sender === 'assistant') {
                         content = marked.parse(data.content);
                     }
                     
