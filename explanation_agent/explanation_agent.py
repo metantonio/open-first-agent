@@ -29,6 +29,9 @@ async def explain_concept(query: str) -> Dict[str, Any]:
             - Bullet points for lists
             - Code examples if relevant
             - Analogies when helpful
+
+            Important:
+            - Always respond using markdown format and only complement with html if is really neccesary.
             """,
             model=model,
             model_settings=ModelSettings(temperature=TEMPERATURE)
