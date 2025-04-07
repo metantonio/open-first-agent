@@ -361,8 +361,8 @@ body {
 /* Improve message text formatting */
 .message-content {
     margin-bottom: 5px;
-    line-height: 1.5;
-    white-space: pre-wrap;
+    line-height: 2;
+    /* white-space: pre-wrap; */
     word-wrap: break-word;
     overflow-wrap: break-word;
 }
@@ -384,9 +384,9 @@ body {
 .message code {
     font-family: 'Roboto Mono', monospace;
     font-size: 0.9em;
-    display: block;
+    /* display: block */;
     white-space: pre;
-    padding: 0;
+    padding: 0.25rem;
     margin: 0;
 }
 
@@ -404,12 +404,12 @@ body {
 
 /* Ensure proper spacing for lists */
 .message ul, .message ol {
-    margin: 0.5em 0;
+    margin: 0.1em 0;
     padding-left: 1.5em;
 }
 
 .message li {
-    margin: 0.25em 0;
+    margin: 0.05em 0;
 }
 
 /* Terminal line formatting */
