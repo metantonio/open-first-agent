@@ -244,7 +244,7 @@ class UniversalOrchestrator:
             return f"Error processing request: {str(e)}"
 
     async def _handle_code_conversion(self, request: str):
-        """Handle the code conversion workflow with proper async operations"""
+        """Handle the code conversion workflow with proper async operations, compatible with both Mac and Windows"""
         try:
             # Extract file paths from request
             sas_file = None
@@ -253,32 +253,36 @@ class UniversalOrchestrator:
             # Look for .sas file in request
             words = request.split()
             for word in words:
-                if word.endswith('.sas'):
+                if word.lower().endswith('.sas'):
                     sas_file = word
-                elif word.endswith('.py'):
+                elif word.lower().endswith('.py'):
                     python_file = word
             
             if not sas_file:
                 return "Error: No .sas file specified in the request"
             
             if not python_file:
-                python_file = sas_file.replace('.sas', '.py')
+                python_file = sas_file.replace('.sas', '.py').replace('.SAS', '.py')
+            
+            # Normalize paths for cross-platform compatibility
+            sas_file_path = os.path.normpath(sas_file)
+            python_file_path = os.path.normpath(python_file)
             
             # Check file existence
-            sas_file_path = sas_file
-            if not os.path.exists(sas_file):
-                output_path = os.path.join('output', sas_file)
+            if not os.path.exists(sas_file_path):
+                output_path = os.path.normpath(os.path.join('output', sas_file))
                 if os.path.exists(output_path):
                     sas_file_path = output_path
                 else:
-                    return f"Error: SAS file not found: {sas_file}"
+                    return f"Error: SAS file not found: {sas_file_path}"
             
-            logger.info(f"Converting {sas_file_path} to {python_file}")
+            logger.info(f"Converting {sas_file_path} to {python_file_path}")
             
             try:
                 # Step 1: Read SAS file
-                read_request = f"cat {sas_file_path}"
-                sas_content_response = await run_terminal_workflow(read_request)
+                # Use type command on Windows, cat on Unix/Mac
+                read_command = f'type "{sas_file_path}"' if os.name == 'nt' else f'cat "{sas_file_path}"'
+                sas_content_response = await run_terminal_workflow(read_command)
                 
                 # Handle the response properly
                 if isinstance(sas_content_response, str) and sas_content_response.startswith('Error'):
@@ -291,19 +295,24 @@ class UniversalOrchestrator:
                     return python_code_response
                 
                 # Step 3: Save Python file
-                os.makedirs('output', exist_ok=True)
-                output_path = os.path.join('output', python_file)
+                output_dir = os.path.normpath('output')
+                os.makedirs(output_dir, exist_ok=True)
+                output_path = os.path.normpath(os.path.join(output_dir, python_file))
                 
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(python_code_response)
                 
+                # Store the converted code for potential explanation
                 self._last_converted_code = python_code_response
-                return f"""Successfully converted to output/{python_file}
+                
+                # Format the output path for display (using forward slashes for consistency)
+                display_path = os.path.join('output', python_file).replace('\\', '/')
+                return f"""Successfully converted to {display_path}
                 
     Would you like an explanation of the converted code? (respond 'yes')"""
                 
             except Exception as e:
-                error_msg = f"Failed to save Python file: {str(e)}"
+                error_msg = f"Failed in code conversion process: {str(e)}"
                 logger.error(error_msg)
                 return f"Error: {error_msg}"
                 
