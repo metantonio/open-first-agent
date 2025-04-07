@@ -11,13 +11,14 @@ import shutil
 import fnmatch
 import re
 import subprocess
+from logger import logger
 
 # Configure logging
-logging.basicConfig(
+""" logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__) """
 model = get_model_config()
 
 # Detect operating system
@@ -674,33 +675,27 @@ async def run_workflow(request: str) -> str:
     try:
         # Handle file read operations (cat command)
         if request.startswith('cat '):
-            logger.info("Terminal Agent: Executing file read operation")
             file_path = request.split('cat ', 1)[1].strip()
-            logger.info(f"Terminal Agent: Reading file with command: {request}")
             
-            # Check if file exists
+            # Remove any surrounding quotes
+            file_path = file_path.strip('"').strip("'")
+            
+            # Handle relative paths
+            if not os.path.isabs(file_path):
+                file_path = os.path.join(os.getcwd(), file_path)
+            
+            # Normalize the path
+            file_path = os.path.normpath(file_path)
+            
             if os.path.exists(file_path):
-                logger.info(f"Terminal Agent: Found file at path: {file_path}")
                 try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        content = f.read().strip()  # Strip any leading/trailing whitespace
-                        if content:
-                            logger.info(f"Terminal Agent: File read operation completed")
-                            logger.info(f"Terminal Agent: Content length: {len(content)} characters")
-                            logger.info(f"Terminal Agent: First 100 characters of content: {content[:100]}...")
-                            return content
-                        else:
-                            error_msg = f"File is empty: {file_path}"
-                            logger.error(f"Terminal Agent: {error_msg}")
-                            return f"Error: {error_msg}"
+                    with open(file_path, 'r') as f:
+                        content = f.read()
+                    return content
                 except Exception as e:
-                    error_msg = f"Error reading file {file_path}: {str(e)}"
-                    logger.error(f"Terminal Agent: {error_msg}")
-                    return f"Error: {error_msg}"
+                    return {"error": f"Error reading file: {str(e)}"}
             else:
-                error_msg = f"File not found: {file_path}"
-                logger.error(f"Terminal Agent: {error_msg}")
-                return f"Error: {error_msg}"
+                return {"error": f"File not found: '{file_path}'"}
                 
         # Handle file write operations (echo command)
         elif request.startswith('echo '):

@@ -5,10 +5,11 @@ from pathlib import Path
 from agents import Agent, Runner, AsyncOpenAI, OpenAIChatCompletionsModel, function_tool, ModelSettings
 from .config import get_model_config, TEMPERATURE
 import asyncio
+from logger import logger
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+""" logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__) """
 model = get_model_config()
 
 def read_sas_file(file_path: str) -> str:
@@ -27,7 +28,8 @@ def read_sas_file(file_path: str) -> str:
     """
     try:
         # Convert to Path object to handle both Windows and Unix paths
-        logger.info(f"initial path {file_path}")
+        file_path = file_path.strip().strip("'").strip('"')
+        logger.debug(f"initial path: {file_path}")
         path = Path(file_path)
         
         # If path is relative and doesn't exist, try looking in the output directory
@@ -436,12 +438,14 @@ async def run_workflow(sas_input: str) -> str:
     
     try:
         # If input is a file path, read the file
+
         if isinstance(sas_input, str) and (
             (sas_input.lower().endswith('.sas') or '/' in sas_input or '\\' in sas_input) 
             and '/*' not in sas_input 
             and not any(kw in sas_input.lower() for kw in ['data ', 'proc ', '%macro'])
         ):
             try:
+                sas_input = sas_input.strip().strip("'").strip('"')
                 logger.info(f"sas_input should be a file path: {sas_input}")
                 sas_code = read_sas_file(sas_input)
             except Exception as e:

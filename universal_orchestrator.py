@@ -264,35 +264,97 @@ class UniversalOrchestrator:
             if not python_file:
                 python_file = sas_file.replace('.sas', '.py').replace('.SAS', '.py')
             
-            # Normalize paths for cross-platform compatibility
-            sas_file_path = os.path.normpath(sas_file)
-            python_file_path = os.path.normpath(python_file)
+            # Normalize the base filename without path
+            sas_filename = os.path.basename(sas_file)
             
-            # Check file existence
-            if not os.path.exists(sas_file_path):
-                output_path = os.path.normpath(os.path.join('output', sas_file))
-                if os.path.exists(output_path):
-                    sas_file_path = output_path
-                else:
-                    return f"Error: SAS file not found: {sas_file_path}"
+            # Check file existence in multiple possible locations
+            possible_paths = [
+                # Original path as provided
+                os.path.normpath(sas_file),
+                
+                # Common relative paths
+                os.path.normpath(os.path.join('output', sas_filename)),
+                os.path.normpath(os.path.join('input', sas_filename)),
+                os.path.normpath(os.path.join('data', sas_filename)),
+                os.path.normpath(os.path.join('scripts', sas_filename)),
+                os.path.normpath(os.path.join('sas_files', sas_filename)),
+                
+                # Absolute paths
+                os.path.normpath(os.path.join(os.getcwd(), sas_filename)),
+                os.path.normpath(os.path.join(os.getcwd(), 'output', sas_filename)),
+                os.path.normpath(os.path.join(os.getcwd(), 'input', sas_filename)),
+                
+                # Parent directory paths
+                os.path.normpath(os.path.join('..', sas_filename)),
+                os.path.normpath(os.path.join('..', 'output', sas_filename)),
+                os.path.normpath(os.path.join('..', 'input', sas_filename)),
+                os.path.abspath(os.path.join('output', sas_filename)),
+                
+                # User home directory
+                os.path.normpath(os.path.join(os.path.expanduser('~'), sas_filename)),
+            ]
             
-            logger.info(f"Converting {sas_file_path} to {python_file_path}")
+            # Add the filename alone if it was provided with path but we should check current dir too
+            if sas_file != sas_filename:
+                possible_paths.append(os.path.normpath(sas_filename))
+            
+            # Remove duplicates while preserving order
+            seen = set()
+            possible_paths = [p for p in possible_paths if not (p in seen or seen.add(p))]
+            
+            found_path = None
+            search_log = []
+            for path in possible_paths:
+                search_log.append(f"Checking: {path}")
+                if os.path.exists(path):
+                    found_path = path
+                    search_log.append(f"FOUND at: {path}")
+                    break
+                search_log.append("Not found")
+            
+            if not found_path:
+                logger.error("SAS file search failed. Paths checked:\n" + "\n".join(search_log))
+                return (
+                    f"Error: SAS file '{sas_filename}' not found in any of these locations:\n"
+                    f"- Current directory: {os.getcwd()}\n"
+                    f"- Output directory: {os.path.normpath(os.path.join(os.getcwd(), 'output'))}\n"
+                    f"- Input directory: {os.path.normpath(os.path.join(os.getcwd(), 'input'))}\n"
+                    f"- Data directory: {os.path.normpath(os.path.join(os.getcwd(), 'data'))}\n"
+                    f"- Parent directory: {os.path.normpath(os.path.join(os.getcwd(), '..'))}\n"
+                    f"- Home directory: {os.path.expanduser('~')}\n\n"
+                    f"Please ensure the file exists in one of these locations or provide the full path."
+                )
+            logger.info(f"Current working directory: {os.getcwd()}")
+            found_path = os.path.normpath(found_path)
+            logger.info(f"Found SAS file at: {found_path}\nConverting to: {python_file}")
             
             try:
                 # Step 1: Read SAS file
                 # Use type command on Windows, cat on Unix/Mac
-                read_command = f'type "{sas_file_path}"' if os.name == 'nt' else f'cat "{sas_file_path}"'
+                read_command=""
+                if os.name == 'nt':  # Windows
+                    read_command = f'type "{found_path}"'
+                else:  # Unix/Mac
+                    # Ensure path is properly escaped for shell
+                    # Properly escape the path for shell commands
+                    if ' ' in found_path and not (found_path.startswith('"') and not found_path.endswith('"')):
+                        read_command = f'cat "{found_path}"'
+                    else:
+                        read_command = f'cat {found_path}'
+                
+                logger.info(f"Executing read command: {read_command}")
                 sas_content_response = await run_terminal_workflow(read_command)
                 
                 # Handle the response properly
                 if isinstance(sas_content_response, str) and sas_content_response.startswith('Error'):
-                    return sas_content_response
+                    logger.error(f"Terminal agent response: {sas_content_response}")
+                    return f"Error reading SAS file at {found_path}: {sas_content_response}"
                 
                 # Step 2: Convert code
                 python_code_response = await run_code_converter_workflow(sas_content_response)
                 
                 if isinstance(python_code_response, str) and python_code_response.startswith('Error'):
-                    return python_code_response
+                    return f"Error converting code: {python_code_response}"
                 
                 # Step 3: Save Python file
                 output_dir = os.path.normpath('output')
@@ -307,17 +369,25 @@ class UniversalOrchestrator:
                 
                 # Format the output path for display (using forward slashes for consistency)
                 display_path = os.path.join('output', python_file).replace('\\', '/')
-                return f"""Successfully converted to {display_path}
+                return f"""Successfully converted {found_path} to {display_path}
                 
     Would you like an explanation of the converted code? (respond 'yes')"""
                 
             except Exception as e:
                 error_msg = f"Failed in code conversion process: {str(e)}"
-                logger.error(error_msg)
+                logger.error(f"{error_msg}")
                 return f"Error: {error_msg}"
                 
         except Exception as e:
             logger.error(f"Unexpected error in code conversion: {str(e)}")
             return f"Error: {str(e)}"
+
+    def check_file_permissions(path):
+        """Check if the file exists and is readable"""
+        if not os.path.exists(path):
+            return False, "File does not exist"
+        if not os.access(path, os.R_OK):
+            return False, "No read permission"
+        return True, ""
 # Create a singleton instance
 orchestrator = UniversalOrchestrator() 
