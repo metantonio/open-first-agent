@@ -262,9 +262,15 @@ body {
     position: relative;
     background-color: #000000 !important;
     border-radius: 6px;
-    padding: 16px;
+    /* padding: 16px; */
     overflow-x: auto;
-    margin: 10px 0;
+    /* margin: 10px 0; */
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.9em;
+    display: unset !important;
+    white-space: pre;
+    padding: 0.25rem;
+    margin: 0;
 }
 
 .copy-button {
@@ -380,15 +386,7 @@ body {
     tab-size: 4;
 }
 
-/* Fix indentation in code blocks */
-.message code {
-    font-family: 'Roboto Mono', monospace;
-    font-size: 0.9em;
-    /* display: block */;
-    white-space: pre;
-    padding: 0.25rem;
-    margin: 0;
-}
+
 
 /* Improve text alignment in paragraphs */
 .message p {

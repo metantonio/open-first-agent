@@ -26,6 +26,7 @@ static_dir.mkdir(exist_ok=True)
 # Load environment variables from .env file
 env_path = Path('.') / '.env'
 load_dotenv(dotenv_path=env_path, override=True)
+APP_PORT = 8000
 
 # Verify and export critical environment variables
 if not os.getenv('OPENAI_API_KEY'):
@@ -34,6 +35,11 @@ if not os.getenv('OPENAI_API_KEY'):
 # Ensure OPENAI_API_KEY is explicitly set in the environment
 os.environ['OPENAI_API_KEY'] = os.getenv('OPENAI_API_KEY')
 os.environ['OPENAI_AGENTS_DISABLE_TRACING'] = os.getenv('OPENAI_AGENTS_DISABLE_TRACING')
+
+if not os.getenv('APP_PORT'):
+    APP_PORT = 8000
+else:
+    APP_PORT = int(os.getenv('APP_PORT'))
 
 # Store active WebSocket connections
 active_connections: Dict[str, WebSocket] = {}
@@ -470,4 +476,4 @@ async def handle_action(action: dict, connection_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=APP_PORT)
